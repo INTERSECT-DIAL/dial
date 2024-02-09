@@ -15,7 +15,7 @@ from intersect_sdk import (
     intersect_status,
 )
 
-from data_class import ActiveLearningInputData
+from .data_class import ActiveLearningInputData
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

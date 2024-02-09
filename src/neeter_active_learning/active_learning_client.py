@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from time import sleep
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +10,7 @@ from intersect_sdk import (
     INTERSECT_JSON_VALUE,
     default_intersect_lifecycle_loop,
 )
-from data_class import ActiveLearningInputData
+from .data_class import ActiveLearningInputData
 
 logging.basicConfig(level=logging.INFO)
 
