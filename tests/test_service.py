@@ -1,8 +1,8 @@
 import numpy as np
 from pytest import approx, fixture
 
-from src.neeter_active_learning.data_class import ActiveLearningInputData
-from src.neeter_active_learning.active_learning_service import ActiveLearningServiceCapabilityImplementation as Service
+from neeter_active_learning.data_class import ActiveLearningInputData
+from neeter_active_learning.active_learning_service import ActiveLearningServiceCapabilityImplementation as Service
 
 @fixture
 def one_D_alpha(): #alpha because I may add more
