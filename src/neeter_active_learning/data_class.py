@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, validator
+from pydantic import BaseModel, field_validator
 from typing import Literal
 
 Vector = list[float]

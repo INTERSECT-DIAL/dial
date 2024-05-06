@@ -1,3 +1,10 @@
+import argparse
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+
 from intersect_sdk import (
     HierarchyConfig,
     IntersectService,
@@ -7,46 +14,42 @@ from intersect_sdk import (
 
 from neeter_active_learning.active_learning_service import ActiveLearningServiceCapabilityImplementation
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 '''''
 This launches the service.  Separate file due to module/import structure, plus we possibly want the capability to be a separate unit
 '''''
 
 if __name__ == '__main__':
+    # boilerplate config file setup
+    parser = argparse.ArgumentParser(description='Automated client')
+    parser.add_argument(
+        '--config',
+        type=Path,
+        default=os.environ.get('NEETER_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
+    )
+    args = parser.parse_args()
+    try:
+        with open(args.config, 'rb') as f:
+            from_config_file = json.load(f)
+    except (json.decoder.JSONDecodeError, OSError) as e:
+        logger.critical('unable to load config file: %s', str(e))
+        sys.exit(1)
+    
     """
     step one: create configuration class, which handles validation - see the IntersectServiceConfig class documentation for more info
 
     In most cases, everything under from_config_file should come from a configuration file, command line arguments, or environment variables.
-    """
-    from_config_file = {
-        'data_stores': {
-            'minio': [
-                {
-                    'host': '',
-                    'username': '',
-                    'password': '',
-                    'port': 0,
-                },
-            ],
-        },
-        'brokers': [
-            {
-                'host': '',
-                'username': '',
-                'password': '',
-                'port': 0,
-                'protocol': '',
-            },
-        ],
-    }
+    """    
     config = IntersectServiceConfig(
         hierarchy=HierarchyConfig(
-            organization='hello-organization',
-            facility='hello-facility',
-            system='hello-system',
-            subsystem='hello-subsystem',
-            service='hello-service',
+            organization='neeter-active-learning-organization',
+            facility='neeter-active-learning-facility',
+            system='neeter-active-learning-system',
+            subsystem='neeter-active-learning-subsystem',
+            service='neeter-active-learning-service',
         ),
-        schema_version='0.0.1',
         **from_config_file,
     )
 

@@ -1,0 +1,19 @@
+{
+  "data_stores": {
+    "minio": [
+      {
+        "username": "AKIAIOSFODNN7EXAMPLE",
+        "password": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "port": 9000
+      }
+    ]
+  },
+  "brokers": [
+    {
+      "username": "intersect_username",
+      "password": "intersect_password",
+      "port": 1883,
+      "protocol": "mqtt3.1.1"
+    }
+  ]
+}

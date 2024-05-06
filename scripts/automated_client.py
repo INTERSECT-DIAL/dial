@@ -1,10 +1,16 @@
+import argparse
+import json
 import logging
-from time import sleep
+import os
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 from intersect_sdk import (
     IntersectClient,
+    IntersectClientCallback,
     IntersectClientConfig,
     IntersectClientMessageParams,
     INTERSECT_JSON_VALUE,
@@ -14,6 +20,7 @@ from intersect_sdk import (
 from neeter_active_learning.data_class import ActiveLearningInputData
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 '''
 Here, we attempt to find the minimum of the Rosenbrock function, which occurs at (1,1).  We are pretending that this is the result of running some computational simulation.
@@ -35,25 +42,29 @@ class ActiveLearningOrchestrator:
         self.bounds = [[-2,2], [-2,2]]
 
     #create a message to send to the server
-    def assemble_message(self, operation:str) -> IntersectClientMessageParams:
-        return IntersectClientMessageParams(
-            destination='hello-organization.hello-facility.hello-system.hello-subsystem.hello-service',
-            operation=operation,
-            payload=ActiveLearningInputData(
-                dataset_x=self.dataset_x,
-                dataset_y=self.dataset_y,
-                bounds=self.bounds,
-                kernel="rbf",
-                length_per_dimension=True, #allow the kernel to use separate length scales for temp and duration
-                y_is_good=False            #we wish to minimize y
-            ),
+    def assemble_message(self, operation:str) -> IntersectClientCallback:
+        return IntersectClientCallback(
+            messages_to_send=[
+                IntersectClientMessageParams(
+                    destination='neeter-active-learning-organization.neeter-active-learning-facility.neeter-active-learning-system.neeter-active-learning-subsystem.neeter-active-learning-service',
+                    operation=operation,
+                    payload=ActiveLearningInputData(
+                        dataset_x=self.dataset_x,
+                        dataset_y=self.dataset_y,
+                        bounds=self.bounds,
+                        kernel="rbf",
+                        length_per_dimension=True, #allow the kernel to use separate length scales for temp and duration
+                        y_is_good=False            #we wish to minimize y
+                    ),
+                )
+            ]
         )
     
     #The callback function.  This is called whenever the server responds to our message.
     #This could instead be implemented by defining a callback method (and passing it later), but here we chose to directly make the object callable.
     def __call__(
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
-    ) -> IntersectClientMessageParams:
+    ) -> IntersectClientCallback:
         if operation=="mean_grid": #if we receive a grid of predictions, record it for graphing, then ask for the next recommended point
             self.mean_grid = payload
             return self.assemble_message("next_point_by_EI") #returning a message automatically sends it to the server
@@ -95,37 +106,30 @@ class ActiveLearningOrchestrator:
 if __name__ == '__main__':
     #Create configuration class, which handles user input validation - see the IntersectClientConfig class documentation for more info
     #In production, everything in this dictionary should come from a configuration file, command line arguments, or environment variables.
-    from_config_file = {
-        'data_stores': {
-            'minio': [
-                {
-                    'host': '',
-                    'username': '',
-                    'password': '',
-                    'port': 0,
-                },
-            ],
-        },
-        'brokers': [
-            {
-                'host': '',
-                'username': '',
-                'password': '',
-                'port': 0,
-                'protocol': '',
-            },
-        ],
-    }
-    config = IntersectClientConfig(
-        **from_config_file,
+    parser = argparse.ArgumentParser(description='Automated client')
+    parser.add_argument(
+        '--config',
+        type=Path,
+        default=os.environ.get('NEETER_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
     )
-
+    args = parser.parse_args()
+    try:
+        with open(args.config, 'rb') as f:
+            from_config_file = json.load(f)
+    except (json.decoder.JSONDecodeError, OSError) as e:
+        logger.critical('unable to load config file: %s', str(e))
+        sys.exit(1)
+    
     #Create our orchestrator
     active_learning = ActiveLearningOrchestrator()
+    config = IntersectClientConfig(
+        initial_message_event_config=active_learning.assemble_message("mean_grid"), #the initial message to send
+        **from_config_file,
+    )
+    
     #use the orchestator to create the client
     client = IntersectClient(
         config=config,
-        initial_messages=[active_learning.assemble_message("mean_grid")], #the initial message to send
         user_callback=active_learning, #the callback (here we use a callable object, as discussed above)
     )
 

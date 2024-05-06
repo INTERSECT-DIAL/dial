@@ -1,6 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,visualstudiocode
 
+### application-specific ###
+# ignore generated plots by default
+*.png
+
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/

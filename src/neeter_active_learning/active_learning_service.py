@@ -6,15 +6,18 @@ from scipy.optimize import minimize
 from scipy.stats import norm
 from typing import Callable
 
-from intersect_sdk import intersect_message, intersect_status
+from intersect_sdk import (
+    IntersectBaseCapabilityImplementation,
+    intersect_message,
+    intersect_status
+)
 
 from .data_class import ActiveLearningInputData
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ActiveLearningServiceCapabilityImplementation:
+class ActiveLearningServiceCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
     '''
     Internal guts for GP usage:
