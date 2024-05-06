@@ -38,7 +38,7 @@ You can use `docker compose up -d` to automatically spin up a broker instance lo
 
 To remove the infrastructure containers: `docker compose down -v`
 
-Note that if you are also running the Client/Service scripts in Docker, you will need to make sure that you add in appropriate `host` properties inside of `local-conf.json` (the host names are the names of the services in `docker-compose.yml`):
+Note that if you are also running the Client/Service scripts in Docker, you will need to make sure that you add in appropriate `host` properties inside of `local-conf.json` (the host names are the names of the services in `docker-compose.yml`, instead of `127.0.0.1`):
 
 ```json
 {

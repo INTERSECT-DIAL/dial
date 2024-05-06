@@ -4,6 +4,7 @@
       {
         "username": "AKIAIOSFODNN7EXAMPLE",
         "password": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "host": "127.0.0.1",
         "port": 9000
       }
     ]
@@ -12,6 +13,7 @@
     {
       "username": "intersect_username",
       "password": "intersect_password",
+      "host": "127.0.0.1",
       "port": 1883,
       "protocol": "mqtt3.1.1"
     }
