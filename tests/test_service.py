@@ -2,8 +2,9 @@ import numpy as np
 from pytest import approx, fixture
 
 from neeter_active_learning.data_class import ActiveLearningInputData
-from neeter_active_learning.active_learning_service import ActiveLearningServiceCapabilityImplementation as Service
+from neeter_active_learning.active_learning_service import ServersideInputData, ActiveLearningServiceCapabilityImplementation as Service
 
+#Test data:
 @fixture
 def one_D_alpha(): #alpha because I may add more
     return ActiveLearningInputData(
@@ -38,3 +39,10 @@ def test_EI_2D(two_D_alpha):
 
 def test_uncertainty(one_D_alpha):
     assert Service().next_point_by_uncertainty(one_D_alpha) == approx([1.5])
+
+def test_preprocessing_standardize(one_D_alpha):
+    data = one_D_alpha.model_copy(update={"preprocess_standardize": True})
+    server_data = ServersideInputData(data)
+    assert server_data.Y_best == 1
+    assert server_data.Y_train == approx([-1, 1])
+    assert Service().next_point_by_EI(data) == approx([1.96832802])
