@@ -1,16 +1,16 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
-Vector = list[float]
-Matrix = list[Vector]
-
 class ActiveLearningInputData(BaseModel):
-    dataset_x: Matrix #the input vectors of the training data
-    dataset_y: Vector #the output values of the training data
+    dataset_x: list[list[float]] #the input vectors of the training data
+    dataset_y: list[float] #the output values of the training data
     y_is_good: bool  #if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
     kernel: Literal["rbf", "matern"]
     length_per_dimension: bool #if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
-    bounds: Matrix
+    bounds: list[list[float]]
+
+    preprocess_log: bool = Field(default=False)
+    preprocess_standardize: bool = Field(default=False)
 
     @field_validator("dataset_x")
     @classmethod
