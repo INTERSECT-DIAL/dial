@@ -1,4 +1,5 @@
 import logging
+import random
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern
@@ -73,7 +74,30 @@ class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return negative_value(mean, sigma)
         guess = min(self._create_n_dim_grid(data, 11), key=to_minimize)
         return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x
-        
+    
+    @intersect_message
+    def next_points(self, client_data: BoalasInputMultiple) -> list[list[float]]:
+        data = ServersideInputMultiple(client_data)
+        #model = self._train_model(data) #this will be needed when we add qEI/constant liars
+        output_points = []
+        match data.strategy:
+            case "random":
+                for _ in range(data.points):
+                    output_points.append([random.uniform(low, high) for low, high in data.bounds])
+
+            case "hypercube":
+                coordinates = []
+                for low, high in data.bounds:
+                    #for each dimension, generate a list of spaced coordinates and shuffle it:
+                    step = (high - low)/data.points
+                    coordinates.append([random.uniform(low + i*step, low + (i+1)*step) for i in range(data.points)])
+                    random.shuffle(coordinates[-1])
+                #add the points:
+                for point in zip(*coordinates):
+                    output_points.append(list(point))
+            
+        return output_points
+
     @intersect_status()
     def status(self) -> str:
         """Basic status function which returns a hard-coded string."""

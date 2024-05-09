@@ -43,4 +43,4 @@ class BoalasInputSingle(BoalasInputBase):
 
 class BoalasInputMultiple(BoalasInputBase):
     points: int
-    strategy: Literal["hypercube"]
+    strategy: Literal["random", "hypercube"]
