@@ -13,12 +13,12 @@ from intersect_sdk import (
     intersect_status
 )
 
-from .data_class import BoalasInputSingle, BoalasInputMultiple, BoalasInputPredictions
+from .data_class import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
 from .serverside_data import *
 
 logger = logging.getLogger(__name__)
 
-class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
+class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
     '''
     Internal guts for GP usage:
@@ -51,7 +51,7 @@ class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
     '''
     @intersect_message()
     # trains a model and then recommends a point to measure based on user's requested strategy:
-    def next_point(self, client_data: BoalasInputSingle) -> list[float]:
+    def next_point(self, client_data: BOALaaSInputSingle) -> list[float]:
         data = ServersideInputSingle(client_data)
         model = self._train_model(data)
         # generate the function that gives -1 * the "value" of measuring a point with the given mean & stddev
@@ -80,7 +80,7 @@ class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x
     
     @intersect_message
-    def next_points(self, client_data: BoalasInputMultiple) -> list[list[float]]:
+    def next_points(self, client_data: BOALaaSInputMultiple) -> list[list[float]]:
         data = ServersideInputMultiple(client_data)
         #model = self._train_model(data) #this will be needed when we add qEI/constant liars
         output_points = []
@@ -104,7 +104,7 @@ class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
     @intersect_message
     #trains a model then returns 2 lists: means and standard deviations
-    def predictions(self, client_data: BoalasInputPredictions) -> list[list[float]]:
+    def predictions(self, client_data: BOALaaSInputPredictions) -> list[list[float]]:
         data = ServersideInputPrediction(client_data)
         model = self._train_model(data)
         x_predict = self._create_n_dim_grid(data, data.points_per_dimension)

@@ -1,10 +1,10 @@
 import numpy as np
 from functools import cached_property
-from .data_class import BoalasInputBase, BoalasInputSingle, BoalasInputMultiple, BoalasInputPredictions
+from .data_class import *
 
 #this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
-    def __init__(self, data: BoalasInputBase):
+    def __init__(self, data: BOALaaSInputBase):
         self.X_train = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         #it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
@@ -33,18 +33,18 @@ class ServersideInputBase:
         return y
 
 class ServersideInputSingle(ServersideInputBase):
-    def __init__(self, data: BoalasInputSingle):
+    def __init__(self, data: BOALaaSInputSingle):
         super().__init__(data)
         self.strategy = data.strategy
         self.confidence_bound = data.confidence_bound
 
 class ServersideInputMultiple(ServersideInputBase):
-    def __init__(self, data: BoalasInputMultiple):
+    def __init__(self, data: BOALaaSInputMultiple):
         super().__init__(data)
         self.strategy = data.strategy
         self.points = data.points
 
 class ServersideInputPrediction(ServersideInputBase):
-    def __init__(self, data: BoalasInputPredictions):
+    def __init__(self, data: BOALaaSInputPredictions):
         super().__init__(data)
         self.points_per_dimension = data.points_per_dimension

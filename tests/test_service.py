@@ -1,14 +1,14 @@
 import numpy as np
 from pytest import approx, fixture
 
-from neeter_active_learning.data_class import BoalasInputSingle, BoalasInputMultiple, BoalasInputPredictions
-from neeter_active_learning.active_learning_service import BoalasCapabilityImplementation as Service
+from neeter_active_learning.data_class import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
+from neeter_active_learning.active_learning_service import BOALaaSCapabilityImplementation as Service
 from neeter_active_learning.serverside_data import ServersideInputSingle
 
 #Test data:
 @fixture
 def single_1D_A(): #alpha because I may add more
-    return BoalasInputSingle(
+    return BOALaaSInputSingle(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,
@@ -20,7 +20,7 @@ def single_1D_A(): #alpha because I may add more
 
 @fixture
 def single_2D_A():
-    return BoalasInputSingle(
+    return BOALaaSInputSingle(
         dataset_x=[[0.9317758694133622, -0.23597335497782845], [-0.7569874398003542, -0.76891211613756], [-0.38457336507729645, -1.1327391183311766], [-0.9293590899359039, 0.25039725076881014], [1.984696498789749, -1.7147926093003538], [1.2001856430453541, 1.572387611848939], [0.5080666898409634, -1.566722183270571], [-1.871124738716507, 1.9022651997285078], [-1.572941300813352, 1.0014173171150125], [0.033053333077524005, 0.44682040004191537]],
         dataset_y=[2.08609604, 2.26284928, 2.21989834, 1.61634392, 3.50481457, 0.25065034, 2.52277171, 2.42139515, 2.34930184, 1.31811177],
         y_is_good=False,
@@ -32,7 +32,7 @@ def single_2D_A():
 
 @fixture
 def multiple_2D_A():
-    return BoalasInputMultiple(
+    return BOALaaSInputMultiple(
         dataset_x=[],
         dataset_y=[],
         y_is_good=False,
@@ -45,7 +45,7 @@ def multiple_2D_A():
 
 @fixture
 def prediction_1D_A():
-    return BoalasInputPredictions(
+    return BOALaaSInputPredictions(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,

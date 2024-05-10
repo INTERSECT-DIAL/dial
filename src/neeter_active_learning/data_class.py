@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 
-class BoalasInputBase(BaseModel):
+class BOALaaSInputBase(BaseModel):
     dataset_x: list[list[float]] #the input vectors of the training data
     dataset_y: list[float] #the output values of the training data
     y_is_good: bool  #if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
@@ -27,7 +27,7 @@ class BoalasInputBase(BaseModel):
                 raise ValueError(f"Bounds entries must be [low,high], not {row}")
         return bounds
 
-class BoalasInputSingle(BoalasInputBase):
+class BOALaaSInputSingle(BOALaaSInputBase):
     strategy: Literal["uncertainty", "expected_improvement", "confidence_bound"]
     confidence_bound: Optional[float] = Field(default=None)
 
@@ -41,9 +41,9 @@ class BoalasInputSingle(BoalasInputBase):
                 raise ValueError("confidence_bound value must in (.5, 1)")
         return confidence_bound
 
-class BoalasInputMultiple(BoalasInputBase):
+class BOALaaSInputMultiple(BOALaaSInputBase):
     points: int
     strategy: Literal["random", "hypercube"]
 
-class BoalasInputPredictions(BoalasInputBase):
+class BOALaaSInputPredictions(BOALaaSInputBase):
     points_per_dimension: list[int]
