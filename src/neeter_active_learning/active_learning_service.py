@@ -5,6 +5,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern
 from scipy.optimize import minimize
 from scipy.stats import norm
+from typing import Union
 
 from intersect_sdk import (
     IntersectBaseCapabilityImplementation,
@@ -12,7 +13,7 @@ from intersect_sdk import (
     intersect_status
 )
 
-from .data_class import BoalasInputBase, BoalasInputSingle, BoalasInputMultiple
+from .data_class import BoalasInputSingle, BoalasInputMultiple, BoalasInputPredictions
 from .serverside_data import *
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,11 @@ class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return self._KERNELS[kernel_name](length_scale=length_scale)
     
     #looks at the data bounds to create a regular mesh with (points_per_dim)^N points (where N is the number of dimensions)
-    def _create_n_dim_grid(self, data: ServersideInputBase, points_per_dim):
-        meshgrid = np.meshgrid(*(np.linspace(low, high, points_per_dim) for low, high in data.bounds), indexing='ij')
+    def _create_n_dim_grid(self, data: ServersideInputBase, points_per_dim: Union[int,list[int]]):
+        if isinstance(points_per_dim, int):
+            points_per_dim = [points_per_dim]*len(data.bounds)
+        meshgrid = np.meshgrid(*(np.linspace(low, high, pts)
+                                 for (low, high), pts in zip(data.bounds, points_per_dim)), indexing='ij')
         return np.column_stack([arr.flatten() for arr in meshgrid])
 
     '''
@@ -97,6 +101,17 @@ class BoalasCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     output_points.append(list(point))
             
         return output_points
+
+    @intersect_message
+    #trains a model then returns 2 lists: means and standard deviations
+    def predictions(self, client_data: BoalasInputPredictions) -> list[list[float]]:
+        data = ServersideInputPrediction(client_data)
+        model = self._train_model(data)
+        x_predict = self._create_n_dim_grid(data, data.points_per_dimension)
+        means, stddevs = model.predict(x_predict, return_std=True)
+        stddevs *= data.stddev #turn sigma into stddev of prediction
+        #TODO: Undo preprocessing
+        return [means.tolist(), stddevs.tolist()]
 
     @intersect_status()
     def status(self) -> str:

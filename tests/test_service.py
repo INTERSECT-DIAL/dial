@@ -1,7 +1,7 @@
 import numpy as np
 from pytest import approx, fixture
 
-from neeter_active_learning.data_class import BoalasInputSingle, BoalasInputMultiple
+from neeter_active_learning.data_class import BoalasInputSingle, BoalasInputMultiple, BoalasInputPredictions
 from neeter_active_learning.active_learning_service import BoalasCapabilityImplementation as Service
 from neeter_active_learning.serverside_data import ServersideInputSingle
 
@@ -43,6 +43,18 @@ def multiple_2D_A():
         strategy="random"
     )
 
+@fixture
+def prediction_1D_A():
+    return BoalasInputPredictions(
+        dataset_x=[[1], [2]],
+        dataset_y=[100, 200],
+        y_is_good=True,
+        kernel="rbf",
+        length_per_dimension=False,
+        bounds=[[1,2]],
+        points_per_dimension=[5]
+    )
+
 def test_n_grid(single_1D_A):
     data = ServersideInputSingle(single_1D_A)
     assert (Service()._create_n_dim_grid(data, 11)
@@ -76,3 +88,8 @@ def test_hypercube(multiple_2D_A):
     for i in range(10):
         assert 1 == sum(1 for pt in points if 10*i <= pt[0] <= 10*(i+1))
         assert 1 == sum(1 for pt in points if -1+.2*i <= pt[1] <= -1+.2*(i+1)), f"Need exactly one in [{-1+.2*i}, {-1+.2*(i+1)}]"
+
+def test_prediction(prediction_1D_A):
+    means, stddevs = Service().predictions(prediction_1D_A)
+    assert means == approx([100., 135.4253956249114, 168.17893262605446, 191.52029424913434, 200.])
+    assert stddevs[1:4] == approx([8.739217244027204, 11.956904892760956, 8.739217244027222])
