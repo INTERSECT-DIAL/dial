@@ -17,7 +17,7 @@ from intersect_sdk import (
     default_intersect_lifecycle_loop,
 )
 
-from neeter_active_learning.data_class import ActiveLearningInputData
+from boalaas_dataclass import BOALaaSInputSingle, BOALaaSInputPredictions
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,19 +43,33 @@ class ActiveLearningOrchestrator:
 
     #create a message to send to the server
     def assemble_message(self, operation:str) -> IntersectClientCallback:
+        payload = None
+        if operation=="next_point":
+            payload = BOALaaSInputSingle(
+                strategy="expected_improvement",
+                dataset_x=self.dataset_x,
+                dataset_y=self.dataset_y,
+                bounds=self.bounds,
+                kernel="rbf",
+                length_per_dimension=True, #allow the matern to use separate length scales for the two parameters
+                y_is_good=False            #we wish to minimize y (the error)
+            )
+        else:
+            payload = BOALaaSInputPredictions(
+                dataset_x=self.dataset_x,
+                dataset_y=self.dataset_y,
+                bounds=self.bounds,
+                points_per_dimension=[101, 101],
+                kernel="rbf",
+                length_per_dimension=True,
+                y_is_good=False
+            )
         return IntersectClientCallback(
             messages_to_send=[
                 IntersectClientMessageParams(
                     destination='neeter-active-learning-organization.neeter-active-learning-facility.neeter-active-learning-system.neeter-active-learning-subsystem.neeter-active-learning-service',
                     operation=operation,
-                    payload=ActiveLearningInputData(
-                        dataset_x=self.dataset_x,
-                        dataset_y=self.dataset_y,
-                        bounds=self.bounds,
-                        kernel="rbf",
-                        length_per_dimension=True, #allow the kernel to use separate length scales for temp and duration
-                        y_is_good=False            #we wish to minimize y
-                    ),
+                    payload=payload,
                 )
             ]
         )
@@ -65,20 +79,20 @@ class ActiveLearningOrchestrator:
     def __call__(
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
-        if operation=="mean_grid": #if we receive a grid of predictions, record it for graphing, then ask for the next recommended point
-            self.mean_grid = payload
-            return self.assemble_message("next_point_by_EI") #returning a message automatically sends it to the server
+        if operation=="predictions": #if we receive a grid of predictions, record it for graphing, then ask for the next recommended point
+            self.mean_grid = np.array(payload[0]).reshape((101,101))
+            return self.assemble_message("next_point") #returning a message automatically sends it to the server
         #if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
         self.x_EI = payload
         self.graph()
         if len(self.dataset_x)==25:
             raise Exception
         self.add_data()
-        return self.assemble_message("mean_grid")
+        return self.assemble_message("predictions")
     
     def graph(self):
         plt.clf()
-        xx, yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101))
+        xx, yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101), indexing="ij")
         data = np.maximum(np.array(self.mean_grid), .11) #the predicted means can be <0 which causes white patches in the graph; this fixes that
         plt.contourf(xx, yy, data, levels=np.logspace(-2, 4, 101), norm="log", extend="both")
         cbar = plt.colorbar()
@@ -123,7 +137,7 @@ if __name__ == '__main__':
     #Create our orchestrator
     active_learning = ActiveLearningOrchestrator()
     config = IntersectClientConfig(
-        initial_message_event_config=active_learning.assemble_message("mean_grid"), #the initial message to send
+        initial_message_event_config=active_learning.assemble_message("predictions"), #the initial message to send
         **from_config_file,
     )
     

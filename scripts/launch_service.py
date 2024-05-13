@@ -12,7 +12,7 @@ from intersect_sdk import (
     default_intersect_lifecycle_loop,
 )
 
-from neeter_active_learning.active_learning_service import ActiveLearningServiceCapabilityImplementation
+from boalaas_service import BOALaaSCapabilityImplementation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     You have complete control over how you construct this class, as long as it has decorated functions with
     @intersect_message and @intersect_status, and that these functions are appropriately type-annotated.
     """
-    capability = ActiveLearningServiceCapabilityImplementation()
+    capability = BOALaaSCapabilityImplementation()
 
     """
     step three - create service from both the configuration and your own capability

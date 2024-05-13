@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal, Optional
 
 class BOALaaSInputBase(BaseModel):
@@ -31,15 +31,14 @@ class BOALaaSInputSingle(BOALaaSInputBase):
     strategy: Literal["uncertainty", "expected_improvement", "confidence_bound"]
     confidence_bound: Optional[float] = Field(default=None)
 
-    @field_validator("confidence_bound")
-    @classmethod
-    def validate_confidence_bound(cls, confidence_bound, values):
-        if values.get("strategy") == "confidence_bound":
-            if confidence_bound is None:
+    @model_validator(mode="after")
+    def validate_confidence_bound(self):
+        if self.strategy == "confidence_bound":
+            if self.confidence_bound is None:
                 raise ValueError("confidence_bound value must be specified for confidence_bound strategy")
-            if not (.5 < confidence_bound < 1):
+            if not (.5 < self.confidence_bound < 1):
                 raise ValueError("confidence_bound value must in (.5, 1)")
-        return confidence_bound
+        return self
 
 class BOALaaSInputMultiple(BOALaaSInputBase):
     points: int

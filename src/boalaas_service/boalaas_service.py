@@ -77,7 +77,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
             return negative_value(mean, sigma)
         guess = min(self._create_n_dim_grid(data, 11), key=to_minimize)
-        return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x
+        return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
     
     @intersect_message
     def next_points(self, client_data: BOALaaSInputMultiple) -> list[list[float]]:

@@ -1,9 +1,9 @@
 import numpy as np
 from pytest import approx, fixture
 
-from neeter_active_learning.data_class import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
-from neeter_active_learning.active_learning_service import BOALaaSCapabilityImplementation as Service
-from neeter_active_learning.serverside_data import ServersideInputSingle
+from boalaas_dataclass import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
+from boalaas_service import BOALaaSCapabilityImplementation as Service
+from boalaas_service.serverside_data import ServersideInputSingle
 
 #Test data:
 @fixture
