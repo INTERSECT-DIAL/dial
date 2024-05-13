@@ -1,6 +1,6 @@
 import numpy as np
 from functools import cached_property
-from .data_class import *
+from boalaas_dataclass import *
 
 #this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:

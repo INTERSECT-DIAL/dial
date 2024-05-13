@@ -13,7 +13,7 @@ from intersect_sdk import (
     intersect_status
 )
 
-from .data_class import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
+from boalaas_dataclass import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
 from .serverside_data import *
 
 logger = logging.getLogger(__name__)

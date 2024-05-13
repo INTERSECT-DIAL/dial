@@ -3,12 +3,12 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "neeter_active_learning"
+name = "boalaas"
 version = "0.1.0"
 authors = [
     {name = "David Joy", email = "joydh1@ornl.gov"},
 ]
-description = "NEETER active learning using INTERSECT SDK"
+description = "Bayesian Optimization and Active Learning as a Service (BOALaaS): An INTERSECT service that provides Gaussian Process-based optimization and active learning"
 readme = "README.md"
 requires-python = ">=3.9"
 keywords = ["active learning"]
@@ -23,3 +23,11 @@ dependencies = [
     "scikit-learn>=1.4.0,<2.0.0",
     "scipy>=1.12.0,<2.0.0",
 ]
+
+[[tool.poetry.packages]]
+name = "boalaas_dataclass"
+path = "src/boalaas_dataclass"
+
+[[tool.poetry.packages]]
+name = "boalaas_service"
+path = "src/boalaas_service"
