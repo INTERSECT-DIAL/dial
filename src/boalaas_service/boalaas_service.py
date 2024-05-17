@@ -46,6 +46,9 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                                  for (low, high), pts in zip(data.bounds, points_per_dim)), indexing='ij')
         return np.column_stack([arr.flatten() for arr in meshgrid])
 
+    def _random_in_bounds(self, data: ServersideInputBase):
+        return [random.uniform(low, high) for low, high in data.bounds]
+
     '''
     Endpoints users can hit:
     '''
@@ -53,6 +56,10 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
     # trains a model and then recommends a point to measure based on user's requested strategy:
     def get_next_point(self, client_data: BOALaaSInputSingle) -> list[float]:
         data = ServersideInputSingle(client_data)
+        #if it's random point, we don't need to train a model or anything:
+        if data.strategy=="random":
+            return self._random_in_bounds(data)
+        
         model = self._train_model(data)
         # generate the function that gives -1 * the "value" of measuring a point with the given mean & stddev
         negative_value = None
@@ -87,7 +94,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         match data.strategy:
             case "random":
                 for _ in range(data.points):
-                    output_points.append([random.uniform(low, high) for low, high in data.bounds])
+                    output_points.append(self._random_in_bounds(data))
 
             case "hypercube":
                 coordinates = []

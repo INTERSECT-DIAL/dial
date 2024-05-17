@@ -77,6 +77,13 @@ def test_preprocessing_standardize(single_1D_A):
     assert data.Y_train == approx([-1, 1])
     assert Service().get_next_point(single_1D_A) == approx([1.96832802])
 
+def test_random(single_1D_A):
+    single_1D_A = single_1D_A.model_copy(update={"strategy": "random"})
+    for _ in range(100):
+        output = Service().get_next_point(single_1D_A)
+        assert len(output)==1
+        assert 1 <= output[0] <= 2
+
 def test_random_points(multiple_2D_A):
     for pt in Service().get_next_points(multiple_2D_A):
         assert 0 <= pt[0] <= 100

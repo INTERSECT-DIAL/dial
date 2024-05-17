@@ -28,7 +28,7 @@ class BOALaaSInputBase(BaseModel):
         return bounds
 
 class BOALaaSInputSingle(BOALaaSInputBase):
-    strategy: Literal["uncertainty", "expected_improvement", "confidence_bound"]
+    strategy: Literal["random", "uncertainty", "expected_improvement", "confidence_bound"]
     confidence_bound: Optional[float] = Field(default=None)
 
     @model_validator(mode="after")
