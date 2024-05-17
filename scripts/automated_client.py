@@ -44,7 +44,7 @@ class ActiveLearningOrchestrator:
     #create a message to send to the server
     def assemble_message(self, operation:str) -> IntersectClientCallback:
         payload = None
-        if operation=="next_point":
+        if operation=="get_next_point":
             payload = BOALaaSInputSingle(
                 strategy="expected_improvement",
                 dataset_x=self.dataset_x,
@@ -79,16 +79,16 @@ class ActiveLearningOrchestrator:
     def __call__(
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
-        if operation=="predictions": #if we receive a grid of predictions, record it for graphing, then ask for the next recommended point
+        if operation=="get_surrogate_values": #if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
             self.mean_grid = np.array(payload[0]).reshape((101,101))
-            return self.assemble_message("next_point") #returning a message automatically sends it to the server
+            return self.assemble_message("get_next_point") #returning a message automatically sends it to the server
         #if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
         self.x_EI = payload
         self.graph()
         if len(self.dataset_x)==25:
             raise Exception
         self.add_data()
-        return self.assemble_message("predictions")
+        return self.assemble_message("get_surrogate_values")
     
     def graph(self):
         plt.clf()
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     #Create our orchestrator
     active_learning = ActiveLearningOrchestrator()
     config = IntersectClientConfig(
-        initial_message_event_config=active_learning.assemble_message("predictions"), #the initial message to send
+        initial_message_event_config=active_learning.assemble_message("get_surrogate_values"), #the initial message to send
         **from_config_file,
     )
     

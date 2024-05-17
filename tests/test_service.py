@@ -61,35 +61,35 @@ def test_n_grid(single_1D_A):
             == approx(np.array([[1.0], [1.1], [1.2], [1.3], [1.4], [1.5], [1.6], [1.7], [1.8], [1.9], [2.0]])))
 
 def test_EI_1D(single_1D_A):
-    assert Service().next_point(single_1D_A) == approx([1.85742], abs=.00001)
+    assert Service().get_next_point(single_1D_A) == approx([1.85742], abs=.00001)
 
 def test_EI_2D(single_2D_A):
-    assert Service().next_point(single_2D_A) == approx([2., 2.])
+    assert Service().get_next_point(single_2D_A) == approx([2., 2.])
 
 def test_uncertainty(single_1D_A):
     single_1D_A = single_1D_A.model_copy(update={"strategy": "uncertainty"})
-    assert Service().next_point(single_1D_A) == approx([1.5])
+    assert Service().get_next_point(single_1D_A) == approx([1.5])
 
 def test_preprocessing_standardize(single_1D_A):
     single_1D_A = single_1D_A.model_copy(update={"preprocess_standardize": True})
     data = ServersideInputSingle(single_1D_A)
     assert data.Y_best == 1
     assert data.Y_train == approx([-1, 1])
-    assert Service().next_point(single_1D_A) == approx([1.96832802])
+    assert Service().get_next_point(single_1D_A) == approx([1.96832802])
 
 def test_random_points(multiple_2D_A):
-    for pt in Service().next_points(multiple_2D_A):
+    for pt in Service().get_next_points(multiple_2D_A):
         assert 0 <= pt[0] <= 100
         assert -1 <= pt[1] <= 1
 
 def test_hypercube(multiple_2D_A):
     multiple_2D_A = multiple_2D_A.model_copy(update={"strategy": "hypercube"})
-    points = Service().next_points(multiple_2D_A)
+    points = Service().get_next_points(multiple_2D_A)
     for i in range(10):
         assert 1 == sum(1 for pt in points if 10*i <= pt[0] <= 10*(i+1))
         assert 1 == sum(1 for pt in points if -1+.2*i <= pt[1] <= -1+.2*(i+1)), f"Need exactly one in [{-1+.2*i}, {-1+.2*(i+1)}]"
 
-def test_prediction(prediction_1D_A):
-    means, stddevs = Service().predictions(prediction_1D_A)
+def test_surrogate(prediction_1D_A):
+    means, stddevs = Service().get_surrogate_values(prediction_1D_A)
     assert means == approx([100., 135.4253956249114, 168.17893262605446, 191.52029424913434, 200.])
     assert stddevs[1:4] == approx([8.739217244027204, 11.956904892760956, 8.739217244027222])
