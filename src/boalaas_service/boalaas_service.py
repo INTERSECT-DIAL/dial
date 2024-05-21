@@ -109,16 +109,21 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             
         return output_points
 
+    '''Trains a model then returns 3 lists based on user-supplied points:
+        -Index 0: Predicted values.  These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
+        -Index 1: Inverse-transformed uncertainties.  If inverse-transforming is not possible (due to log-preprocessing), this will be all -1
+        -Index 2: Uncertainties without inverse transformation
+    '''
     @intersect_message
-    #trains a model then returns 2 lists: means and standard deviations
     def get_surrogate_values(self, client_data: BOALaaSInputPredictions) -> list[list[float]]:
         data = ServersideInputPrediction(client_data)
         model = self._train_model(data)
-        x_predict = self._create_n_dim_grid(data, data.points_per_dimension)
-        means, stddevs = model.predict(x_predict, return_std=True)
+        means, stddevs = model.predict(data.x_predict, return_std=True)
         stddevs *= data.stddev #turn sigma into stddev of prediction
-        #TODO: Undo preprocessing
-        return [means.tolist(), stddevs.tolist()]
+        #undo preprocessing:
+        means = data.inverse_transform(means)
+        transformed_stddevs = data.inverse_transform(stddevs)
+        return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
 
     @intersect_status()
     def status(self) -> str:

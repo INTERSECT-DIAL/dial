@@ -44,6 +44,9 @@ class ActiveLearningOrchestrator:
         self.dataset_x = [[20., 1200.], [20., 1400.], [20., 1600.], [20., 1800.], [20., 2000.], [55., 1200.], [55., 1400.], [55., 1600.], [55., 1800.], [55., 2000.], [70., 1600.], [70., 1800.], [70., 2000.], [110., 1400.], [110., 1600.], [110., 1800.], [110., 2000.], [220., 1600.], [220., 1800.], [220., 2000.], [330., 1200.], [330., 1800.], [330., 2000.], [165., 1800.], [165., 2000.]]
         self.dataset_y = [0.4023, 0.8534, 2.9733, 4.7806, 5.5944, 0.191, 1.1508, 3.3015, 6.51, 9.8264, 5.28, 6.35, 9.68, 2.5194, 7.1148, 9.8176, 9.7903, 5.55, 7.04, 11.52, 1.3018, 7.15, 10.42, 6.77, 11.51]
         self.bounds = [[20,330], [1200,2000]]
+        #generate a 101x101 grid for predictions and graphing:
+        self.xx, self.yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101), indexing="ij")
+        self.points_to_predict = np.hstack([self.xx.reshape(-1, 1), self.yy.reshape(-1, 1)])
 
     #create a message to send to the server
     def assemble_message(self, operation:str) -> IntersectClientCallback:
@@ -63,7 +66,7 @@ class ActiveLearningOrchestrator:
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
                 bounds=self.bounds,
-                points_per_dimension=[101, 101],
+                points_to_predict=self.points_to_predict,
                 kernel="matern",
                 length_per_dimension=True, #allow the matern to use separate length scales for temp and duration
                 y_is_good=True             #we wish to maximize y (the yield)
@@ -84,7 +87,7 @@ class ActiveLearningOrchestrator:
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
         if operation=="get_surrogate_values": #if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape((101,101))
+            self.mean_grid = np.array(payload[0]).reshape(self.xx.shape)
             return self.assemble_message("get_next_point") #returning a message automatically sends it to the server
         #if we receive an EI recommendation, record it, show the user the current graph, and ask the user for the results of their experiment:
         self.x_EI = payload
@@ -95,8 +98,7 @@ class ActiveLearningOrchestrator:
     #makes a color graph of the predicted yields, with markers for the training data and EI-recommended point:
     def graph(self):
         plt.clf()
-        xx, yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101), indexing="ij")
-        plt.contourf(xx, yy, self.mean_grid, levels=np.linspace(0, 12, 101), extend="both")
+        plt.contourf(self.xx, self.yy, self.mean_grid, levels=np.linspace(0, 12, 101), extend="both")
         cbar = plt.colorbar()
         cbar.set_ticks(np.linspace(0, 12, 7))
         cbar.set_label("C2H4 Yield (%)")

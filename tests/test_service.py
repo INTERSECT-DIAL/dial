@@ -3,7 +3,9 @@ from pytest import approx, fixture
 
 from boalaas_dataclass import BOALaaSInputSingle, BOALaaSInputMultiple, BOALaaSInputPredictions
 from boalaas_service import BOALaaSCapabilityImplementation as Service
-from boalaas_service.serverside_data import ServersideInputSingle
+from boalaas_service.serverside_data import ServersideInputSingle, ServersideInputPrediction
+
+from math import e as E_CONSTANT
 
 #Test data:
 @fixture
@@ -52,7 +54,7 @@ def prediction_1D_A():
         kernel="rbf",
         length_per_dimension=False,
         bounds=[[1,2]],
-        points_per_dimension=[5]
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
     )
 
 def test_n_grid(single_1D_A):
@@ -97,6 +99,21 @@ def test_hypercube(multiple_2D_A):
         assert 1 == sum(1 for pt in points if -1+.2*i <= pt[1] <= -1+.2*(i+1)), f"Need exactly one in [{-1+.2*i}, {-1+.2*(i+1)}]"
 
 def test_surrogate(prediction_1D_A):
-    means, stddevs = Service().get_surrogate_values(prediction_1D_A)
+    means, stddevs, raw_stddevs = Service().get_surrogate_values(prediction_1D_A)
     assert means == approx([100., 135.4253956249114, 168.17893262605446, 191.52029424913434, 200.])
     assert stddevs[1:4] == approx([8.739217244027204, 11.956904892760956, 8.739217244027222])
+    assert raw_stddevs[1:4] == approx([8.739217244027204, 11.956904892760956, 8.739217244027222])
+
+def test_inverse_transform(prediction_1D_A):
+    data = ServersideInputPrediction(prediction_1D_A)
+    assert data.inverse_transform(np.array([-1, 0, 1])) == approx([-1, 0, 1])
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == approx([-1, 0, 1])
+    data = ServersideInputPrediction(prediction_1D_A.model_copy(update={"preprocess_log": True}))
+    assert data.inverse_transform(np.array([-1, 0, 1])) == approx([1/E_CONSTANT, 1, E_CONSTANT])
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == approx([-1, -1, -1])
+    data = ServersideInputPrediction(prediction_1D_A.model_copy(update={"preprocess_standardize": True}))
+    assert data.inverse_transform(np.array([-1, 0, 1])) == approx([100, 150, 200])
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == approx([-50, 0, 50]) #technically improper, as uncertainties can't be negative
+    data = ServersideInputPrediction(prediction_1D_A.model_copy(update={"preprocess_standardize": True, "preprocess_log": True}))
+    assert data.inverse_transform(np.array([-1, 0, 1])) == approx([100, 141.42135623730945, 200]) #TODO
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == approx([-1, -1, -1])

@@ -45,4 +45,4 @@ class BOALaaSInputMultiple(BOALaaSInputBase):
     strategy: Literal["random", "hypercube"]
 
 class BOALaaSInputPredictions(BOALaaSInputBase):
-    points_per_dimension: list[int]
+    points_to_predict: list[list[float]]

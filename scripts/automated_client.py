@@ -40,6 +40,9 @@ class ActiveLearningOrchestrator:
         self.dataset_x = [[0.9317758694133622, -0.23597335497782845], [-0.7569874398003542, -0.76891211613756], [-0.38457336507729645, -1.1327391183311766], [-0.9293590899359039, 0.25039725076881014], [1.984696498789749, -1.7147926093003538], [1.2001856430453541, 1.572387611848939], [0.5080666898409634, -1.566722183270571], [-1.871124738716507, 1.9022651997285078], [-1.572941300813352, 1.0014173171150125], [0.033053333077524005, 0.44682040004191537]]
         self.dataset_y = [rosenbrock(*x) for x in self.dataset_x]
         self.bounds = [[-2,2], [-2,2]]
+        #generate a 101x101 grid for predictions and graphing:
+        self.xx, self.yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101), indexing="ij")
+        self.points_to_predict = np.hstack([self.xx.reshape(-1, 1), self.yy.reshape(-1, 1)])
 
     #create a message to send to the server
     def assemble_message(self, operation:str) -> IntersectClientCallback:
@@ -59,7 +62,7 @@ class ActiveLearningOrchestrator:
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
                 bounds=self.bounds,
-                points_per_dimension=[101, 101],
+                points_to_predict=self.points_to_predict,
                 kernel="rbf",
                 length_per_dimension=True,
                 y_is_good=False
@@ -92,9 +95,8 @@ class ActiveLearningOrchestrator:
     
     def graph(self):
         plt.clf()
-        xx, yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101), indexing="ij")
         data = np.maximum(np.array(self.mean_grid), .11) #the predicted means can be <0 which causes white patches in the graph; this fixes that
-        plt.contourf(xx, yy, data, levels=np.logspace(-2, 4, 101), norm="log", extend="both")
+        plt.contourf(self.xx, self.yy, data, levels=np.logspace(-2, 4, 101), norm="log", extend="both")
         cbar = plt.colorbar()
         cbar.set_ticks(np.logspace(-2, 4, 7))
         cbar.set_label("Simulation Result")

@@ -31,6 +31,21 @@ class ServersideInputBase:
         if self.preprocess_standardize:
             y = (y - np.mean(y))/np.std(y)
         return y
+    
+    #undoes the preprocessing.  
+    def inverse_transform(self, data:np.ndarray, is_stddev:bool = False):
+        #not possible to un-log the standard deviations (-1 +- 1 in log space != .1 +- 10 in realspace)
+        if self.preprocess_log and is_stddev:
+            return np.repeat(-1, len(data))
+        if self.preprocess_standardize:
+            #the data that was used to calculate the standardization:
+            prestandardized_y = np.log(self.Y_raw) if self.preprocess_log else self.Y_raw
+            data = data*np.std(prestandardized_y) #not the same as *= (which is in-place)
+            if not is_stddev:
+                data = data + np.mean(prestandardized_y)
+        if self.preprocess_log:
+            data = np.exp(data)
+        return data
 
 class ServersideInputSingle(ServersideInputBase):
     def __init__(self, data: BOALaaSInputSingle):
@@ -47,4 +62,4 @@ class ServersideInputMultiple(ServersideInputBase):
 class ServersideInputPrediction(ServersideInputBase):
     def __init__(self, data: BOALaaSInputPredictions):
         super().__init__(data)
-        self.points_per_dimension = data.points_per_dimension
+        self.x_predict = np.array(data.points_to_predict)
