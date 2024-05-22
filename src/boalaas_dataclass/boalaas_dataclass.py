@@ -29,6 +29,7 @@ class BOALaaSInputBase(BaseModel):
 
 class BOALaaSInputSingle(BOALaaSInputBase):
     strategy: Literal["random", "uncertainty", "expected_improvement", "confidence_bound"]
+    optimization_points: Optional[int] = Field(default=1000)
     confidence_bound: Optional[float] = Field(default=None)
 
     @model_validator(mode="after")

@@ -48,6 +48,16 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
     def _random_in_bounds(self, data: ServersideInputBase):
         return [random.uniform(low, high) for low, high in data.bounds]
+    
+    def _hypercube(self, data: ServersideInputBase, num_points) -> list[list[float]]:
+        coordinates = []
+        for low, high in data.bounds:
+            #for each dimension, generate a list of spaced coordinates and shuffle it:
+            step = (high - low)/num_points
+            coordinates.append([random.uniform(low + i*step, low + (i+1)*step) for i in range(num_points)])
+            random.shuffle(coordinates[-1])
+        #add the points:
+        return [list(point) for point in zip(*coordinates)]
 
     '''
     Endpoints users can hit:
@@ -83,30 +93,19 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
             mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
             return negative_value(mean, sigma)
-        guess = min(self._create_n_dim_grid(data, 11), key=to_minimize)
+        guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
         return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
     
     @intersect_message
     def get_next_points(self, client_data: BOALaaSInputMultiple) -> list[list[float]]:
         data = ServersideInputMultiple(client_data)
         #model = self._train_model(data) #this will be needed when we add qEI/constant liars
-        output_points = []
+        output_points = None
         match data.strategy:
             case "random":
-                for _ in range(data.points):
-                    output_points.append(self._random_in_bounds(data))
-
+                output_points = [self._random_in_bounds(data) for _ in range(data.points)]
             case "hypercube":
-                coordinates = []
-                for low, high in data.bounds:
-                    #for each dimension, generate a list of spaced coordinates and shuffle it:
-                    step = (high - low)/data.points
-                    coordinates.append([random.uniform(low + i*step, low + (i+1)*step) for i in range(data.points)])
-                    random.shuffle(coordinates[-1])
-                #add the points:
-                for point in zip(*coordinates):
-                    output_points.append(list(point))
-            
+                output_points = self._hypercube(data, data.points)
         return output_points
 
     '''Trains a model then returns 3 lists based on user-supplied points:

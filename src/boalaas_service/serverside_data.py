@@ -51,6 +51,7 @@ class ServersideInputSingle(ServersideInputBase):
     def __init__(self, data: BOALaaSInputSingle):
         super().__init__(data)
         self.strategy = data.strategy
+        self.optimization_points = data.optimization_points
         self.confidence_bound = data.confidence_bound
 
 class ServersideInputMultiple(ServersideInputBase):
