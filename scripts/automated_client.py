@@ -6,6 +6,9 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('agg')
+
 import numpy as np
 
 from intersect_sdk import (
@@ -117,7 +120,6 @@ class ActiveLearningOrchestrator:
         print(f'{y:.3f}')
         self.dataset_x.append([x0, x1])
         self.dataset_y.append(y)
-
 
 if __name__ == '__main__':
     #Create configuration class, which handles user input validation - see the IntersectClientConfig class documentation for more info
