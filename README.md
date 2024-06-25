@@ -7,6 +7,16 @@
 
 ## Installing
 
+To install intersect-sdk from PyPI:
+
+`pip install intersect-sdk`
+
+To install boalaas from source, git clone this repository and run the following from the root directory (that is, within the neeter-active-learning directory):
+
+`pip install .`
+
+Alternatively, with a Gitlab Personal Access Token, both intersect-sdk and boalaas may be installed with the following:
+
 `pip install -i https://user:${REGISTRY_PASSWORD}@code.ornl.gov/api/v4/groups/5609/-/packages/pypi/simple -e .`
 
 ## CLI arguments / environment variables
