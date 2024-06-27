@@ -79,8 +79,11 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     return -stddev
             case "expected_improvement":
                 def negative_value(mean: float, stddev: float):
-                    z = (mean - data.Y_best) / stddev * (1 if data.y_is_good else -1)
-                    return -stddev * (z*norm.cdf(z) + norm.pdf(z))
+                    if stddev == 0:
+                        return 0
+                    else:
+                        z = (mean - data.Y_best) / stddev * (1 if data.y_is_good else -1)
+                        return -stddev * (z*norm.cdf(z) + norm.pdf(z))
             case "confidence_bound":
                 #calculate the z score that corresponds to the confidence bound:
                 Z_VALUE = norm.ppf(.5 + data.confidence_bound/2) #need this because this is the "inverse CDF" which is one-tailed, but we want two-tailed
