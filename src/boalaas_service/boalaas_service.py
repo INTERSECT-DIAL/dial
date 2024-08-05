@@ -3,6 +3,13 @@ import random
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern
+import gpax
+gpax.utils.enable_x64()
+import os
+# os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
+# os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=".10"
+# os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"]="platform"
+print('gpax was imported succesfully')
 from scipy.optimize import minimize
 from scipy.stats import norm
 from typing import Union
@@ -23,20 +30,44 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
     '''
     Internal guts for GP usage:
     '''
-    #trains a model based on the user's data
-    def _train_model(self, data: ServersideInputBase) -> GaussianProcessRegressor:
-        model = GaussianProcessRegressor(kernel=self._kernel(data), n_restarts_optimizer=250)
-        model.fit(data.X_train, data.Y_train)
-        return model
 
-    _KERNELS = {"rbf": RBF, "matern": Matern}
+    _BACKENDS = ["sklearn", "gpax"]
+    #trains a model based on the user's data
+    def _train_model(self, data: ServersideInputBase): # -> GaussianProcessRegressor or -> gpax.ExactGP:
+        backend_name = data.backend.lower()
+        if backend_name not in self._BACKENDS:
+            raise ValueError(f'Unknown backend {backend_name}')
+        if backend_name == "gpax":
+            model = gpax.ExactGP(input_dim=2, kernel=self._kernel(data))
+            key1, key2 = gpax.utils.get_keys()
+            model.fit(key1, data.X_train, data.Y_train)
+            print('Completed GP model training')
+            return model
+        else:
+            model = GaussianProcessRegressor(kernel=self._kernel(data), n_restarts_optimizer=250)
+            model.fit(data.X_train, data.Y_train)
+            return model
+
+    _KERNELS_SKLEARN = {"rbf": RBF, "matern": Matern}
+    _KERNELS_GPAX = {"rbf": "RBF", "matern": "matern"}
+
     #parses the user's requested kernel
     def _kernel(self, data: ServersideInputBase):
         kernel_name = data.kernel.lower()
-        if kernel_name not in self._KERNELS:
-            raise ValueError(f'Unknown kernel {kernel_name}')
-        length_scale = [1.0]*len(data.X_train[0]) if data.length_per_dimension else 1.0
-        return self._KERNELS[kernel_name](length_scale=length_scale)
+        backend_name = data.backend.lower()
+        if backend_name not in self._BACKENDS:
+            raise ValueError(f'Unknown backend {backend_name}')
+        
+        if backend_name == "gpax":
+            if kernel_name not in self._KERNELS_GPAX:
+                raise ValueError(f'Unknown kernel {kernel_name}')
+            return self._KERNELS_GPAX[kernel_name]
+        
+        else:
+            if kernel_name not in self._KERNELS_SKLEARN:
+                raise ValueError(f'Unknown kernel {kernel_name}')
+            length_scale = [1.0]*len(data.X_train[0]) if data.length_per_dimension else 1.0
+            return self._KERNELS_SKLEARN[kernel_name](length_scale=length_scale)
     
     #looks at the data bounds to create a regular mesh with (points_per_dim)^N points (where N is the number of dimensions)
     def _create_n_dim_grid(self, data: ServersideInputBase, points_per_dim: Union[int,list[int]]):
@@ -93,9 +124,37 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     return -Z_VALUE*stddev + mean*(-1 if data.y_is_good else 1)
         # create a function that can be minimized over the bounds:
         def to_minimize(x):
-            mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
+            key1, key2 = gpax.utils.get_keys()
+            mean, f_samples = model.predict_in_batches(key2, x.reshape(1, -1), batch_size=1, noiseless=True)
+            sigma = f_samples.std(axis=(0,1))
             mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
             return negative_value(mean, sigma)
+
+
+            # print('To minimize?')
+            # backend_name = data.backend.lower()
+            # if backend_name not in self._BACKENDS:
+            #     raise ValueError(f'Unknown backend {backend_name}')
+            
+            # if backend_name == "gpax":
+            #     print('Test 6')
+            #     key1, key2 = gpax.utils.get_keys()
+            #     print('Test 6.5')
+            #     print(key2)
+            #     print(x)
+            #     print(model)
+            #     mean, f_samples = model.predict_in_batches(key2, x.reshape(1, -1), batch_size=1, noiseless=True)
+            #     print('Test 7')
+            #     sigma = f_samples.std(axis=(0,1))
+            #     print('Test 8')
+            #     mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
+            #     return negative_value(mean, sigma)
+
+            # else:
+            #     mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
+            #     mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
+            #     return negative_value(mean, sigma)
+            
         guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
         return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
     
@@ -119,13 +178,30 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
     @intersect_message
     def get_surrogate_values(self, client_data: BOALaaSInputPredictions) -> list[list[float]]:
         data = ServersideInputPrediction(client_data)
-        model = self._train_model(data)
-        means, stddevs = model.predict(data.x_predict, return_std=True)
-        stddevs *= data.stddev #turn sigma into stddev of prediction
-        #undo preprocessing:
-        means = data.inverse_transform(means)
-        transformed_stddevs = data.inverse_transform(stddevs)
-        return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
+
+        backend_name = data.backend.lower()
+        if backend_name not in self._BACKENDS:
+            raise ValueError(f'Unknown backend {backend_name}')
+        
+        if backend_name == "gpax":
+            model = self._train_model(data)
+            key1, key2 = gpax.utils.get_keys()
+            means, f_samples = model.predict_in_batches(key2, data.x_predict, batch_size=100, noiseless=True)
+            stddevs = f_samples.std(axis=(0,1))
+            stddevs *= data.stddev #turn sigma into stddev of prediction
+            #undo preprocessing:
+            means = data.inverse_transform(means)
+            transformed_stddevs = data.inverse_transform(stddevs)
+            return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
+        
+        else:
+            model = self._train_model(data)
+            means, stddevs = model.predict(data.x_predict, return_std=True)
+            stddevs *= data.stddev #turn sigma into stddev of prediction
+            #undo preprocessing:
+            means = data.inverse_transform(means)
+            transformed_stddevs = data.inverse_transform(stddevs)
+            return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
 
     @intersect_status()
     def status(self) -> str:

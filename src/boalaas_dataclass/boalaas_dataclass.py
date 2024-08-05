@@ -8,6 +8,7 @@ class BOALaaSInputBase(BaseModel):
     kernel: Literal["rbf", "matern"]
     length_per_dimension: bool #if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
     bounds: list[list[float]]
+    backend: Literal["sklearn", "gpax"]
 
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)

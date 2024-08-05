@@ -12,6 +12,7 @@ class ServersideInputBase:
         self.y_is_good = data.y_is_good
         self.kernel = data.kernel
         self.length_per_dimension = data.length_per_dimension
+        self.backend = data.backend
         self.preprocess_log = data.preprocess_log
         self.preprocess_standardize = data.preprocess_standardize
 
