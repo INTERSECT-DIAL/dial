@@ -43,8 +43,9 @@ class ActiveLearningOrchestrator:
         self.dataset_x = [[0.9317758694133622, -0.23597335497782845], [-0.7569874398003542, -0.76891211613756], [-0.38457336507729645, -1.1327391183311766], [-0.9293590899359039, 0.25039725076881014], [1.984696498789749, -1.7147926093003538], [1.2001856430453541, 1.572387611848939], [0.5080666898409634, -1.566722183270571], [-1.871124738716507, 1.9022651997285078], [-1.572941300813352, 1.0014173171150125], [0.033053333077524005, 0.44682040004191537]]
         self.dataset_y = [rosenbrock(*x) for x in self.dataset_x]
         self.bounds = [[-2,2], [-2,2]]
-        #generate a 101x101 grid for predictions and graphing:
-        self.xx, self.yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], 101), np.linspace(self.bounds[1][0], self.bounds[1][1], 101), indexing="ij")
+        #generate a (meshgrid_size x meshgrid_size) grid for predictions and graphing:
+        self.meshgrid_size = 101
+        self.xx, self.yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], self.meshgrid_size), np.linspace(self.bounds[1][0], self.bounds[1][1], self.meshgrid_size), indexing="ij")
         self.points_to_predict = np.hstack([self.xx.reshape(-1, 1), self.yy.reshape(-1, 1)])
 
     #create a message to send to the server
@@ -86,12 +87,17 @@ class ActiveLearningOrchestrator:
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
         if operation=="get_surrogate_values": #if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape((101,101))
+            self.mean_grid = np.array(payload[0]).reshape((self.meshgrid_size,self.meshgrid_size))
             return self.assemble_message("get_next_point") #returning a message automatically sends it to the server
         #if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
         self.x_EI = payload
         self.graph()
         if len(self.dataset_x)==25:
+            minpos = self.dataset_y.index(min(self.dataset_y))
+            y_opt = self.dataset_y[minpos]
+            x0_opt = self.dataset_x[minpos][0]
+            x1_opt = self.dataset_x[minpos][1]
+            print(f'Optimal simulated datapoint at ({x0_opt:.2f},{x1_opt:.2f}), y={y_opt:.3f}', end="\n", flush=True)
             raise Exception
         self.add_data()
         return self.assemble_message("get_surrogate_values")
