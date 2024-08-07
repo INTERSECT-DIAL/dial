@@ -95,7 +95,7 @@ class ActiveLearningOrchestrator:
         self.x_EI = payload
         self.graph()
         if len(self.dataset_x)==25:
-            minpos = self.dataset_y.index(min(self.dataset_y))
+            minpos = np.argmin(self.dataset_y)
             y_opt = self.dataset_y[minpos]
             x0_opt = self.dataset_x[minpos][0]
             x1_opt = self.dataset_x[minpos][1]

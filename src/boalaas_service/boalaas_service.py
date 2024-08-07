@@ -124,36 +124,19 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     return -Z_VALUE*stddev + mean*(-1 if data.y_is_good else 1)
         # create a function that can be minimized over the bounds:
         def to_minimize(x):
-            key1, key2 = gpax.utils.get_keys()
-            mean, f_samples = model.predict_in_batches(key2, x.reshape(1, -1), batch_size=1, noiseless=True)
-            sigma = f_samples.std(axis=(0,1))
-            mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
-            return negative_value(mean, sigma)
-
-
-            # print('To minimize?')
-            # backend_name = data.backend.lower()
-            # if backend_name not in self._BACKENDS:
-            #     raise ValueError(f'Unknown backend {backend_name}')
-            
-            # if backend_name == "gpax":
-            #     print('Test 6')
-            #     key1, key2 = gpax.utils.get_keys()
-            #     print('Test 6.5')
-            #     print(key2)
-            #     print(x)
-            #     print(model)
-            #     mean, f_samples = model.predict_in_batches(key2, x.reshape(1, -1), batch_size=1, noiseless=True)
-            #     print('Test 7')
-            #     sigma = f_samples.std(axis=(0,1))
-            #     print('Test 8')
-            #     mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
-            #     return negative_value(mean, sigma)
-
-            # else:
-            #     mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
-            #     mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
-            #     return negative_value(mean, sigma)
+            backend_name = data.backend.lower()
+            if backend_name not in self._BACKENDS:
+                raise ValueError(f'Unknown backend {backend_name}')
+            if backend_name == "gpax":
+                key1, key2 = gpax.utils.get_keys()
+                mean, f_samples = model.predict_in_batches(key2, x.reshape(1, -1), batch_size=1, noiseless=True)
+                sigma = f_samples.std(axis=(0,1))
+                mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
+                return negative_value(mean, sigma)
+            else:
+                mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
+                mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
+                return negative_value(mean, sigma)
             
         guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
         return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
