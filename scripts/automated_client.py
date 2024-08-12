@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use('agg')
 
 import numpy as np
+from scipy.stats import qmc
 
 from intersect_sdk import (
     IntersectClient,
@@ -25,28 +26,29 @@ from boalaas_dataclass import BOALaaSInputSingle, BOALaaSInputPredictions
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-'''
-Here, we attempt to find the minimum of the Rosenbrock function, which occurs at (1,1).  We are pretending that this is the result of running some computational simulation.
-We start with 10 data points, which form a Latin Hypercube over the bounded space.  We then call the service, which calculates the point with the maximial EI (Expected Improvement).  We then evaluate the rosenbrock at this point, giving us our 11th data point.
-This process repeats until we sample 15 more points (representing a limited budget of computational time/runs).
-
-Overall, this represents an automated workflow: The experiment/simulation/whatever that produces results is connected to INTERSECT.  Points can be sampled automatically without human intervention.
-
-Note that the service must be started first, then the client.
-'''
-
 def rosenbrock(x0, x1): #Represents simulation error (vs experimental data) as a function of 2 simulation parameters
     return (1-x0)**2 + 100*(x1-x0**2)**2
 
 class ActiveLearningOrchestrator:
     def __init__(self):
-        self.dataset_x = [[0.9317758694133622, -0.23597335497782845], [-0.7569874398003542, -0.76891211613756], [-0.38457336507729645, -1.1327391183311766], [-0.9293590899359039, 0.25039725076881014], [1.984696498789749, -1.7147926093003538], [1.2001856430453541, 1.572387611848939], [0.5080666898409634, -1.566722183270571], [-1.871124738716507, 1.9022651997285078], [-1.572941300813352, 1.0014173171150125], [0.033053333077524005, 0.44682040004191537]]
-        self.dataset_y = [rosenbrock(*x) for x in self.dataset_x]
         self.bounds = [[-2,2], [-2,2]]
-        #generate a (meshgrid_size x meshgrid_size) grid for predictions and graphing:
+        self.num_dims = len(self.bounds)
+        #For development, we use constant, explicitly written self.dataset_x
+        self.dataset_x = [[0.9317758694133622, -0.23597335497782845], [-0.7569874398003542, -0.76891211613756], [-0.38457336507729645, -1.1327391183311766], [-0.9293590899359039, 0.25039725076881014], [1.984696498789749, -1.7147926093003538], [1.2001856430453541, 1.572387611848939], [0.5080666898409634, -1.566722183270571], [-1.871124738716507, 1.9022651997285078], [-1.572941300813352, 1.0014173171150125], [0.033053333077524005, 0.44682040004191537]]
+        #In practice, we use the following Latin Hypercube Sampling to generate self.dataset_x:
+        # self.rng = np.random.default_rng(seed=42)
+        # self.lhs_sampler = qmc.LatinHypercube(d=self.num_dims, seed=self.rng)
+        # self.unscaled_lhs = self.lhs_sampler.random(n=10)
+        # self.l_bounds = [bound[0] for bound in self.bounds]
+        # self.u_bounds = [bound[1] for bound in self.bounds]
+        # self.dataset_x = qmc.scale(self.unscaled_lhs, self.l_bounds, self.u_bounds).tolist()
+        #Evaluate the rosenbrock function at the initial LHS points:
+        self.dataset_y = [rosenbrock(*x) for x in self.dataset_x]
+        #Generate a (meshgrid_size x meshgrid_size) grid for predictions and graphing:
         self.meshgrid_size = 11
-        self.xx, self.yy = np.meshgrid(np.linspace(self.bounds[0][0], self.bounds[0][1], self.meshgrid_size), np.linspace(self.bounds[1][0], self.bounds[1][1], self.meshgrid_size), indexing="ij")
-        self.points_to_predict = np.hstack([self.xx.reshape(-1, 1), self.yy.reshape(-1, 1)])
+        self.grid_points = [np.linspace(dim_bounds[0], dim_bounds[1], self.meshgrid_size) for dim_bounds in self.bounds]
+        self.meshgrids = np.meshgrid(*self.grid_points, indexing='ij')
+        self.points_to_predict = np.hstack([mg.reshape(-1, 1) for mg in self.meshgrids])
 
     #create a message to send to the server
     def assemble_message(self, operation:str) -> IntersectClientCallback:
@@ -89,7 +91,7 @@ class ActiveLearningOrchestrator:
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
         if operation=="get_surrogate_values": #if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape((self.meshgrid_size,self.meshgrid_size))
+            self.mean_grid = np.array(payload[0]).reshape((self.meshgrid_size,)*self.num_dims)
             return self.assemble_message("get_next_point") #returning a message automatically sends it to the server
         #if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
         self.x_EI = payload
@@ -97,36 +99,47 @@ class ActiveLearningOrchestrator:
         if len(self.dataset_x)==25:
             minpos = np.argmin(self.dataset_y)
             y_opt = self.dataset_y[minpos]
-            x0_opt = self.dataset_x[minpos][0]
-            x1_opt = self.dataset_x[minpos][1]
-            print(f'Optimal simulated datapoint at ({x0_opt:.2f},{x1_opt:.2f}), y={y_opt:.3f}', end="\n", flush=True)
+            optimal_coords = self.dataset_x[minpos]
+            coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
+            print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}', end="\n", flush=True)
             raise Exception
         self.add_data()
         return self.assemble_message("get_surrogate_values")
     
     def graph(self):
-        plt.clf()
-        data = np.maximum(np.array(self.mean_grid), .11) #the predicted means can be <0 which causes white patches in the graph; this fixes that
-        plt.contourf(self.xx, self.yy, data, levels=np.logspace(-2, 4, 101), norm="log", extend="both")
-        cbar = plt.colorbar()
-        cbar.set_ticks(np.logspace(-2, 4, 7))
-        cbar.set_label("Simulation Result")
-        plt.xlabel("Simulation Parameter #1")
-        plt.ylabel("Simulation Parameter #2")
-        #add black dots for data points and a red marker for the recommendation:
-        X_train = np.array(self.dataset_x)
-        plt.scatter(X_train[:,0], X_train[:,1], color="black", marker="o")
-        plt.scatter([self.x_EI[0]], [self.x_EI[1]], color="red", marker="o")
-        plt.scatter([self.x_EI[0]], [self.x_EI[1]], color="none", edgecolors="red", marker="o", s=300)
-        plt.savefig("graph.png")
-    
+        if self.num_dims == 2:
+            plt.clf()
+            data = np.maximum(np.array(self.mean_grid), .11) #the predicted means can be <0 which causes white patches in the graph; this fixes that
+            plt.contourf(self.meshgrids[0], self.meshgrids[1], data, levels=np.logspace(-2, 4, 101), norm="log", extend="both")
+            cbar = plt.colorbar()
+            cbar.set_ticks(np.logspace(-2, 4, 7))
+            cbar.set_label("Simulation Result")
+            plt.xlabel("Simulation Parameter #1")
+            plt.ylabel("Simulation Parameter #2")
+            #add black dots for data points and a red marker for the recommendation:
+            X_train = np.array(self.dataset_x)
+            plt.scatter(X_train[:,0], X_train[:,1], color="black", marker="o")
+            plt.scatter([self.x_EI[0]], [self.x_EI[1]], color="red", marker="o")
+            plt.scatter([self.x_EI[0]], [self.x_EI[1]], color="none", edgecolors="red", marker="o", s=300)
+            plt.savefig("graph.png")
+        else:
+            fig, ax = plt.subplots(figsize=(8, 6))
+            message = ("Number of dimensions is not equal to two -\nBayesian Optimization plot is not available.\n"
+            "Add plotting to the graph(self) function in\nautomated_client.py to generate a custom plot.")
+            ax.text(0.5, 0.5, message, fontsize=18, ha='center', va='center', wrap=True)
+            # Remove axes
+            ax.set_xticks([])
+            ax.set_yticks([])
+            plt.savefig("graph.png")
+                
     #calculates the rosenbrock at a certain spot and adds it to our dataset
     def add_data(self):
-        x0, x1 = self.x_EI
-        print(f'Running simulation at ({x0:.2f},{x1:.2f}): ', end="", flush=True)
-        y = rosenbrock(x0, x1)
+        coordinates = self.x_EI
+        coord_str = ', '.join([f'{coord:.2f}' for coord in coordinates])
+        print(f'Running simulation at ({coord_str}): ', end="", flush=True)
+        y = rosenbrock(*coordinates)
         print(f'{y:.3f}')
-        self.dataset_x.append([x0, x1])
+        self.dataset_x.append(coordinates)
         self.dataset_y.append(y)
 
 if __name__ == '__main__':
