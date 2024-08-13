@@ -45,7 +45,7 @@ class ActiveLearningOrchestrator:
         #Evaluate the rosenbrock function at the initial LHS points:
         self.dataset_y = [rosenbrock(*x) for x in self.dataset_x]
         #Generate a (meshgrid_size x meshgrid_size) grid for predictions and graphing:
-        self.meshgrid_size = 11
+        self.meshgrid_size = 101
         self.grid_points = [np.linspace(dim_bounds[0], dim_bounds[1], self.meshgrid_size) for dim_bounds in self.bounds]
         self.meshgrids = np.meshgrid(*self.grid_points, indexing='ij')
         self.points_to_predict = np.hstack([mg.reshape(-1, 1) for mg in self.meshgrids])
@@ -62,7 +62,7 @@ class ActiveLearningOrchestrator:
                 kernel="rbf",
                 length_per_dimension=True, #allow the matern to use separate length scales for the two parameters
                 y_is_good=False,            #we wish to minimize y (the error)
-                backend="sklearn" # "sklearn" or "gpax"
+                backend="gpax" # "sklearn" or "gpax"
             )
         else:
             payload = BOALaaSInputPredictions(
@@ -73,7 +73,7 @@ class ActiveLearningOrchestrator:
                 kernel="rbf",
                 length_per_dimension=True,
                 y_is_good=False,
-                backend="sklearn" # "sklearn" or "gpax"
+                backend="gpax" # "sklearn" or "gpax"
             )
         return IntersectClientCallback(
             messages_to_send=[

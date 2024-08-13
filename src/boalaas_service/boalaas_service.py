@@ -9,7 +9,6 @@ import os
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
 # os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=".10"
 # os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"]="platform"
-print('gpax was imported succesfully')
 from scipy.optimize import minimize
 from scipy.stats import norm
 from typing import Union
@@ -38,11 +37,11 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if backend_name not in self._BACKENDS:
             raise ValueError(f'Unknown backend {backend_name}')
         if backend_name == "gpax":
-            model = gpax.ExactGP(input_dim=2, kernel=self._kernel(data))
-            key1, key2 = gpax.utils.get_keys()
-            model.fit(key1, data.X_train, data.Y_train)
-            print('Completed GP model training')
-            return model
+            rng_key_train, rng_key_predict = gpax.utils.get_keys()
+            # Initialize and train a variational inference GP model
+            gp_model = gpax.viGP(2, kernel='Matern', guide='delta')
+            gp_model.fit(rng_key_train, data.X_train, data.Y_train, num_steps=250, step_size=0.05, print_summary=False,progress_bar=False)
+            return gp_model
         else:
             model = GaussianProcessRegressor(kernel=self._kernel(data), n_restarts_optimizer=250)
             model.fit(data.X_train, data.Y_train)
@@ -128,9 +127,8 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             if backend_name not in self._BACKENDS:
                 raise ValueError(f'Unknown backend {backend_name}')
             if backend_name == "gpax":
-                key1, key2 = gpax.utils.get_keys()
-                mean, f_samples = model.predict_in_batches(key2, x.reshape(1, -1), batch_size=1, noiseless=True)
-                sigma = f_samples.std(axis=(0,1))
+                rng_key_train, rng_key_predict = gpax.utils.get_keys()
+                mean, sigma = model.predict(rng_key_predict, x.reshape(1, -1)) # output is y_pred, y_var
                 mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
                 return negative_value(mean, sigma)
             else:
@@ -168,12 +166,11 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         
         if backend_name == "gpax":
             model = self._train_model(data)
-            key1, key2 = gpax.utils.get_keys()
-            means, f_samples = model.predict_in_batches(key2, data.x_predict, batch_size=100, noiseless=True)
-            stddevs = f_samples.std(axis=(0,1))
-            stddevs *= data.stddev #turn sigma into stddev of prediction
+            rng_key_train, rng_key_predict = gpax.utils.get_keys()
+            y_pred, y_var = model.predict(rng_key_predict, data.x_predict)
+            stddevs = data.stddev*y_var #turn sigma into stddev of prediction
             #undo preprocessing:
-            means = data.inverse_transform(means)
+            means = data.inverse_transform(y_pred)
             transformed_stddevs = data.inverse_transform(stddevs)
             return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
         
