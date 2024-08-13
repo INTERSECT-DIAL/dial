@@ -39,7 +39,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if backend_name == "gpax":
             rng_key_train, rng_key_predict = gpax.utils.get_keys()
             # Initialize and train a variational inference GP model
-            gp_model = gpax.viGP(2, kernel='Matern', guide='delta')
+            gp_model = gpax.viGP(len(data.bounds), kernel='Matern', guide='delta')
             gp_model.fit(rng_key_train, data.X_train, data.Y_train, num_steps=250, step_size=0.05, print_summary=False,progress_bar=False)
             return gp_model
         else:
