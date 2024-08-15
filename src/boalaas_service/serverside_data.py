@@ -13,6 +13,7 @@ class ServersideInputBase:
         self.kernel = data.kernel
         self.length_per_dimension = data.length_per_dimension
         self.backend = data.backend
+        self.seed = data.seed
         self.preprocess_log = data.preprocess_log
         self.preprocess_standardize = data.preprocess_standardize
 

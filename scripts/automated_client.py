@@ -62,7 +62,8 @@ class ActiveLearningOrchestrator:
                 kernel="rbf",
                 length_per_dimension=True, #allow the matern to use separate length scales for the two parameters
                 y_is_good=False,            #we wish to minimize y (the error)
-                backend="gpax" # "sklearn" or "gpax"
+                backend="sklearn", # "sklearn" or "gpax"
+                seed=-1 # Use seed = -1 for random results
             )
         else:
             payload = BOALaaSInputPredictions(
@@ -73,7 +74,8 @@ class ActiveLearningOrchestrator:
                 kernel="rbf",
                 length_per_dimension=True,
                 y_is_good=False,
-                backend="gpax" # "sklearn" or "gpax"
+                backend="sklearn", # "sklearn" or "gpax"
+                seed=-1 # Use seed = -1 for random results
             )
         return IntersectClientCallback(
             messages_to_send=[

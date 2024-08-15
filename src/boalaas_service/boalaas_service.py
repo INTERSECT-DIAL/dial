@@ -33,11 +33,17 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
     _BACKENDS = ["sklearn", "gpax"]
     #trains a model based on the user's data
     def _train_model(self, data: ServersideInputBase): # -> GaussianProcessRegressor or -> gpax.ExactGP:
+        if data.seed != -1:
+            random.seed(data.seed)
+            np.random.seed(data.seed)
         backend_name = data.backend.lower()
         if backend_name not in self._BACKENDS:
             raise ValueError(f'Unknown backend {backend_name}')
         if backend_name == "gpax":
-            rng_key_train, rng_key_predict = gpax.utils.get_keys()
+            if data.seed == -1:
+                rng_key_train, rng_key_predict = gpax.utils.get_keys()
+            else:
+                rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
             # Initialize and train a variational inference GP model
             gp_model = gpax.viGP(len(data.bounds), kernel='Matern', guide='delta')
             gp_model.fit(rng_key_train, data.X_train, data.Y_train, num_steps=250, step_size=0.05, print_summary=False,progress_bar=False)
@@ -96,6 +102,9 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
     # trains a model and then recommends a point to measure based on user's requested strategy:
     def get_next_point(self, client_data: BOALaaSInputSingle) -> list[float]:
         data = ServersideInputSingle(client_data)
+        if data.seed != -1:
+            random.seed(data.seed)
+            np.random.seed(data.seed)
         #if it's random point, we don't need to train a model or anything:
         if data.strategy=="random":
             return self._random_in_bounds(data)
@@ -127,7 +136,10 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             if backend_name not in self._BACKENDS:
                 raise ValueError(f'Unknown backend {backend_name}')
             if backend_name == "gpax":
-                rng_key_train, rng_key_predict = gpax.utils.get_keys()
+                if data.seed == -1:
+                    rng_key_train, rng_key_predict = gpax.utils.get_keys()
+                else:
+                    rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
                 mean, sigma = model.predict(rng_key_predict, x.reshape(1, -1)) # output is y_pred, y_var
                 mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
                 return negative_value(mean, sigma)
@@ -135,13 +147,15 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                 mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
                 mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
                 return negative_value(mean, sigma)
-            
         guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
         return minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
     
     @intersect_message
     def get_next_points(self, client_data: BOALaaSInputMultiple) -> list[list[float]]:
         data = ServersideInputMultiple(client_data)
+        if data.seed != -1:
+            random.seed(data.seed)
+            np.random.seed(data.seed)
         #model = self._train_model(data) #this will be needed when we add qEI/constant liars
         output_points = None
         match data.strategy:
@@ -166,7 +180,10 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         
         if backend_name == "gpax":
             model = self._train_model(data)
-            rng_key_train, rng_key_predict = gpax.utils.get_keys()
+            if data.seed == -1:
+                rng_key_train, rng_key_predict = gpax.utils.get_keys()
+            else:
+                rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
             y_pred, y_var = model.predict(rng_key_predict, data.x_predict)
             stddevs = data.stddev*y_var #turn sigma into stddev of prediction
             #undo preprocessing:
