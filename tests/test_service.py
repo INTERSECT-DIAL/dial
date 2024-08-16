@@ -243,9 +243,9 @@ def test_surrogate(prediction_1D_A, prediction_1D_GPax):
     assert raw_stddevs[1:4] == approx([8.739217244027204, 11.956904892760956, 8.739217244027222])
     #gpax
     means, stddevs, raw_stddevs = Service().get_surrogate_values(prediction_1D_GPax)
-    assert means == approx([79.6519513735229, 82.90114739318935, 85.20836520033394, 86.409154776746, 86.38551404983386])
-    assert stddevs[1:4] == approx([3176.132682523885, 3166.307812546573, 3176.132682523885])
-    assert raw_stddevs[1:4] == approx([3176.132682523885, 3166.307812546573, 3176.132682523885])
+    assert means == approx([76.99987768175089, 79.70037093884447, 81.5157895856116, 82.38145329572436, 82.26569221517353])
+    assert stddevs[1:4] == approx([3335.7290084812175, 3327.202331393974, 3335.7290084812175])
+    assert raw_stddevs[1:4] == approx([3335.7290084812175, 3327.202331393974, 3335.7290084812175])
 
 def test_inverse_transform(prediction_1D_A, prediction_1D_GPax):
     #sklearn

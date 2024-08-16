@@ -45,7 +45,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             else:
                 rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
             # Initialize and train a variational inference GP model
-            gp_model = gpax.viGP(len(data.bounds), kernel='Matern', guide='delta')
+            gp_model = gpax.viGP(len(data.bounds), self._kernel(data), guide='delta')
             gp_model.fit(rng_key_train, data.X_train, data.Y_train, num_steps=250, step_size=0.05, print_summary=False,progress_bar=False)
             return gp_model
         else:
@@ -140,8 +140,8 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     rng_key_train, rng_key_predict = gpax.utils.get_keys()
                 else:
                     rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
-                mean, sigma = model.predict(rng_key_predict, x.reshape(1, -1)) # output is y_pred, y_var
-                mean, sigma = mean[0], data.stddev*sigma[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
+                mean, y_var = model.predict(rng_key_predict, x.reshape(1, -1)) # output is y_pred, y_var
+                mean, sigma = mean[0], data.stddev*y_var[0] #it returns arrays, so fix that.  Also turn sigma into stddev of prediction
                 return negative_value(mean, sigma)
             else:
                 mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
