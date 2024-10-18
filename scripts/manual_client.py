@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('agg')
 import numpy as np
 
 from intersect_sdk import (
@@ -59,7 +61,9 @@ class ActiveLearningOrchestrator:
                 bounds=self.bounds,
                 kernel="matern",
                 length_per_dimension=True, #allow the matern to use separate length scales for temp and duration
-                y_is_good=True             #we wish to maximize y (the yield)
+                y_is_good=True,             #we wish to maximize y (the yield)
+                backend="sklearn",
+                seed=-1
             )
         else:
             payload = BOALaaSInputPredictions(
@@ -69,7 +73,9 @@ class ActiveLearningOrchestrator:
                 points_to_predict=self.points_to_predict,
                 kernel="matern",
                 length_per_dimension=True, #allow the matern to use separate length scales for temp and duration
-                y_is_good=True             #we wish to maximize y (the yield)
+                y_is_good=True,             #we wish to maximize y (the yield)
+                backend="sklearn",
+                seed=-1
             )
         return IntersectClientCallback(
             messages_to_send=[
