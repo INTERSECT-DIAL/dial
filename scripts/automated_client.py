@@ -16,7 +16,7 @@ from intersect_sdk import (
     IntersectClient,
     IntersectClientCallback,
     IntersectClientConfig,
-    IntersectClientMessageParams,
+    IntersectDirectMessageParams,
     INTERSECT_JSON_VALUE,
     default_intersect_lifecycle_loop,
 )
@@ -79,9 +79,9 @@ class ActiveLearningOrchestrator:
             )
         return IntersectClientCallback(
             messages_to_send=[
-                IntersectClientMessageParams(
+                IntersectDirectMessageParams(
                     destination='neeter-active-learning-organization.neeter-active-learning-facility.neeter-active-learning-system.neeter-active-learning-subsystem.neeter-active-learning-service',
-                    operation=operation,
+                    operation=f"BOALaaS.{operation}",
                     payload=payload,
                 )
             ]
@@ -92,7 +92,7 @@ class ActiveLearningOrchestrator:
     def __call__(
         self, source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
-        if operation=="get_surrogate_values": #if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
+        if operation=="BOALaaS.get_surrogate_values": #if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
             self.mean_grid = np.array(payload[0]).reshape((self.meshgrid_size,)*self.num_dims)
             return self.assemble_message("get_next_point") #returning a message automatically sends it to the server
         #if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":

@@ -3,7 +3,6 @@
 ## Requirements
 
 - Python >= 3.9
-- a Gitlab Personal Access Token (see https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html for instructions)
 
 ## Installing
 
@@ -15,9 +14,9 @@ To install boalaas from source, git clone this repository and run the following 
 
 `pip install .`
 
-Alternatively, with a Gitlab Personal Access Token, both intersect-sdk and boalaas may be installed with the following:
+Alternatively, both intersect-sdk and boalaas may be installed with the following:
 
-`pip install -i https://user:${REGISTRY_PASSWORD}@code.ornl.gov/api/v4/groups/5609/-/packages/pypi/simple -e .`
+`pip install -e .`
 
 ## CLI arguments / environment variables
 

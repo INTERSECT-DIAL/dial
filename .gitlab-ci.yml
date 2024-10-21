@@ -21,7 +21,6 @@ build:
   script:
     - >
       docker build
-      --build-arg REGISTRY_PASSWORD=${CI_JOB_TOKEN}
       -t $DEVELOP_URL/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA .
     - docker tag $DEVELOP_URL/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA $DEVELOP_URL/$CI_COMMIT_REF_NAME:latest
     - docker push $DEVELOP_URL/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA

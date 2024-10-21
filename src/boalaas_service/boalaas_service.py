@@ -25,10 +25,11 @@ from .serverside_data import *
 logger = logging.getLogger(__name__)
 
 class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
-
     '''
     Internal guts for GP usage:
     '''
+
+    intersect_sdk_capability_name = "BOALaaS"
 
     _BACKENDS = ["sklearn", "gpax"]
     #trains a model based on the user's data
