@@ -35,9 +35,11 @@ class BOALaaSInputBase(BaseModel):
 
 
 class BOALaaSInputSingle(BOALaaSInputBase):
-    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'confidence_bound']
-    optimization_points: int | None = Field(default=1000)
-    confidence_bound: float | None = Field(default=None)
+    strategy: Literal["random", "uncertainty", "expected_improvement", "confidence_bound"]
+    optimization_points: Optional[int] = Field(default=1000)
+    confidence_bound: Optional[float] = Field(default=None)
+    discrete_measurements: Optional[bool] = Field(default=False)
+    discrete_measurement_grid_size: Optional[list[int]] = Field(default=[20, 20])
 
     @model_validator(mode='after')
     def validate_confidence_bound(self):

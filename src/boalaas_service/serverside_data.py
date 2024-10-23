@@ -63,6 +63,8 @@ class ServersideInputSingle(ServersideInputBase):
         self.strategy = data.strategy
         self.optimization_points = data.optimization_points
         self.confidence_bound = data.confidence_bound
+        self.discrete_measurements = data.discrete_measurements
+        self.discrete_measurement_grid_size = data.discrete_measurement_grid_size
 
 
 class ServersideInputMultiple(ServersideInputBase):

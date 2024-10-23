@@ -133,12 +133,14 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if data.seed != -1:
             random.seed(data.seed)
             np.random.seed(data.seed)
-        # if it's random point, we don't need to train a model or anything:
-        if data.strategy == 'random':
+        
+        # If it's random point, we don't need to train a model or anything else
+        if data.strategy=="random":
             return self._random_in_bounds(data)
 
         model = self._train_model(data)
-        # generate the function that gives -1 * the "value" of measuring a point with the given mean & stddev
+
+        # Generate the function that gives -1 * the "value" of measuring a point with the given mean & stddev
         negative_value = None
         match data.strategy:
             case 'uncertainty':
@@ -160,13 +162,16 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                 )  # need this because this is the "inverse CDF" which is one-tailed, but we want two-tailed
 
                 def negative_value(mean: float, stddev: float):
-                    # y_is_good: maximize mean + z*stddev, so minimize -mean - z*stdev
-                    # y_is_bad:  minimize mean - z*stddev
-                    return -Z_VALUE * stddev + mean * (-1 if data.y_is_good else 1)
-
-        # create a function that can be minimized over the bounds:
-        def to_minimize(x: np.ndarray):
-            if data.backend == 'gpax':
+                    #y_is_good: maximize mean + z*stddev, so minimize -mean - z*stdev
+                    #y_is_bad:  minimize mean - z*stddev
+                    return -Z_VALUE*stddev + mean*(-1 if data.y_is_good else 1)
+                
+        # Create a function that can be minimized over the bounds:
+        def to_minimize(x):
+            backend_name = data.backend.lower()
+            if backend_name not in self._BACKENDS:
+                raise ValueError(f'Unknown backend {backend_name}')
+            if backend_name == "gpax":
                 if data.seed == -1:
                     rng_key_train, rng_key_predict = gpax.utils.get_keys()
                 else:
@@ -180,16 +185,40 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                 )  # it returns arrays, so fix that.  Also turn sigma into stddev of prediction
                 return negative_value(mean, sigma)
 
-            mean, sigma = model.predict(x.reshape(1, -1), return_std=True)
-            mean, sigma = (
-                mean[0],
-                data.stddev * sigma[0],
-            )  # it returns arrays, so fix that.  Also turn sigma into stddev of prediction
-            return negative_value(mean, sigma)
+        if data.discrete_measurements:
+            self.measurement_grid = []
+            row_values = np.linspace(data.bounds[0][0], data.bounds[0][1], data.discrete_measurement_grid_size[0])
+            col_values = np.linspace(data.bounds[1][0], data.bounds[1][1], data.discrete_measurement_grid_size[1])
+            for row in range(0,data.discrete_measurement_grid_size[0]):
+                for col in range(0, data.discrete_measurement_grid_size[1]):
+                    self.measurement_grid.append([row_values[row], col_values[col]])
 
-        guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
-        return minimize(to_minimize, guess, bounds=data.bounds, method='L-BFGS-B').x.tolist()
+            backend_name = data.backend.lower()
+            if backend_name == "gpax":
+                if data.seed == -1:
+                    rng_key_train, rng_key_predict = gpax.utils.get_keys()
+                else:
+                    rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
+                y_pred, y_var = model.predict(rng_key_predict, self.measurement_grid)
+                stddevs = data.stddev*y_var #turn sigma into stddev of prediction
+        
+            else:
+                means, stddevs = model.predict(self.measurement_grid, return_std=True)
+                stddevs *= data.stddev #turn sigma into stddev of prediction
 
+            response_surface = negative_value(means, stddevs)
+
+            index = np.int64(np.argmin(response_surface))
+            selected_point = self.measurement_grid[index]
+
+            return selected_point
+            
+        else:
+            guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
+            selected_point = minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
+            print(selected_point)
+            return selected_point
+    
     @intersect_message
     def get_next_points(self, client_data: BOALaaSInputMultiple) -> list[list[float]]:
         data = ServersideInputMultiple(client_data)
