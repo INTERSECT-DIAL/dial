@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+from boalaas_service import BOALaaSCapabilityImplementation
 from intersect_sdk import (
     HierarchyConfig,
     IntersectService,
@@ -12,14 +13,12 @@ from intersect_sdk import (
     default_intersect_lifecycle_loop,
 )
 
-from boalaas_service import BOALaaSCapabilityImplementation
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-'''''
+"""''
 This launches the service.  Separate file due to module/import structure, plus we possibly want the capability to be a separate unit
-'''''
+""" ''
 
 if __name__ == '__main__':
     # boilerplate config file setup
@@ -31,17 +30,17 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     try:
-        with open(args.config, 'rb') as f:
+        with Path(args.config).open('rb') as f:
             from_config_file = json.load(f)
     except (json.decoder.JSONDecodeError, OSError) as e:
         logger.critical('unable to load config file: %s', str(e))
         sys.exit(1)
-    
+
     """
     step one: create configuration class, which handles validation - see the IntersectServiceConfig class documentation for more info
 
     In most cases, everything under from_config_file should come from a configuration file, command line arguments, or environment variables.
-    """    
+    """
     config = IntersectServiceConfig(
         hierarchy=HierarchyConfig(
             organization='neeter-active-learning-organization',

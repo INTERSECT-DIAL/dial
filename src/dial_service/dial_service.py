@@ -1,15 +1,13 @@
-from __future__ import annotations
-
 import logging
 import random
 from typing import ClassVar
 
 import gpax
 import numpy as np
-from boalaas_dataclass import (  # noqa: TCH002 (used at runtime by INTERSECT)
-    BOALaaSInputMultiple,
-    BOALaaSInputPredictions,
-    BOALaaSInputSingle,
+from dial_dataclass import (
+    DialInputMultiple,
+    DialInputPredictions,
+    DialInputSingle,
 )
 from intersect_sdk import IntersectBaseCapabilityImplementation, intersect_message, intersect_status
 from scipy.optimize import minimize
@@ -33,10 +31,10 @@ logger = logging.getLogger(__name__)
 # os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"]="platform"
 
 
-class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
+class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
     """Internal guts for GP usage."""
 
-    intersect_sdk_capability_name = 'BOALaaS'
+    intersect_sdk_capability_name = 'dial'
 
     _BACKENDS: ClassVar = ['sklearn', 'gpax']
     _KERNELS_SKLEARN: ClassVar = {'rbf': RBF, 'matern': Matern}
@@ -101,7 +99,10 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if isinstance(points_per_dim, int):
             points_per_dim = [points_per_dim] * len(data.bounds)
         meshgrid = np.meshgrid(
-            *(np.linspace(low, high, pts) for (low, high), pts in zip(data.bounds, points_per_dim)),
+            *(
+                np.linspace(low, high, pts)
+                for (low, high), pts in zip(data.bounds, points_per_dim, strict=False)
+            ),
             indexing='ij',
         )
         return np.column_stack([arr.flatten() for arr in meshgrid])
@@ -119,7 +120,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             )
             random.shuffle(coordinates[-1])
         # add the points:
-        return [list(point) for point in zip(*coordinates)]
+        return [list(point) for point in zip(*coordinates, strict=False)]
 
     """
     Endpoints users can hit:
@@ -127,17 +128,19 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
     @intersect_message()
     # trains a model and then recommends a point to measure based on user's requested strategy:
-    def get_next_point(self, client_data: BOALaaSInputSingle) -> list[float]:
+    def get_next_point(self, client_data: DialInputSingle) -> list[float]:
         data = ServersideInputSingle(client_data)
         if data.seed != -1:
             random.seed(data.seed)
             np.random.seed(data.seed)
-        # if it's random point, we don't need to train a model or anything:
+
+        # If it's random point, we don't need to train a model or anything else
         if data.strategy == 'random':
             return self._random_in_bounds(data)
 
         model = self._train_model(data)
-        # generate the function that gives -1 * the "value" of measuring a point with the given mean & stddev
+
+        # Generate the function that gives -1 * the "value" of measuring a point with the given mean & stddev
         negative_value = None
         match data.strategy:
             case 'uncertainty':
@@ -163,7 +166,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     # y_is_bad:  minimize mean - z*stddev
                     return -Z_VALUE * stddev + mean * (-1 if data.y_is_good else 1)
 
-        # create a function that can be minimized over the bounds:
+        # Create a function that can be minimized over the bounds:
         def to_minimize(x: np.ndarray):
             if data.backend == 'gpax':
                 if data.seed == -1:
@@ -186,11 +189,47 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             )  # it returns arrays, so fix that.  Also turn sigma into stddev of prediction
             return negative_value(mean, sigma)
 
+        if data.discrete_measurements:
+            self.measurement_grid = []
+            row_values = np.linspace(
+                data.bounds[0][0], data.bounds[0][1], data.discrete_measurement_grid_size[0]
+            )
+            col_values = np.linspace(
+                data.bounds[1][0], data.bounds[1][1], data.discrete_measurement_grid_size[1]
+            )
+            for row in range(data.discrete_measurement_grid_size[0]):
+                for col in range(data.discrete_measurement_grid_size[1]):
+                    self.measurement_grid.append([row_values[row], col_values[col]])
+
+            backend_name = data.backend.lower()
+            if backend_name == 'gpax':
+                if data.seed == -1:
+                    rng_key_train, rng_key_predict = gpax.utils.get_keys()
+                else:
+                    rng_key_train, rng_key_predict = gpax.utils.get_keys(seed=data.seed)
+                y_pred, y_var = model.predict(rng_key_predict, self.measurement_grid)
+                stddevs = data.stddev * y_var  # turn sigma into stddev of prediction
+
+            else:
+                means, stddevs = model.predict(self.measurement_grid, return_std=True)
+                stddevs *= data.stddev  # turn sigma into stddev of prediction
+
+            response_surface = negative_value(means, stddevs)
+
+            index = np.int64(np.argmin(response_surface))
+            # selected point
+            return self.measurement_grid[index]
+
         guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
-        return minimize(to_minimize, guess, bounds=data.bounds, method='L-BFGS-B').x.tolist()
+        selected_point = minimize(
+            to_minimize, guess, bounds=data.bounds, method='L-BFGS-B'
+        ).x.tolist()
+        logger.debug('selected point with non-discrete measurements')
+        logger.debug(selected_point)
+        return selected_point
 
     @intersect_message
-    def get_next_points(self, client_data: BOALaaSInputMultiple) -> list[list[float]]:
+    def get_next_points(self, client_data: DialInputMultiple) -> list[list[float]]:
         data = ServersideInputMultiple(client_data)
         if data.seed != -1:
             random.seed(data.seed)
@@ -211,7 +250,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
     """
 
     @intersect_message
-    def get_surrogate_values(self, client_data: BOALaaSInputPredictions) -> list[list[float]]:
+    def get_surrogate_values(self, client_data: DialInputPredictions) -> list[list[float]]:
         data = ServersideInputPrediction(client_data)
 
         if data.backend == 'gpax':

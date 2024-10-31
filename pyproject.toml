@@ -16,11 +16,13 @@ classifiers = ["Programming Language :: Python :: 3"]
 dependencies = [
     "intersect_sdk[amqp]>=0.8.0,<0.9.0",
     "numpy>=1.26.3,<2.0.0",
-    "matplotlib>=3.8.2,<4.0.0",
-    "scikit-learn>=1.4.0,<2.0.0",
+    "scikit-learn>=1.4.0,<2.0.0",        # TODO consider making an optional dependency group
     "scipy>=1.12.0,<2.0.0",
-    "gpax>=0.1.8",
+    "gpax>=0.1.8",                       # TODO consider making an optional dependency group
 ]
+
+[project.optional-dependencies]
+client = ["matplotlib>=3.8.2,<4.0.0",]
 
 [tool.pdm.dev-dependencies]
 lint = ["pre-commit>=3.3.1", "ruff==0.5.7", "mypy>=1.10.0"]
@@ -28,23 +30,23 @@ test = ["pytest>=7.3.2", "pytest-cov>=4.1.0", "httpretty>=1.1.4"]
 
 [tool.ruff]
 line-length = 100
-format = { quote-style = 'double' }
+format = { quote-style = 'single' }
+namespace-packages = ["scripts/", "tests/"]
 
 [tool.ruff.lint]
 isort = { known-first-party = ['src'] }
 pydocstyle = { convention = 'google' }
-flake8-quotes = { inline-quotes = 'double', multiline-quotes = 'double' }
+flake8-quotes = { inline-quotes = 'single', multiline-quotes = 'double' }
 mccabe = { max-complexity = 20 }
-pylint = { max-args = 10, max-branches = 20, max-returns = 10, max-statements = 75 }
 # pyflakes and the relevant pycodestyle rules are already configured
 extend-select = [
-    'C90',   # mccabe complexity
-    'I',     # isort
-    'N',     # pep8-naming
-    'D',     # pydocstyle
-    'UP',    # pyupgrade
-    'YTT',   # flake8-2020
-    'ANN',   # flake8-annotations
+    'C90', # mccabe complexity
+    'I',   # isort
+    'N',   # pep8-naming
+    #'D',     # pydocstyle           - disabled for now
+    'UP',  # pyupgrade
+    'YTT', # flake8-2020
+    #'ANN',   # flake8-annotations   - disabled for now
     'ASYNC', # flake8-async
     'S',     # flake8-bandit
     'BLE',   # flake8-blind-except
@@ -88,6 +90,14 @@ ignore = [
     'ANN102',  # don't need to annotate "cls" typing for class methods
     'ANN401',  # allow explicit "Any" typing, use with care
     'PLR2004', # allow "magic numbers"
+    # TODO - should not ignore below in long term, but will for now
+    'D100',
+    'D101',
+    'D103',
+    'N802',
+    'N803',
+    'N806',
+    'N812',
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
@@ -104,6 +114,9 @@ ignore = [
     'D104',   # documenting packages in examples is unhelpful
     'TRY002', # examples can raise their own exception
     'FA100',  # examples are tested on Python 3.8, and future annotations cause problems with Pydantic
+]
+'scripts/*' = [
+    'T20', # allow print/pprint statements in scripts
 ]
 'tests/*' = [
     'S101',   # allow assert statements in tests
