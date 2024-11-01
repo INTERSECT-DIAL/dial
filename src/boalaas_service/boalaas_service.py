@@ -216,7 +216,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         else:
             guess = min(np.array(self._hypercube(data, data.optimization_points)), key=to_minimize)
             selected_point = minimize(to_minimize, guess, bounds=data.bounds, method="L-BFGS-B").x.tolist()
-            print(selected_point)
+            logger.debug(selected_point)
             return selected_point
     
     @intersect_message

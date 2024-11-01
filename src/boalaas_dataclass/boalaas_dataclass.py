@@ -1,14 +1,19 @@
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Literal, Optional
+from typing_extensions import Annotated
 
+PositiveIntType= Annotated[int, Field(ge=0)]
 
 class BOALaaSInputBase(BaseModel):
-    dataset_x: list[list[float]]  # the input vectors of the training data
-    dataset_y: list[float]  # the output values of the training data
-    y_is_good: bool  # if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
-    kernel: Literal['rbf', 'matern']
-    length_per_dimension: bool  # if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
+    """This is the base input dataclass for BOALaaS."""
+
+    dataset_x: list[list[float]] #the input vectors of the training data
+    dataset_y: list[float] #the output values of the training data
+    y_is_good: bool  #if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
+    kernel: Literal["rbf", "matern"]
+    length_per_dimension: bool #if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
     bounds: list[list[float]]
     backend: Literal['sklearn', 'gpax']
     seed: int
@@ -35,11 +40,13 @@ class BOALaaSInputBase(BaseModel):
 
 
 class BOALaaSInputSingle(BOALaaSInputBase):
+    """This is the input dataclass for BOALaaS for selecting a single new point to measure."""
+
     strategy: Literal["random", "uncertainty", "expected_improvement", "confidence_bound"]
-    optimization_points: Optional[int] = Field(default=1000)
+    optimization_points: Optional[PositiveIntType] = Field(default=1000)
     confidence_bound: Optional[float] = Field(default=None)
     discrete_measurements: Optional[bool] = Field(default=False)
-    discrete_measurement_grid_size: Optional[list[int]] = Field(default=[20, 20])
+    discrete_measurement_grid_size: Optional[list[PositiveIntType]] = Field(default=[20, 20])
 
     @model_validator(mode='after')
     def validate_confidence_bound(self):
@@ -54,9 +61,13 @@ class BOALaaSInputSingle(BOALaaSInputBase):
 
 
 class BOALaaSInputMultiple(BOALaaSInputBase):
+    """This is the input dataclass for BOALaaS for selecting a multiple new point to measures (i.e., a batch of measurements)."""
+
     points: int
     strategy: Literal['random', 'hypercube']
 
 
 class BOALaaSInputPredictions(BOALaaSInputBase):
+    """This is the input dataclass for BOALaaS for requesting a surrogate evaluation at a given number of points."""
+
     points_to_predict: list[list[float]]
