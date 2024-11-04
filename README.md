@@ -36,15 +36,36 @@ To run linter and automatically fix errors:
 
 `ruff check --fix`
 
-## Testing
+## running infrastructure locally
 
-You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
+You can use `docker compose up -d` to automatically spin up a broker instance locally.
 
-`pytest tests/`
+To remove the infrastructure containers: `docker compose down -v`
 
-## CLI arguments / environment variables
+Note that if you are also running the Client/Service scripts in Docker, you will need to make sure that you add in appropriate `host` properties inside of `local-conf.json` (the host names are the names of the services in `docker-compose.yml`, instead of `127.0.0.1`):
 
-NOTE: this applies to any Service and Client in this repository.
+```json
+{
+  "brokers": [
+    {
+      "username": "intersect_username",
+      "password": "intersect_password",
+      "host": "broker",
+      "port": 1883,
+      "protocol": "mqtt3.1.1"
+    }
+  ]
+}
+
+```
+
+## Running
+
+To run the service: `python scripts/launch_service.py`
+
+In a separate terminal, you can run one of the following clients:
+  - Automatic: `python scripts/automated_client.py`
+  - Manual: `python scripts/manual_client.py`
 
 CLI arg `--config` or environment variable `NEETER_CONFIG_FILE` should be a path to a valid JSON configuration. If neither value is set, it will default to `local-conf.json` .
 
@@ -65,35 +86,8 @@ To run the client, select one of the following:
 - Automatic run: `docker run --rm -it -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json neeter-image python scripts/automated_client.py`
 - Manual run: `docker run --rm -it -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json neeter-image python scripts/manual_client.py`
 
-## running infrastructure locally
+## Testing
 
-You can use `docker compose up -d` to automatically spin up a broker instance locally.
+You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
 
-To remove the infrastructure containers: `docker compose down -v`
-
-Note that if you are also running the Client/Service scripts in Docker, you will need to make sure that you add in appropriate `host` properties inside of `local-conf.json` (the host names are the names of the services in `docker-compose.yml`, instead of `127.0.0.1`):
-
-```json
-{
-  "data_stores": {
-    "minio": [
-      {
-        "username": "AKIAIOSFODNN7EXAMPLE",
-        "password": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-        "host": "minio",
-        "port": 9000
-      }
-    ]
-  },
-  "brokers": [
-    {
-      "username": "intersect_username",
-      "password": "intersect_password",
-      "host": "broker",
-      "port": 1883,
-      "protocol": "mqtt3.1.1"
-    }
-  ]
-}
-
-```
+`pytest tests/`
