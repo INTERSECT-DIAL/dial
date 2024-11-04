@@ -16,9 +16,9 @@ from intersect_sdk import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-"""''
+"""
 This launches the service.  Separate file due to module/import structure, plus we possibly want the capability to be a separate unit
-""" ''
+"""
 
 if __name__ == '__main__':
     # boilerplate config file setup

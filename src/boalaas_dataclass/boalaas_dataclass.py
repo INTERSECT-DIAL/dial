@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -36,8 +36,8 @@ class BOALaaSInputBase(BaseModel):
 
 class BOALaaSInputSingle(BOALaaSInputBase):
     strategy: Literal['random', 'uncertainty', 'expected_improvement', 'confidence_bound']
-    optimization_points: Optional[int] = Field(default=1000)  # noqa: FA100  (pydantic runtime for Python 3.9)
-    confidence_bound: Optional[float] = Field(default=None)  # noqa: FA100   (pydantic runtime for Python 3.9)
+    optimization_points: int | None = Field(default=1000)
+    confidence_bound: float | None = Field(default=None)
 
     @model_validator(mode='after')
     def validate_confidence_bound(self):

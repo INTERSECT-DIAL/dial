@@ -1,0 +1,10 @@
+*
+!src/**/*
+!scripts/**/*
+!tests/**/*
+!pyproject.toml
+!pdm.lock
+!README.md
+!docker-entrypoint.sh
+__pycache__
+*.egg-info/

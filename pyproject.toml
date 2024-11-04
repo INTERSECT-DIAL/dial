@@ -1,28 +1,22 @@
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "boalaas"
 version = "0.1.0"
 authors = [{ name = "David Joy", email = "joydh1@ornl.gov" }]
 description = "Bayesian Optimization and Active Learning as a Service (BOALaaS): An INTERSECT service that provides Gaussian Process-based optimization and active learning"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["active learning"]
 #license = {text = "BSD-3-Clause"}
 classifiers = ["Programming Language :: Python :: 3"]
 # TODO move some dependencies into optional dependencies
 dependencies = [
     "intersect_sdk[amqp]>=0.8.0,<0.9.0",
+    "matplotlib>=3.8.2,<4.0.0",          # TODO - this is only required if using gpax or running the client, consider making an optional dependency group
     "numpy>=1.26.3,<2.0.0",
     "scikit-learn>=1.4.0,<2.0.0",        # TODO consider making an optional dependency group
     "scipy>=1.12.0,<2.0.0",
     "gpax>=0.1.8",                       # TODO consider making an optional dependency group
 ]
-
-[project.optional-dependencies]
-client = ["matplotlib>=3.8.2,<4.0.0",]
 
 [tool.pdm.dev-dependencies]
 lint = ["pre-commit>=3.3.1", "ruff==0.5.7", "mypy>=1.10.0"]
@@ -128,3 +122,11 @@ ignore = [
     'D',      # ignore documentation in tests
     'FA100',  # tests frequently use runtime typing annotations
 ]
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+#[tool.setuptools]
+#package-dir = {"" = "src"}
+

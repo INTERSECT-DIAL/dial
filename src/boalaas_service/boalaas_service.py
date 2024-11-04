@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import logging
 import random
 from typing import ClassVar
 
 import gpax
 import numpy as np
-from boalaas_dataclass import (  # noqa: TCH002 (used at runtime by INTERSECT)
+from boalaas_dataclass import (
     BOALaaSInputMultiple,
     BOALaaSInputPredictions,
     BOALaaSInputSingle,
@@ -101,7 +99,10 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if isinstance(points_per_dim, int):
             points_per_dim = [points_per_dim] * len(data.bounds)
         meshgrid = np.meshgrid(
-            *(np.linspace(low, high, pts) for (low, high), pts in zip(data.bounds, points_per_dim)),
+            *(
+                np.linspace(low, high, pts)
+                for (low, high), pts in zip(data.bounds, points_per_dim, strict=False)
+            ),
             indexing='ij',
         )
         return np.column_stack([arr.flatten() for arr in meshgrid])
@@ -119,7 +120,7 @@ class BOALaaSCapabilityImplementation(IntersectBaseCapabilityImplementation):
             )
             random.shuffle(coordinates[-1])
         # add the points:
-        return [list(point) for point in zip(*coordinates)]
+        return [list(point) for point in zip(*coordinates, strict=False)]
 
     """
     Endpoints users can hit:

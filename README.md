@@ -2,9 +2,9 @@
 
 ## Requirements
 
-- Python >= 3.9
+- Python >= 3.10
 
-## Installing
+## Installing (Non-developers)
 
 To install intersect-sdk from PyPI:
 
@@ -18,6 +18,12 @@ Alternatively, both intersect-sdk and boalaas may be installed with the followin
 
 `pip install -e .`
 
+## Installing (developers)
+
+Install PDM ([link](https://pdm-project.org/en/latest/#installation)) and then run:
+
+`pdm install`
+
 ## CLI arguments / environment variables
 
 NOTE: this applies to any Service and Client in this repository.
@@ -30,16 +36,16 @@ CLI arg `--config` or environment variable `NEETER_CONFIG_FILE` should be a path
 
 To build:
 
-`docker build --build-arg REGISTRY_PASSWORD=<Gitlab PAT> -t neeter-image .`
+`docker build -t neeter-image .`
 
 To run the service:
 
-`docker run --rm -it neeter-image python scripts/launch_service.py`
+`docker run --rm -it neeter-image -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/launch_service.py`
 
 To run the client, select one of the following:
 
-- Automatic run: `docker run --rm -it neeter-image python scripts/automated_client.py`
-- Manual run: `docker run --rm -it neeter-image python scripts/manual_client.py`
+- Automatic run: `docker run --rm -it neeter-image -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/automated_client.py`
+- Manual run: `docker run --rm -it neeter-image -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/manual_client.py`
 
 ## running infrastructure locally
 
