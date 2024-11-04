@@ -24,6 +24,24 @@ Install PDM ([link](https://pdm-project.org/en/latest/#installation)) and then r
 
 `pdm install`
 
+We use PDM as a dependency manager and intend on using the dependencies listed in `pdm.lock` in a production environment.
+
+We use ruff to lint/format; if using the PDM workflow, `pre-commit` will automatically fail the commit if there are linting/formatting errors.
+
+To format:
+
+`ruff format`
+
+To run linter and automatically fix errors:
+
+`ruff check --fix`
+
+## Testing
+
+You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
+
+`pytest tests/`
+
 ## CLI arguments / environment variables
 
 NOTE: this applies to any Service and Client in this repository.
@@ -44,8 +62,8 @@ To run the service:
 
 To run the client, select one of the following:
 
-- Automatic run: `docker run --rm -it neeter-image -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/automated_client.py`
-- Manual run: `docker run --rm -it neeter-image -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/manual_client.py`
+- Automatic run: `docker run --rm -it -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json neeter-image python scripts/automated_client.py`
+- Manual run: `docker run --rm -it -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json neeter-image python scripts/manual_client.py`
 
 ## running infrastructure locally
 

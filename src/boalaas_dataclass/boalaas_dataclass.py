@@ -1,19 +1,18 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Literal, Optional
-from typing_extensions import Annotated
 
-PositiveIntType= Annotated[int, Field(ge=0)]
+PositiveIntType = Annotated[int, Field(ge=0)]
+
 
 class BOALaaSInputBase(BaseModel):
     """This is the base input dataclass for BOALaaS."""
 
-    dataset_x: list[list[float]] #the input vectors of the training data
-    dataset_y: list[float] #the output values of the training data
-    y_is_good: bool  #if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
-    kernel: Literal["rbf", "matern"]
-    length_per_dimension: bool #if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
+    dataset_x: list[list[float]]  # the input vectors of the training data
+    dataset_y: list[float]  # the output values of the training data
+    y_is_good: bool  # if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
+    kernel: Literal['rbf', 'matern']
+    length_per_dimension: bool  # if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
     bounds: list[list[float]]
     backend: Literal['sklearn', 'gpax']
     seed: int
@@ -42,11 +41,11 @@ class BOALaaSInputBase(BaseModel):
 class BOALaaSInputSingle(BOALaaSInputBase):
     """This is the input dataclass for BOALaaS for selecting a single new point to measure."""
 
-    strategy: Literal["random", "uncertainty", "expected_improvement", "confidence_bound"]
-    optimization_points: Optional[PositiveIntType] = Field(default=1000)
-    confidence_bound: Optional[float] = Field(default=None)
-    discrete_measurements: Optional[bool] = Field(default=False)
-    discrete_measurement_grid_size: Optional[list[PositiveIntType]] = Field(default=[20, 20])
+    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'confidence_bound']
+    optimization_points: PositiveIntType | None = Field(default=1000)
+    confidence_bound: float | None = Field(default=None)
+    discrete_measurements: bool | None = Field(default=False)
+    discrete_measurement_grid_size: list[PositiveIntType] | None = Field(default=[20, 20])
 
     @model_validator(mode='after')
     def validate_confidence_bound(self):

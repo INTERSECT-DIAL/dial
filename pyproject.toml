@@ -85,13 +85,10 @@ ignore = [
     'ANN401',  # allow explicit "Any" typing, use with care
     'PLR2004', # allow "magic numbers"
     # TODO - should not ignore below in long term, but will for now
-    'D100',
-    'D101',
-    'D103',
-    'N802',
-    'N803',
-    'N806',
-    'N812',
+    'N802',    # do not require snake_casing function names
+    'N803',    # do not require snake_casing function/method arguments
+    'N806',    # allow uppercase in function names
+    'N812',    # allow lowercase imports to be aliased to non-lowercase names
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
@@ -99,15 +96,6 @@ ignore = [
 'docs/*' = [
     'D',      # the documentation folder does not need documentation
     'INP001', # docs are not a namespace package
-]
-'examples/*' = [
-    'N999',   # module names for examples are not standard
-    'T20',    # allow print/pprint statements in examples
-    'S106',   # don't care about credentials in examples
-    'D100',   # documenting modules in examples is unhelpful
-    'D104',   # documenting packages in examples is unhelpful
-    'TRY002', # examples can raise their own exception
-    'FA100',  # examples are tested on Python 3.8, and future annotations cause problems with Pydantic
 ]
 'scripts/*' = [
     'T20', # allow print/pprint statements in scripts
@@ -123,10 +111,12 @@ ignore = [
     'FA100',  # tests frequently use runtime typing annotations
 ]
 
+[tool.mypy]
+#strict = true
+ignore_missing_imports = true       # don't require typing for library stubs if they don't exist
+disallow_untyped_decorators = false # this is needed for library decorator compatibility, i.e. "retrying"
+plugins = ["pydantic.mypy"]
+
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
-
-#[tool.setuptools]
-#package-dir = {"" = "src"}
-
