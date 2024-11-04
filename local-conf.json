@@ -1,14 +1,4 @@
 {
-  "data_stores": {
-    "minio": [
-      {
-        "username": "AKIAIOSFODNN7EXAMPLE",
-        "password": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-        "host": "127.0.0.1",
-        "port": 9000
-      }
-    ]
-  },
   "brokers": [
     {
       "username": "intersect_username",
