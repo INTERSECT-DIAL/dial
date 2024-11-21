@@ -13,6 +13,7 @@ import numpy as np
 from boalaas_dataclass import BOALaaSInputPredictions, BOALaaSInputSingle
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
+    HierarchyConfig,
     IntersectClient,
     IntersectClientCallback,
     IntersectClientConfig,
@@ -45,7 +46,9 @@ def read_float(
 
 
 class ActiveLearningOrchestrator:
-    def __init__(self):
+    def __init__(self, service_destination: str):
+        self.service_destination = service_destination
+
         self.dataset_x = [
             [20.0, 1200.0],
             [20.0, 1400.0],
@@ -139,7 +142,7 @@ class ActiveLearningOrchestrator:
         return IntersectClientCallback(
             messages_to_send=[
                 IntersectDirectMessageParams(
-                    destination='neeter-active-learning-organization.neeter-active-learning-facility.neeter-active-learning-system.neeter-active-learning-subsystem.neeter-active-learning-service',
+                    destination=self.service_destination,
                     operation=f'BOALaaS.{operation}',
                     payload=payload,
                 )
@@ -213,12 +216,16 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # Create our orchestrator
-    active_learning = ActiveLearningOrchestrator()
+    active_learning = ActiveLearningOrchestrator(
+        service_destination=HierarchyConfig(
+            **from_config_file['intersect-hierarchy']
+        ).hierarchy_string('.')
+    )
     config = IntersectClientConfig(
         initial_message_event_config=active_learning.assemble_message(
             'get_surrogate_values'
         ),  # the initial message to send
-        **from_config_file,
+        **from_config_file['intersect'],
     )
 
     # use the orchestator to create the client

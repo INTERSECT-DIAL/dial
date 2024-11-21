@@ -7,7 +7,6 @@ from pathlib import Path
 
 from boalaas_service import BOALaaSCapabilityImplementation
 from intersect_sdk import (
-    HierarchyConfig,
     IntersectService,
     IntersectServiceConfig,
     default_intersect_lifecycle_loop,
@@ -42,14 +41,8 @@ if __name__ == '__main__':
     In most cases, everything under from_config_file should come from a configuration file, command line arguments, or environment variables.
     """
     config = IntersectServiceConfig(
-        hierarchy=HierarchyConfig(
-            organization='neeter-active-learning-organization',
-            facility='neeter-active-learning-facility',
-            system='neeter-active-learning-system',
-            subsystem='neeter-active-learning-subsystem',
-            service='neeter-active-learning-service',
-        ),
-        **from_config_file,
+        hierarchy=from_config_file['intersect-hierarchy'],
+        **from_config_file['intersect'],
     )
 
     """
