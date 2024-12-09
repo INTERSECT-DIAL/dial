@@ -6,7 +6,7 @@ PositiveIntType = Annotated[int, Field(ge=0)]
 
 
 class DialInputBase(BaseModel):
-    """This is the base input dataclass for BOALaaS."""
+    """This is the base input dataclass for Dial."""
 
     dataset_x: list[list[float]]  # the input vectors of the training data
     dataset_y: list[float]  # the output values of the training data
