@@ -1,8 +1,8 @@
 [project]
-name = "boalaas"
+name = "dial"
 version = "0.1.0"
-authors = [{ name = "David Joy", email = "joydh1@ornl.gov" }]
-description = "Bayesian Optimization and Active Learning as a Service (BOALaaS): An INTERSECT service that provides Gaussian Process-based optimization and active learning"
+authors = [{ name = "Stephen DeWitt", email = "dewittsj@ornl.gov"}, { name = "Lance Drane", email = "dranelt@ornl.gov" }, { name = "David Joy", email = "davidjoy022@gmail.com" }, { name = "Jacob Sweet", email = "jsweet@gatech.edu" }]
+description = "Dial (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["active learning"]

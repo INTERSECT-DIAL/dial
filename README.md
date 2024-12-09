@@ -1,4 +1,4 @@
-# neeter-active-learning
+# Dial
 
 ## Requirements
 
@@ -10,11 +10,11 @@ To install intersect-sdk from PyPI:
 
 `pip install intersect-sdk`
 
-To install boalaas from source, git clone this repository and run the following from the root directory (that is, within the neeter-active-learning directory):
+To install Dial from source, git clone this repository and run the following from the root directory (that is, within the neeter-active-learning directory):
 
 `pip install .`
 
-Alternatively, both intersect-sdk and boalaas may be installed with the following:
+Alternatively, both intersect-sdk and Dial may be installed with the following:
 
 `pip install -e .`
 
@@ -67,7 +67,7 @@ In a separate terminal, you can run one of the following clients:
   - Automatic: `python scripts/automated_client.py`
   - Manual: `python scripts/manual_client.py`
 
-CLI arg `--config` or environment variable `NEETER_CONFIG_FILE` should be a path to a valid JSON configuration. If neither value is set, it will default to `local-conf.json` .
+CLI arg `--config` or environment variable `DIAL_CONFIG_FILE` should be a path to a valid JSON configuration. If neither value is set, it will default to `local-conf.json` .
 
 - `local-conf.json` - If you set up the infrastructure locally via `docker compose up`, use this config file.
 
@@ -75,16 +75,16 @@ CLI arg `--config` or environment variable `NEETER_CONFIG_FILE` should be a path
 
 To build:
 
-`docker build -t neeter-image .`
+`docker build -t dial-image .`
 
 To run the service:
 
-`docker run --rm -it neeter-image -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/launch_service.py`
+`docker run --rm -it dial-image -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json python scripts/launch_service.py`
 
 To run the client, select one of the following:
 
-- Automatic run: `docker run --rm -it -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json neeter-image python scripts/automated_client.py`
-- Manual run: `docker run --rm -it -e NEETER_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json neeter-image python scripts/manual_client.py`
+- Automatic run: `docker run --rm -it -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json dial-image python scripts/automated_client.py`
+- Manual run: `docker run --rm -it -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json dial-image python scripts/manual_client.py`
 
 ## Testing
 

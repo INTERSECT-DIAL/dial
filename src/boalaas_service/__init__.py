@@ -1,1 +1,0 @@
-from .boalaas_service import BOALaaSCapabilityImplementation

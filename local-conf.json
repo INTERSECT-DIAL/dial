@@ -11,10 +11,10 @@
     ]
   },
   "intersect-hierarchy": {
-    "organization": "neeter-active-learning-organization",
-    "facility": "neeter-active-learning-facility",
-    "system": "neeter-active-learning-system",
-    "subsystem": "neeter-active-learning-subsystem",
-    "service": "neeter-active-learning-service"
+    "organization": "ornl",
+    "facility": "intersect",
+    "system": "dial-system",
+    "subsystem": "dial-subsystem",
+    "service": "dial-service"
   }
 }

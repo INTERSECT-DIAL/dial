@@ -2,15 +2,15 @@ from math import e as E_CONSTANT
 
 import numpy as np
 import pytest
-from boalaas_dataclass import BOALaaSInputMultiple, BOALaaSInputPredictions, BOALaaSInputSingle
-from boalaas_service import BOALaaSCapabilityImplementation as Service
-from boalaas_service.serverside_data import ServersideInputPrediction, ServersideInputSingle
+from dial_dataclass import DialInputMultiple, DialInputPredictions, DialInputSingle
+from dial_service import DialCapabilityImplementation as Service
+from dial_service.serverside_data import ServersideInputPrediction, ServersideInputSingle
 
 
 # Test data:
 @pytest.fixture()
 def single_1D_A():  # alpha because I may add more
-    return BOALaaSInputSingle(
+    return DialInputSingle(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,
@@ -25,7 +25,7 @@ def single_1D_A():  # alpha because I may add more
 
 @pytest.fixture()
 def single_1D_GPax():
-    return BOALaaSInputSingle(
+    return DialInputSingle(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,
@@ -40,7 +40,7 @@ def single_1D_GPax():
 
 @pytest.fixture()
 def single_2D_A():
-    return BOALaaSInputSingle(
+    return DialInputSingle(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
             [-0.7569874398003542, -0.76891211613756],
@@ -77,7 +77,7 @@ def single_2D_A():
 
 @pytest.fixture()
 def single_2D_GPax():
-    return BOALaaSInputSingle(
+    return DialInputSingle(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
             [-0.7569874398003542, -0.76891211613756],
@@ -114,7 +114,7 @@ def single_2D_GPax():
 
 @pytest.fixture()
 def single_3D_A():
-    return BOALaaSInputSingle(
+    return DialInputSingle(
         dataset_x=[
             [-0.3666976630219634, -0.7643946670537294, -1.1506370018439385],
             [1.4762726361543423, 0.8181375702328815, 1.5299621681784998],
@@ -151,7 +151,7 @@ def single_3D_A():
 
 @pytest.fixture()
 def single_3D_GPax():
-    return BOALaaSInputSingle(
+    return DialInputSingle(
         dataset_x=[
             [-0.3666976630219634, -0.7643946670537294, -1.1506370018439385],
             [1.4762726361543423, 0.8181375702328815, 1.5299621681784998],
@@ -188,7 +188,7 @@ def single_3D_GPax():
 
 @pytest.fixture()
 def multiple_2D_A():
-    return BOALaaSInputMultiple(
+    return DialInputMultiple(
         dataset_x=[],
         dataset_y=[],
         y_is_good=False,
@@ -204,7 +204,7 @@ def multiple_2D_A():
 
 @pytest.fixture()
 def multiple_2D_GPax():
-    return BOALaaSInputMultiple(
+    return DialInputMultiple(
         dataset_x=[],
         dataset_y=[],
         y_is_good=False,
@@ -220,7 +220,7 @@ def multiple_2D_GPax():
 
 @pytest.fixture()
 def prediction_1D_A():
-    return BOALaaSInputPredictions(
+    return DialInputPredictions(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,
@@ -235,7 +235,7 @@ def prediction_1D_A():
 
 @pytest.fixture()
 def prediction_1D_GPax():
-    return BOALaaSInputPredictions(
+    return DialInputPredictions(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,

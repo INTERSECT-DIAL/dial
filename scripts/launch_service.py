@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from boalaas_service import BOALaaSCapabilityImplementation
+from dial_service import DialCapabilityImplementation
 from intersect_sdk import (
     IntersectService,
     IntersectServiceConfig,
@@ -25,7 +25,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=Path,
-        default=os.environ.get('NEETER_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
+        default=os.environ.get(
+            'DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'
+        ),
     )
     args = parser.parse_args()
     try:
@@ -51,7 +53,7 @@ if __name__ == '__main__':
     You have complete control over how you construct this class, as long as it has decorated functions with
     @intersect_message and @intersect_status, and that these functions are appropriately type-annotated.
     """
-    capability = BOALaaSCapabilityImplementation()
+    capability = DialCapabilityImplementation()
 
     """
     step three - create service from both the configuration and your own capability

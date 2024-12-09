@@ -13,7 +13,7 @@ mpl.use('agg')
 import numpy as np
 
 # from scipy.stats import qmc
-from boalaas_dataclass import BOALaaSInputPredictions, BOALaaSInputSingle
+from dial_dataclass import DialInputPredictions, DialInputSingle
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
     HierarchyConfig,
@@ -75,7 +75,7 @@ class ActiveLearningOrchestrator:
     def assemble_message(self, operation: str) -> IntersectClientCallback:
         payload = None
         if operation == 'get_next_point':
-            payload = BOALaaSInputSingle(
+            payload = DialInputSingle(
                 strategy='expected_improvement',
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
@@ -87,7 +87,7 @@ class ActiveLearningOrchestrator:
                 seed=-1,  # Use seed = -1 for random results
             )
         else:
-            payload = BOALaaSInputPredictions(
+            payload = DialInputPredictions(
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
                 bounds=self.bounds,
@@ -102,7 +102,7 @@ class ActiveLearningOrchestrator:
             messages_to_send=[
                 IntersectDirectMessageParams(
                     destination=self.service_destination,
-                    operation=f'BOALaaS.{operation}',
+                    operation=f'dial.{operation}',
                     payload=payload,
                 )
             ]
@@ -114,7 +114,7 @@ class ActiveLearningOrchestrator:
         self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
         if (
-            operation == 'BOALaaS.get_surrogate_values'
+            operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
             self.mean_grid = np.array(payload[0]).reshape((self.meshgrid_size,) * self.num_dims)
             return self.assemble_message(
@@ -191,7 +191,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=Path,
-        default=os.environ.get('NEETER_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
+        default=os.environ.get(
+            'DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'
+        ),
     )
     args = parser.parse_args()
     try:

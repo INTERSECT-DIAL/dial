@@ -1,17 +1,17 @@
 from functools import cached_property
 
 import numpy as np
-from boalaas_dataclass import (
-    BOALaaSInputBase,
-    BOALaaSInputMultiple,
-    BOALaaSInputPredictions,
-    BOALaaSInputSingle,
+from dial_dataclass import (
+    DialInputBase,
+    DialInputMultiple,
+    DialInputPredictions,
+    DialInputSingle,
 )
 
 
 # this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
-    def __init__(self, data: BOALaaSInputBase):
+    def __init__(self, data: DialInputBase):
         self.X_train = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
@@ -58,7 +58,7 @@ class ServersideInputBase:
 
 
 class ServersideInputSingle(ServersideInputBase):
-    def __init__(self, data: BOALaaSInputSingle):
+    def __init__(self, data: DialInputSingle):
         super().__init__(data)
         self.strategy = data.strategy
         self.optimization_points = data.optimization_points
@@ -68,13 +68,13 @@ class ServersideInputSingle(ServersideInputBase):
 
 
 class ServersideInputMultiple(ServersideInputBase):
-    def __init__(self, data: BOALaaSInputMultiple):
+    def __init__(self, data: DialInputMultiple):
         super().__init__(data)
         self.strategy = data.strategy
         self.points = data.points
 
 
 class ServersideInputPrediction(ServersideInputBase):
-    def __init__(self, data: BOALaaSInputPredictions):
+    def __init__(self, data: DialInputPredictions):
         super().__init__(data)
         self.x_predict = np.array(data.points_to_predict)

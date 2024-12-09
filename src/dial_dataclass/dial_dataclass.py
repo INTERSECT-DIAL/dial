@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 PositiveIntType = Annotated[int, Field(ge=0)]
 
 
-class BOALaaSInputBase(BaseModel):
+class DialInputBase(BaseModel):
     """This is the base input dataclass for BOALaaS."""
 
     dataset_x: list[list[float]]  # the input vectors of the training data
@@ -38,8 +38,8 @@ class BOALaaSInputBase(BaseModel):
         return bounds
 
 
-class BOALaaSInputSingle(BOALaaSInputBase):
-    """This is the input dataclass for BOALaaS for selecting a single new point to measure."""
+class DialInputSingle(DialInputBase):
+    """This is the input dataclass for Dial for selecting a single new point to measure."""
 
     strategy: Literal['random', 'uncertainty', 'expected_improvement', 'confidence_bound']
     optimization_points: PositiveIntType | None = Field(default=1000)
@@ -59,14 +59,14 @@ class BOALaaSInputSingle(BOALaaSInputBase):
         return self
 
 
-class BOALaaSInputMultiple(BOALaaSInputBase):
-    """This is the input dataclass for BOALaaS for selecting a multiple new point to measures (i.e., a batch of measurements)."""
+class DialInputMultiple(DialInputBase):
+    """This is the input dataclass for Dial for selecting a multiple new point to measures (i.e., a batch of measurements)."""
 
     points: int
     strategy: Literal['random', 'hypercube']
 
 
-class BOALaaSInputPredictions(BOALaaSInputBase):
-    """This is the input dataclass for BOALaaS for requesting a surrogate evaluation at a given number of points."""
+class DialInputPredictions(DialInputBase):
+    """This is the input dataclass for Dial for requesting a surrogate evaluation at a given number of points."""
 
     points_to_predict: list[list[float]]

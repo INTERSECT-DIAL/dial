@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 mpl.use('agg')
 import numpy as np
-from boalaas_dataclass import BOALaaSInputPredictions, BOALaaSInputSingle
+from dial_dataclass import DialInputPredictions, DialInputSingle
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
     HierarchyConfig,
@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 """
-This is a replication of the workflow in the Maryland nature paper.  In this workflow, we have two tuneable "dials" on a chemical process: Duration (20-300 ms) and Temperature (1200-2000 K).  We seek to maximize the yield (amount of desired chemical produced).
+This is a replication of the workflow in the Maryland nature paper.  In this workflow, we have two tuneable "knobs" on a chemical process: Duration (20-300 ms) and Temperature (1200-2000 K).  We seek to maximize the yield (amount of desired chemical produced).
 We start with 25 data points, then call the service, which calculates the point with the maximial EI (Expected Improvement).  This point is recommended to the user, who would then run a experiment, giving the 26th data point.
 This process repeats until killed.
 
@@ -116,7 +116,7 @@ class ActiveLearningOrchestrator:
     def assemble_message(self, operation: str) -> IntersectClientCallback:
         payload = None
         if operation == 'get_next_point':
-            payload = BOALaaSInputSingle(
+            payload = DialInputSingle(
                 strategy='expected_improvement',
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
@@ -128,7 +128,7 @@ class ActiveLearningOrchestrator:
                 seed=-1,
             )
         else:
-            payload = BOALaaSInputPredictions(
+            payload = DialInputPredictions(
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
                 bounds=self.bounds,
@@ -143,7 +143,7 @@ class ActiveLearningOrchestrator:
             messages_to_send=[
                 IntersectDirectMessageParams(
                     destination=self.service_destination,
-                    operation=f'BOALaaS.{operation}',
+                    operation=f'dial.{operation}',
                     payload=payload,
                 )
             ]
@@ -155,7 +155,7 @@ class ActiveLearningOrchestrator:
         self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
         if (
-            operation == 'BOALaaS.get_surrogate_values'
+            operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
             self.mean_grid = np.array(payload[0]).reshape(self.xx.shape)
             return self.assemble_message(
@@ -205,7 +205,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=Path,
-        default=os.environ.get('NEETER_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
+        default=os.environ.get(
+            'DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'
+        ),
     )
     args = parser.parse_args()
     try:
