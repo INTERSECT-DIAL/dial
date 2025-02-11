@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff linting, formating, MyPy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.10"
+          cache: true
+      - name: Install dependencies
+        run: |
+          pdm venv create --with-pip --force $PYTHON
+          pdm sync --dev -G:all
+      # TODO add mypy check here
+      - run: |
+          pdm run ruff format --check
+          pdm run ruff check
+
+  test-all:
+    name: Unit tests on various OSes and Python versions
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        os:
+          - macos-latest
+          - windows-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: true
+      - name: Install dependencies
+        run: |
+          pdm venv create --with-pip --force $PYTHON
+          pdm sync --dev -G:all
+      - run: pdm run test-all

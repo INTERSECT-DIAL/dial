@@ -90,4 +90,4 @@ To run the client, select one of the following:
 
 You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
 
-`pytest tests/`
+`pdm run test-all`

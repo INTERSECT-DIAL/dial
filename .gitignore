@@ -5,6 +5,12 @@
 # ignore generated plots by default
 *.png
 
+# ignore all configuration files except for our default one
+*.json
+!local-conf.json
+
+# testing reports
+reports/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
