@@ -5,12 +5,13 @@ import os
 import sys
 from pathlib import Path
 
-from dial_service import DialCapabilityImplementation
 from intersect_sdk import (
     IntersectService,
     IntersectServiceConfig,
     default_intersect_lifecycle_loop,
 )
+
+from dial_service import DialCapabilityImplementation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,9 +26,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=Path,
-        default=os.environ.get(
-            'DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'
-        ),
+        default=os.environ.get('DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
     )
     args = parser.parse_args()
     try:

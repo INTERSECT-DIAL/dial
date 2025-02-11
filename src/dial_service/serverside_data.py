@@ -1,6 +1,7 @@
 from functools import cached_property
 
 import numpy as np
+
 from dial_dataclass import (
     DialInputBase,
     DialInputMultiple,

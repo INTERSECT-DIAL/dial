@@ -2,13 +2,14 @@ from math import e as E_CONSTANT
 
 import numpy as np
 import pytest
+
 from dial_dataclass import DialInputMultiple, DialInputPredictions, DialInputSingle
 from dial_service import DialCapabilityImplementation as Service
 from dial_service.serverside_data import ServersideInputPrediction, ServersideInputSingle
 
 
 # Test data:
-@pytest.fixture()
+@pytest.fixture
 def single_1D_A():  # alpha because I may add more
     return DialInputSingle(
         dataset_x=[[1], [2]],
@@ -23,7 +24,7 @@ def single_1D_A():  # alpha because I may add more
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def single_1D_GPax():
     return DialInputSingle(
         dataset_x=[[1], [2]],
@@ -38,7 +39,7 @@ def single_1D_GPax():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def single_2D_A():
     return DialInputSingle(
         dataset_x=[
@@ -75,7 +76,7 @@ def single_2D_A():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def single_2D_GPax():
     return DialInputSingle(
         dataset_x=[
@@ -112,7 +113,7 @@ def single_2D_GPax():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def single_3D_A():
     return DialInputSingle(
         dataset_x=[
@@ -149,7 +150,7 @@ def single_3D_A():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def single_3D_GPax():
     return DialInputSingle(
         dataset_x=[
@@ -186,7 +187,7 @@ def single_3D_GPax():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def multiple_2D_A():
     return DialInputMultiple(
         dataset_x=[],
@@ -202,7 +203,7 @@ def multiple_2D_A():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def multiple_2D_GPax():
     return DialInputMultiple(
         dataset_x=[],
@@ -218,7 +219,7 @@ def multiple_2D_GPax():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def prediction_1D_A():
     return DialInputPredictions(
         dataset_x=[[1], [2]],
@@ -233,7 +234,7 @@ def prediction_1D_A():
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def prediction_1D_GPax():
     return DialInputPredictions(
         dataset_x=[[1], [2]],
@@ -335,17 +336,17 @@ def test_hypercube(multiple_2D_A, multiple_2D_GPax):
     points = Service().get_next_points(multiple_2D_A)
     for i in range(10):
         assert sum(1 for pt in points if 10 * i <= pt[0] <= 10 * (i + 1)) == 1
-        assert (
-            sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1
-        ), f'Need exactly one in [{-1+.2*i}, {-1+.2*(i+1)}]'
+        assert sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1, (
+            f'Need exactly one in [{-1 + 0.2 * i}, {-1 + 0.2 * (i + 1)}]'
+        )
     # gpax
     multiple_2D_GPax = multiple_2D_GPax.model_copy(update={'strategy': 'hypercube'})
     points = Service().get_next_points(multiple_2D_GPax)
     for i in range(10):
         assert sum(1 for pt in points if 10 * i <= pt[0] <= 10 * (i + 1)) == 1
-        assert (
-            sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1
-        ), f'Need exactly one in [{-1+.2*i}, {-1+.2*(i+1)}]'
+        assert sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1, (
+            f'Need exactly one in [{-1 + 0.2 * i}, {-1 + 0.2 * (i + 1)}]'
+        )
 
 
 def test_surrogate(prediction_1D_A, prediction_1D_GPax):

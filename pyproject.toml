@@ -19,7 +19,11 @@ dependencies = [
 ]
 
 [tool.pdm.dev-dependencies]
-lint = ["pre-commit>=3.3.1", "ruff==0.5.7", "mypy>=1.10.0"]
+lint = [
+    "pre-commit>=3.3.1",
+    "mypy>=1.10.0",
+    "ruff==0.9.4",
+]
 test = ["pytest>=7.3.2", "pytest-cov>=4.1.0", "httpretty>=1.1.4"]
 
 [tool.pdm.scripts]
@@ -84,8 +88,6 @@ ignore = [
     'COM812',  # formatter, handled by Ruff format
     'ISC001',  # formatter, handled by Ruff format
     'SIM105',  # "with contextlib.suppress():" is slower than try-except-pass
-    'ANN101',  # don't need to annotate "self" typing
-    'ANN102',  # don't need to annotate "cls" typing for class methods
     'ANN401',  # allow explicit "Any" typing, use with care
     'PLR2004', # allow "magic numbers"
     # TODO - should not ignore below in long term, but will for now

@@ -4,16 +4,17 @@ from typing import ClassVar
 
 import gpax
 import numpy as np
-from dial_dataclass import (
-    DialInputMultiple,
-    DialInputPredictions,
-    DialInputSingle,
-)
 from intersect_sdk import IntersectBaseCapabilityImplementation, intersect_message, intersect_status
 from scipy.optimize import minimize
 from scipy.stats import norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern
+
+from dial_dataclass import (
+    DialInputMultiple,
+    DialInputPredictions,
+    DialInputSingle,
+)
 
 from .serverside_data import (
     ServersideInputBase,

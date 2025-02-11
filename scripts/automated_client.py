@@ -11,9 +11,6 @@ import matplotlib.pyplot as plt
 mpl.use('agg')
 
 import numpy as np
-
-# from scipy.stats import qmc
-from dial_dataclass import DialInputPredictions, DialInputSingle
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
     HierarchyConfig,
@@ -23,6 +20,9 @@ from intersect_sdk import (
     IntersectDirectMessageParams,
     default_intersect_lifecycle_loop,
 )
+
+# from scipy.stats import qmc
+from dial_dataclass import DialInputPredictions, DialInputSingle
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,9 +191,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=Path,
-        default=os.environ.get(
-            'DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'
-        ),
+        default=os.environ.get('DIAL_CONFIG_FILE', Path(__file__).parents[1] / 'local-conf.json'),
     )
     args = parser.parse_args()
     try:
