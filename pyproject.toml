@@ -6,7 +6,7 @@ description = "Dial (Distributed INTERSECT Active Learning): An INTERSECT servic
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["active learning"]
-#license = {text = "BSD-3-Clause"}
+license = {text = "BSD-3-Clause"}
 classifiers = ["Programming Language :: Python :: 3"]
 # TODO move some dependencies into optional dependencies
 dependencies = [

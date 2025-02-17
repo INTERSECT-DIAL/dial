@@ -57,3 +57,20 @@ jobs:
           pdm venv create --with-pip --force $PYTHON
           pdm sync --dev -G:all
       - run: pdm run test-all
+
+  continuous-deployment:
+    name: Update deployments automatically
+    needs: ['lint', 'test-all']
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kickoff pipeline
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          curl --fail-with-body \
+          --form token=${GITLAB_TOKEN} \
+          --form ref=main \
+          --form "variables[TRIGGER_BRANCH]=${{ github.ref_name }}" \
+          "https://code.ornl.gov/api/v4/projects/17316/trigger/pipeline"
