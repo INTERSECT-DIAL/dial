@@ -1,14 +1,11 @@
-import logging
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .logger import logger
 from .pydantic_helpers import ValidatedObjectId
 
 PositiveIntType = Annotated[int, Field(ge=0)]
-
-
-logger = logging.getLogger(__name__)
 
 
 def _get_permitted_backends() -> tuple[str, ...]:
@@ -18,15 +15,15 @@ def _get_permitted_backends() -> tuple[str, ...]:
     """
     import importlib.util
 
-    available_backends = []
-    if importlib.util.find_spec('sklearn') is not None:
-        available_backends.append('sklearn')
-    if importlib.util.find_spec('gpax') is not None:
-        available_backends.append('gpax')
+    _POSSIBLE_BACKENDS = ('sklearn', 'gpax')
 
+    available_backends = [
+        bkend for bkend in _POSSIBLE_BACKENDS if importlib.util.find_spec(bkend) is not None
+    ]
     if not available_backends:
         # TODO - provide explicit installation instructions in this message
-        msg = 'No backends were configured, please install at least one backend (either "sklearn" or "gpax")'
+        possible_backends = '","'.join(_POSSIBLE_BACKENDS)
+        msg = f'No backends were configured, please install at least one backend ("{possible_backends}")'
         raise RuntimeError(msg)
 
     logger.info('Available backends: %s', available_backends)

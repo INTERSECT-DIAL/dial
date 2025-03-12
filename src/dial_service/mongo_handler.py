@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -8,7 +7,7 @@ from pymongo.errors import PyMongoError
 from dial_dataclass import DialWorkflowDatasetUpdate
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
-_logger = logging.getLogger(__name__)
+from .logger import logger
 
 
 @dataclass
@@ -36,7 +35,7 @@ class MongoDBHandler:
             username=creds.username,
             password=creds.password,
         )
-        _logger.info(client.admin.command('ping'))
+        logger.info(client.admin.command('ping'))
         self._mongo_collection = client.get_database(creds.db_name).get_collection('workflows')
         # DO THE BELOW INSTEAD IF USING CUSTOM INDEXES INSTEAD
         # self._mongo_collection.create_index([('workflow_id', ASCENDING)], unique=True)
@@ -53,7 +52,7 @@ class MongoDBHandler:
         try:
             result = self._mongo_collection.insert_one(initial_data)
         except PyMongoError as e:
-            _logger.info(e)
+            logger.debug(e)
             return None
 
         return str(result.inserted_id)
@@ -68,7 +67,7 @@ class MongoDBHandler:
         try:
             result = self._mongo_collection.find_one({'_id': workflow_id})
         except PyMongoError as e:
-            _logger.info(e)
+            logger.debug(e)
             return None
         return result
 
@@ -76,6 +75,11 @@ class MongoDBHandler:
         """Update the dataset of a workflow"""
         try:
             collection = self._mongo_collection.find_one({'_id': params.workflow_id})
+        except PyMongoError as e:
+            logger.debug(e)
+            return False
+
+        try:
             dataset_x_len = len(collection['dataset_x'][0])
             if dataset_x_len != len(params.next_x):
                 return False
@@ -88,7 +92,7 @@ class MongoDBHandler:
                     }
                 },
             )
-        except PyMongoError as e:
-            _logger.info(e)
+        except (TypeError, IndexError, PyMongoError) as e:
+            logger.warning(e)
             return False
         return True

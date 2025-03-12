@@ -1,4 +1,3 @@
-import logging
 from typing import Any
 
 import gpax
@@ -26,8 +25,6 @@ from .serverside_data import (
 )
 
 gpax.utils.enable_x64()
-
-logger = logging.getLogger(__name__)
 
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
 # os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=".10"

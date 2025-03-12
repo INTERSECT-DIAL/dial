@@ -3,8 +3,6 @@
 The idea is that these functions can easily be unit-tested (or called in a JupyterNotebook, etc.) without having to set up backing service logic.
 """
 
-import logging
-
 import gpax
 import numpy as np
 from scipy.optimize import minimize
@@ -12,6 +10,7 @@ from scipy.stats import norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern
 
+from .logger import logger
 from .serverside_data import (
     ServersideInputBase,
     ServersideInputMultiple,
@@ -20,8 +19,6 @@ from .serverside_data import (
 )
 
 gpax.utils.enable_x64()
-
-logger = logging.getLogger(__name__)
 
 _KERNELS_SKLEARN = {'rbf': RBF, 'matern': Matern}
 _KERNELS_GPAX = {'rbf': 'RBF', 'matern': 'matern'}
