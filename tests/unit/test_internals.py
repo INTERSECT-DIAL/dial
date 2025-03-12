@@ -9,13 +9,13 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
-    DialWorkflowCreationParams,
 )
 from dial_service.serverside_data import (
     ServersideInputMultiple,
     ServersideInputPrediction,
     ServersideInputSingle,
 )
+from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
 
 DUMMY_WORKFLOW_ID = str(ObjectId())
 """This is used so that we can run the tests without connecting to a backend database or skipping validation for the rest of the data."""
@@ -25,7 +25,7 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 
 
 def single_1D(backend, strategy):
-    workflow_state = DialWorkflowCreationParams(
+    workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,
@@ -43,7 +43,7 @@ def single_1D(backend, strategy):
 
 
 def single_2D(backend, strategy):
-    workflow_state = DialWorkflowCreationParams(
+    workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
             [-0.7569874398003542, -0.76891211613756],
@@ -83,7 +83,7 @@ def single_2D(backend, strategy):
 
 
 def single_3D(backend, strategy):
-    workflow_state = DialWorkflowCreationParams(
+    workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [-0.3666976630219634, -0.7643946670537294, -1.1506370018439385],
             [1.4762726361543423, 0.8181375702328815, 1.5299621681784998],
@@ -123,7 +123,7 @@ def single_3D(backend, strategy):
 
 
 def multiple_2D(backend, strategy):
-    workflow_state = DialWorkflowCreationParams(
+    workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
         y_is_good=False,
@@ -142,7 +142,7 @@ def multiple_2D(backend, strategy):
 
 
 def prediction_1D(backend):
-    workflow_state = DialWorkflowCreationParams(
+    workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
         y_is_good=True,

@@ -2,41 +2,18 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from .logger import logger
 from .pydantic_helpers import ValidatedObjectId
 
 PositiveIntType = Annotated[int, Field(ge=0)]
 
+_POSSIBLE_BACKENDS = ('sklearn', 'gpax')
 
-def _get_permitted_backends() -> tuple[str, ...]:
-    """private method which should only be executed ONCE per application
 
-    This manually checks imports for the available backends, and generates a type definition based off of the available imports.
+class _DialWorkflowCreationParams(BaseModel):
+    """This comprises the information needed to create a DIAL workflow.
+
+    This is a base class which should not be directly imported, clients should use "DialWorkflowCreationParamsClient" (in this file) and services should use "DialWorkflowCreationParamsService" (exported from the service)
     """
-    import importlib.util
-
-    _POSSIBLE_BACKENDS = ('sklearn', 'gpax')
-
-    available_backends = [
-        bkend for bkend in _POSSIBLE_BACKENDS if importlib.util.find_spec(bkend) is not None
-    ]
-    if not available_backends:
-        # TODO - provide explicit installation instructions in this message
-        possible_backends = '","'.join(_POSSIBLE_BACKENDS)
-        msg = f'No backends were configured, please install at least one backend ("{possible_backends}")'
-        raise RuntimeError(msg)
-
-    logger.info('Available backends: %s', available_backends)
-    return tuple(available_backends)
-
-
-AVAILABLE_DIAL_BACKENDS = _get_permitted_backends()
-BackendType = Literal[AVAILABLE_DIAL_BACKENDS]
-"""'sklearn' or 'gpax' depending on installed dependencies. This is dynamically generated at runtime, so type hints may not be complete."""
-
-
-class DialWorkflowCreationParams(BaseModel):
-    """This comprises the information needed to create a DIAL workflow."""
 
     dataset_x: Annotated[
         list[
@@ -72,11 +49,6 @@ class DialWorkflowCreationParams(BaseModel):
             Field(min_length=2, max_length=2),
         ]
     ]
-    backend: Annotated[
-        BackendType,
-        Field(description='Backend implementations supported by this instance of DIAL.'),
-    ]
-    """'sklearn' or 'gpax' depending on installed dependencies. This is dynamically generated at runtime, so type hints may not be complete."""
     seed: Annotated[
         int,
         Field(
@@ -109,6 +81,13 @@ class DialWorkflowCreationParams(BaseModel):
         for row in bounds:
             row.sort()
         return bounds
+
+
+# this class is specific to clients; they have no way of knowing which backends the Service supports, so we allow all of them
+class DialWorkflowCreationParamsClient(_DialWorkflowCreationParams):
+    """Dataclass which clients can use to help verify requests to the DIAL microservice."""
+
+    backend: Literal[_POSSIBLE_BACKENDS]
 
 
 class DialWorkflowDatasetUpdate(BaseModel):

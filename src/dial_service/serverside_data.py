@@ -6,13 +6,14 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingle,
-    DialWorkflowCreationParams,
 )
+
+from .service_specific_dataclasses import DialWorkflowCreationParamsService
 
 
 # this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
-    def __init__(self, data: DialWorkflowCreationParams):
+    def __init__(self, data: DialWorkflowCreationParamsService):
         self.X_train = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
@@ -59,7 +60,7 @@ class ServersideInputBase:
 
 
 class ServersideInputSingle(ServersideInputBase):
-    def __init__(self, workflow_state: DialWorkflowCreationParams, params: DialInputSingle):
+    def __init__(self, workflow_state: DialWorkflowCreationParamsService, params: DialInputSingle):
         super().__init__(workflow_state)
         self.strategy = params.strategy
         self.optimization_points = params.optimization_points
@@ -71,13 +72,17 @@ class ServersideInputSingle(ServersideInputBase):
 
 
 class ServersideInputMultiple(ServersideInputBase):
-    def __init__(self, workflow_state: DialWorkflowCreationParams, params: DialInputMultiple):
+    def __init__(
+        self, workflow_state: DialWorkflowCreationParamsService, params: DialInputMultiple
+    ):
         super().__init__(workflow_state)
         self.strategy = params.strategy
         self.points = params.points
 
 
 class ServersideInputPrediction(ServersideInputBase):
-    def __init__(self, workflow_state: DialWorkflowCreationParams, params: DialInputPredictions):
+    def __init__(
+        self, workflow_state: DialWorkflowCreationParamsService, params: DialInputPredictions
+    ):
         super().__init__(workflow_state)
         self.x_predict = np.array(params.points_to_predict)

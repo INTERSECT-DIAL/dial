@@ -6,7 +6,6 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingle,
-    DialWorkflowCreationParams,
     DialWorkflowDatasetUpdate,
 )
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
@@ -22,6 +21,7 @@ from .serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
+from .service_specific_dataclasses import DialWorkflowCreationParamsService
 
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
 # os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=".10"
@@ -38,7 +38,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         self.mongo_handler = MongoDBHandler(MongoDBCredentials(**credentials))
 
     @intersect_message()
-    def initialize_workflow(self, client_data: DialWorkflowCreationParams) -> str:
+    def initialize_workflow(self, client_data: DialWorkflowCreationParamsService) -> str:
         """Initializes a stateful workflow for DIALED.
 
         Takes in initial data points, and returns the ID of the associated workflow.
@@ -50,12 +50,12 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return workflow_id
 
     @intersect_message()
-    def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowCreationParams:
+    def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowCreationParamsService:
         """Returns the current state of the workflow associated with the id"""
         db_result = self.mongo_handler.get_workflow(uuid)
         if not db_result:
             raise Exception  # noqa: TRY002 (workflow does not exist - TODO the former should realistically be a Pydantic ValidationError that can propogate to the client)
-        return DialWorkflowCreationParams(**db_result)
+        return DialWorkflowCreationParamsService(**db_result)
 
     @intersect_message()
     def update_workflow_with_data(self, update_params: DialWorkflowDatasetUpdate) -> None:
@@ -74,7 +74,9 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
-        data = ServersideInputSingle(DialWorkflowCreationParams(**workflow_state), client_data)
+        data = ServersideInputSingle(
+            DialWorkflowCreationParamsService(**workflow_state), client_data
+        )
 
         return internal_get_next_point(data)
 
@@ -86,7 +88,9 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
-        data = ServersideInputMultiple(DialWorkflowCreationParams(**workflow_state), client_data)
+        data = ServersideInputMultiple(
+            DialWorkflowCreationParamsService(**workflow_state), client_data
+        )
 
         return internal_get_next_points(data)
 
@@ -102,7 +106,9 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
-        data = ServersideInputPrediction(DialWorkflowCreationParams(**workflow_state), client_data)
+        data = ServersideInputPrediction(
+            DialWorkflowCreationParamsService(**workflow_state), client_data
+        )
 
         return internal_get_surrogate_values(data)
 

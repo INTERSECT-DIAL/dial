@@ -26,7 +26,7 @@ from intersect_sdk import (
 from dial_dataclass import (
     DialInputPredictions,
     DialInputSingleOtherStrategy,
-    DialWorkflowCreationParams,
+    DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
 )
 
@@ -93,7 +93,7 @@ class ActiveLearningOrchestrator:
     # create a message to send to the server
     def assemble_message(self, operation: str, **kwargs: Any) -> IntersectClientCallback:
         if operation == 'initialize_workflow':
-            payload = DialWorkflowCreationParams(
+            payload = DialWorkflowCreationParamsClient(
                 dataset_x=INITIAL_DATASET_X,
                 dataset_y=INITIAL_DATASET_Y,
                 bounds=INITIAL_BOUNDS,
