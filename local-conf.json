@@ -16,5 +16,13 @@
     "system": "dial-system",
     "subsystem": "dial-subsystem",
     "service": "dial-service"
+  },
+  "dial": {
+    "mongo": {
+      "username": null,
+      "password": null,
+      "host": "127.0.0.1",
+      "port": 27017
+    }
   }
 }

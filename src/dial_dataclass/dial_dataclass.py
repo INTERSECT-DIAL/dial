@@ -1,72 +1,166 @@
+import logging
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
+
+from .pydantic_helpers import ValidatedObjectId
 
 PositiveIntType = Annotated[int, Field(ge=0)]
 
 
-class DialInputBase(BaseModel):
-    """This is the base input dataclass for Dial."""
+logger = logging.getLogger(__name__)
 
-    dataset_x: list[list[float]]  # the input vectors of the training data
-    dataset_y: list[float]  # the output values of the training data
-    y_is_good: bool  # if True, treat higher y values as better (e.g. y represents yield or profit).  If False, opposite (e.g. y represents error or waste)
+
+def _get_permitted_backends() -> tuple[str, ...]:
+    """private method which should only be executed ONCE per application
+
+    This manually checks imports for the available backends, and generates a type definition based off of the available imports.
+    """
+    import importlib.util
+
+    available_backends = []
+    if importlib.util.find_spec('sklearn') is not None:
+        available_backends.append('sklearn')
+    if importlib.util.find_spec('gpax') is not None:
+        available_backends.append('gpax')
+
+    if not available_backends:
+        # TODO - provide explicit installation instructions in this message
+        msg = 'No backends were configured, please install at least one backend (either "sklearn" or "gpax")'
+        raise RuntimeError(msg)
+
+    logger.info('Available backends: %s', available_backends)
+    return tuple(available_backends)
+
+
+AVAILABLE_DIAL_BACKENDS = _get_permitted_backends()
+BackendType = Literal[AVAILABLE_DIAL_BACKENDS]
+"""'sklearn' or 'gpax' depending on installed dependencies. This is dynamically generated at runtime, so type hints may not be complete."""
+
+
+class DialWorkflowCreationParams(BaseModel):
+    """This comprises the information needed to create a DIAL workflow."""
+
+    dataset_x: Annotated[
+        list[
+            Annotated[
+                list[float],
+                Field(description='Field lengths of all subarrays should be equal', min_length=1),
+            ]
+        ],
+        Field(description='The input vectors of the training data'),
+    ]
+    dataset_y: Annotated[
+        list[float],
+        Field(
+            description='The output values of the training data. Length should equal dataset_x',
+        ),
+    ]
+    y_is_good: Annotated[
+        bool,
+        Field(
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)'
+        ),
+    ]
     kernel: Literal['rbf', 'matern']
-    length_per_dimension: bool  # if True, will have the kernel use a separate length scale for each dimension (useful if scales differ).  If False, all dimensions are forced to the same length scale
-    bounds: list[list[float]]
-    backend: Literal['sklearn', 'gpax']
-    seed: int
+    length_per_dimension: Annotated[
+        bool,
+        Field(
+            description='If true, will have the kernel use a separate length scale for each dimension (useful if scales differ). If false, all dimensions are forced to the same length scale.'
+        ),
+    ]
+    bounds: list[
+        Annotated[
+            Annotated[list[float], Field(min_length=2, max_length=2)],
+            Field(min_length=2, max_length=2),
+        ]
+    ]
+    backend: Annotated[
+        BackendType,
+        Field(description='Backend implementations supported by this instance of DIAL.'),
+    ]
+    """'sklearn' or 'gpax' depending on installed dependencies. This is dynamically generated at runtime, so type hints may not be complete."""
+    seed: Annotated[
+        int,
+        Field(
+            default=-1,
+            ge=-1,
+            le=4294967295,
+            description='Specific RNG seed - use -1 to use system default',
+        ),
+    ]
 
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)
 
     @field_validator('dataset_x')
     @classmethod
-    def validate_dataset_x(cls, x):
-        if len({len(row) for row in x}) > 1:
-            msg = 'Unequal vector lengths in dataset_x'
-            raise ValueError(msg)
+    def ensure_consistent_dataset_x_lengths(cls, x):
+        if len(x) < 2:
+            return x
+        target_length = len(x[0])
+        for row in x[1:]:
+            if len(row) != target_length:
+                msg = 'Unequal vector lengths in dataset_x'
+                raise ValueError(msg)
         return x
 
+    # order rows as [low, high] - do NOT error out here, we can efficiently handle normalization
     @field_validator('bounds')
     @classmethod
-    def validate_bounds(cls, bounds):
+    def order_bounds(cls, bounds: list[list[float]]):
         for row in bounds:
-            if len(row) != 2 or row[0] > row[1]:
-                msg = f'Bounds entries must be [low,high], not {row}'
-                raise ValueError(msg)
+            row.sort()
         return bounds
 
 
-class DialInputSingle(DialInputBase):
-    """This is the input dataclass for Dial for selecting a single new point to measure."""
-
-    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'confidence_bound']
-    optimization_points: PositiveIntType | None = Field(default=1000)
-    confidence_bound: float | None = Field(default=None)
-    discrete_measurements: bool | None = Field(default=False)
-    discrete_measurement_grid_size: list[PositiveIntType] | None = Field(default=[20, 20])
-
-    @model_validator(mode='after')
-    def validate_confidence_bound(self):
-        if self.strategy == 'confidence_bound':
-            if self.confidence_bound is None:
-                msg = 'confidence_bound value must be specified for confidence_bound strategy'
-                raise ValueError(msg)
-            if not (0.5 < self.confidence_bound < 1):
-                msg = 'confidence_bound value must be in (.5, 1)'
-                raise ValueError(msg)
-        return self
+class DialWorkflowDatasetUpdate(BaseModel):
+    workflow_id: ValidatedObjectId
+    next_x: list[float] = Field(
+        description='The next collection of X values you want to append to your overall data',
+        min_length=1,
+    )
+    """the next collection of X values you want to append"""
+    next_y: float = Field(description='The next Y value you want to append to your overall data')
+    """the next Y value you want to append"""
 
 
-class DialInputMultiple(DialInputBase):
+class DialInputSingleConfidenceBound(BaseModel):
+    workflow_id: ValidatedObjectId
+    strategy: Literal['confidence_bound']
+    optimization_points: PositiveIntType = Field(default=1000)
+    confidence_bound: float = Field(gt=0.5, lt=1)
+    discrete_measurements: bool = Field(default=False)
+    discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
+
+
+class DialInputSingleOtherStrategy(BaseModel):
+    workflow_id: ValidatedObjectId
+    strategy: Literal['random', 'uncertainty', 'expected_improvement']
+    optimization_points: PositiveIntType = Field(default=1000)
+    discrete_measurements: bool = Field(default=False)
+    discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
+
+
+DialInputSingle = Annotated[
+    DialInputSingleConfidenceBound | DialInputSingleOtherStrategy,
+    Field(
+        discriminator='strategy',
+        description='This is the input dataclass for Dial for selecting a single new point to measure.',
+    ),
+]
+
+
+class DialInputMultiple(BaseModel):
     """This is the input dataclass for Dial for selecting a multiple new point to measures (i.e., a batch of measurements)."""
 
+    workflow_id: ValidatedObjectId
     points: int
     strategy: Literal['random', 'hypercube']
 
 
-class DialInputPredictions(DialInputBase):
+class DialInputPredictions(BaseModel):
     """This is the input dataclass for Dial for requesting a surrogate evaluation at a given number of points."""
 
+    workflow_id: ValidatedObjectId
     points_to_predict: list[list[float]]

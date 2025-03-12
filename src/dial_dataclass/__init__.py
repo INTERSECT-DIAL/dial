@@ -1,6 +1,10 @@
 from .dial_dataclass import (
-    DialInputBase,
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingle,
+    DialInputSingleConfidenceBound,
+    DialInputSingleOtherStrategy,
+    DialWorkflowCreationParams,
+    DialWorkflowDatasetUpdate,
 )
+from .pydantic_helpers import ValidatedObjectId
