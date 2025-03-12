@@ -1,6 +1,5 @@
 from typing import Any
 
-import gpax
 from intersect_sdk import IntersectBaseCapabilityImplementation, intersect_message, intersect_status
 
 from dial_dataclass import (
@@ -23,8 +22,6 @@ from .serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-
-gpax.utils.enable_x64()
 
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
 # os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=".10"
