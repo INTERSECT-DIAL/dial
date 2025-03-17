@@ -308,7 +308,6 @@ def test_hypercube(backend):
     ],
 )
 def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
-    # sklearn
     data = prediction_1D(backend)
     means, stddevs, raw_stddevs = svc_impls.internal_get_surrogate_values(data)
     assert means == pytest.approx(expected_means)

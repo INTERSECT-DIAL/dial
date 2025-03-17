@@ -34,13 +34,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def rosenbrock(
-    x0, x1
-):  # Represents simulation error (vs experimental data) as a function of 2 simulation parameters
-    """TODO - calls to this function will eventually be replaced by calls to an INTERSECT service."""
-    return (1 - x0) ** 2 + 100 * (x1 - x0**2) ** 2
-
-
 """
 def generate_dataset_x(num_dims):
     # In practice, we use the following Latin Hypercube Sampling to generate self.dataset_x:
@@ -68,8 +61,6 @@ INITIAL_DATASET_X = [
     [0.033053333077524005, 0.44682040004191537],
 ]
 """Example of an explicitly-written dataset_x"""
-# TODO initialize this by a call to a Rosenbrock microservice instead (call a "bulk processing" function)
-INITIAL_DATASET_Y = [rosenbrock(*x) for x in INITIAL_DATASET_X]
 MESHGRID_SIZE = 101
 INITIAL_MESHGRIDS = np.meshgrid(
     *[np.linspace(dim_bounds[0], dim_bounds[1], MESHGRID_SIZE) for dim_bounds in INITIAL_BOUNDS],
@@ -79,8 +70,9 @@ INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHG
 
 
 class ActiveLearningOrchestrator:
-    def __init__(self, service_destination: str):
+    def __init__(self, service_destination: str, rosenbrock_destination: str):
         self.service_destination = service_destination
+        self.rosenbrock_destination = rosenbrock_destination
 
         # This value gets populated from the return value of initializing the workflow
         self.workflow_id = ''
@@ -88,14 +80,14 @@ class ActiveLearningOrchestrator:
         # The full dataset object state only needs to exist for the purposes of generating the graph and determining a stop-workflow order
         # if we don't care about "step by step" data, we technically do NOT need to save these as stateful, as we can get the data at the end by calling "dial.get_workflow_data"
         self.dataset_x = INITIAL_DATASET_X
-        self.dataset_y = INITIAL_DATASET_Y
+        self.dataset_y: list[float] = []
 
     # create a message to send to the server
     def assemble_message(self, operation: str, **kwargs: Any) -> IntersectClientCallback:
         if operation == 'initialize_workflow':
             payload = DialWorkflowCreationParamsClient(
                 dataset_x=INITIAL_DATASET_X,
-                dataset_y=INITIAL_DATASET_Y,
+                dataset_y=self.dataset_y,
                 bounds=INITIAL_BOUNDS,
                 kernel='rbf',
                 length_per_dimension=True,  # allow the matern to use separate length scales for the two parameters
@@ -131,6 +123,28 @@ class ActiveLearningOrchestrator:
             ]
         )
 
+    def assemble_rosenbrock_message(self, operation: str) -> IntersectClientCallback:
+        if operation == 'rosenbrock':
+            last_x = self.dataset_x[-1]
+            payload = {
+                'x': last_x[0],
+                'y': last_x[1],
+            }
+        elif operation == 'rosenbrock_bulk':
+            payload = [{'x': x[0], 'y': x[1]} for x in self.dataset_x]
+        else:
+            err_msg = f'Invalid operation {operation}'
+            raise Exception(err_msg)  # noqa: TRY002
+        return IntersectClientCallback(
+            messages_to_send=[
+                IntersectDirectMessageParams(
+                    destination=self.rosenbrock_destination,
+                    operation=f'Rosenbrock.{operation}',
+                    payload=payload,
+                )
+            ]
+        )
+
     # The callback function.  This is called whenever the server responds to our message.
     # This could instead be implemented by defining a callback method (and passing it later), but here we chose to directly make the object callable.
     def __call__(
@@ -146,6 +160,28 @@ class ActiveLearningOrchestrator:
             print(payload, file=sys.stderr)
             print(file=sys.stderr)
             raise Exception  # noqa: TRY002 (break INTERSECT loop)
+        if operation == 'Rosenbrock.rosenbrock':
+            # this operation gets called periodically
+            self.dataset_y.append(payload)
+            print(f'{payload:.3f}')
+            if len(self.dataset_x) == 25:
+                minpos = np.argmin(self.dataset_y)
+                y_opt = self.dataset_y[minpos]
+                optimal_coords = self.dataset_x[minpos]
+                coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
+                print(
+                    f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}',
+                    end='\n',
+                    flush=True,
+                )
+                raise Exception  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
+            return self.assemble_message(
+                'update_workflow_with_data', next_x=self.dataset_x[-1], next_y=payload
+            )
+        if operation == 'Rosenbrock.rosenbrock_bulk':
+            # this operation only gets called at the very beginning of the workflow
+            self.dataset_y: list[float] = payload
+            return self.assemble_message('initialize_workflow')
         if operation == 'dial.initialize_workflow':
             self.workflow_id: str = payload
             return self.assemble_message('get_surrogate_values')
@@ -162,18 +198,10 @@ class ActiveLearningOrchestrator:
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
             self.graph(payload)
-            if len(self.dataset_x) == 25:
-                minpos = np.argmin(self.dataset_y)
-                y_opt = self.dataset_y[minpos]
-                optimal_coords = self.dataset_x[minpos]
-                coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
-                print(
-                    f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}',
-                    end='\n',
-                    flush=True,
-                )
-                raise Exception  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
-            return self.add_data(payload)
+            self.dataset_x.append(payload)
+            coord_str = ', '.join([f'{coord:.2f}' for coord in payload])
+            print(f'Running simulation at ({coord_str}): ', end='', flush=True)
+            return self.assemble_rosenbrock_message('rosenbrock')
 
         err_msg = f'Unknown operation received: {operation}'
         raise Exception(err_msg)  # noqa: TRY002 (INTERSECT interaction mechanism)
@@ -222,16 +250,6 @@ class ActiveLearningOrchestrator:
             ax.set_yticks([])
             plt.savefig('graph.png')
 
-    # calculates the rosenbrock at a certain spot and adds it to our dataset
-    def add_data(self, coordinates: list[float]):
-        coord_str = ', '.join([f'{coord:.2f}' for coord in coordinates])
-        print(f'Running simulation at ({coord_str}): ', end='', flush=True)
-        y = rosenbrock(*coordinates)
-        print(f'{y:.3f}')
-        self.dataset_x.append(coordinates)
-        self.dataset_y.append(y)
-        return self.assemble_message('update_workflow_with_data', next_x=coordinates, next_y=y)
-
 
 if __name__ == '__main__':
     # In production, everything in this dictionary should come from a configuration file, command line arguments, or environment variables.
@@ -252,10 +270,13 @@ if __name__ == '__main__':
     active_learning = ActiveLearningOrchestrator(
         service_destination=HierarchyConfig(
             **from_config_file['intersect-hierarchy']
-        ).hierarchy_string('.')
+        ).hierarchy_string('.'),
+        rosenbrock_destination=HierarchyConfig(
+            **from_config_file['rosenbrock-hierarchy']
+        ).hierarchy_string('.'),
     )
     config = IntersectClientConfig(
-        initial_message_event_config=active_learning.assemble_message('initialize_workflow'),
+        initial_message_event_config=active_learning.assemble_rosenbrock_message('rosenbrock_bulk'),
         **from_config_file['intersect'],
     )
 
