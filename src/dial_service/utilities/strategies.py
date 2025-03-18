@@ -1,6 +1,7 @@
-import numpy as np
-import random
 import logging
+import random
+import numpy as np
+from scipy.stats import norm
 from scipy.optimize import minimize
 
 from ..serverside_data import (
@@ -9,14 +10,31 @@ from ..serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from .rewards import get_negative_value_function
 
 logger = logging.getLogger(__name__)
 
+def get_negative_value_function(data):
+    match data.strategy:
+        case 'uncertainty':
+            return lambda mean, stddev: -stddev
+        case 'expected_improvement':
+            return lambda mean, stddev: _expected_improvement(mean, stddev, data)
+        case 'upper_confidence_bound':
+            return lambda mean, stddev: -(mean + 1*stddev)
+        case 'confidence_bound':
+            z_value = norm.ppf(0.5 + data.confidence_bound / 2)
+            return lambda mean, stddev: _confidence_bound(mean, stddev, z_value, data)
+        case _:
+            raise ValueError(f"Unknown strategy {data.strategy}")
 
-def _random_in_bounds(data: ServersideInputBase):
-    return [random.uniform(low, high) for low, high in data.bounds]  # noqa: S311
-    # (TODO - probably OK to use cryptographically insecure random numbers, but check this first)
+def _expected_improvement(mean, stddev, data):
+    if stddev == 0:
+        return 0
+    z = (mean - data.Y_best) / stddev * (1 if data.y_is_good else -1)
+    return -stddev * (z * norm.cdf(z) + norm.pdf(z))
+
+def _confidence_bound(mean, stddev, z_value, data):
+    return -z_value * stddev + mean * (-1 if data.y_is_good else 1)
 
 
 def _hypercube(data: ServersideInputBase, num_points) -> list[list[float]]:

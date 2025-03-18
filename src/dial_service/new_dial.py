@@ -1,7 +1,6 @@
 import logging
 import random
 import numpy as np
-from scipy.optimize import minimize
 
 from ..dial_dataclass import DialInputMultiple, DialInputPredictions, DialInputSingle
 from intersect_sdk import IntersectBaseCapabilityImplementation, intersect_message, intersect_status
@@ -12,7 +11,6 @@ from .serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from .utilities.sampling import greedy_sampling
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +27,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         'sklearn': 'src.dial_service.backends.sklearn_backend',
     }
 
-    def _get_backend_module(self, backend: str):
+    def _get_backend_module(self, data: ServersideInputBase):
+        backend = data.backend.lower()
         if backend not in self._BACKENDS:
             raise ValueError(f'Unknown backend {backend}')
         module_name = self._BACKENDS[backend]
@@ -37,24 +36,24 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return module
 
     def _train_model(self, data: ServersideInputBase):
-        backend = data.backend.lower()
-        module = self._get_backend_module(backend)
+        module = self._get_backend_module(data)
         return module.train_model(data)
 
     def _kernel(self, data: ServersideInputBase):
-        backend = data.backend.lower()
-        module = self._get_backend_module(backend)
+        module = self._get_backend_module(data)
         return module.get_kernel(data)
 
-    # def _sampler(self, data: ServersideInputBase):
-    #     # backend = data.backend.lower()
-    #     # module = self._get_backend_module('greedy_search')
-    #     return greedy_sampling
+    # Custom sampling startegies
+    def _get_new_sample(self, data: ServersideInputBase, model):
+        module = self._get_backend_module(data)
+        return module.sample(module, model, data)
 
+    # Default sampling startegy
     def _random_in_bounds(self, data: ServersideInputBase):
         return [random.uniform(low, high) for low, high in data.bounds]  # noqa: S311
         # (TODO - probably OK to use cryptographically insecure random numbers, but check this first)
 
+    # Default samplingstartegy
     def _hypercube(self, data: ServersideInputBase, num_points) -> list[list[float]]:
         coordinates = []
         for low, high in data.bounds:
@@ -79,36 +78,18 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         Returns:
             list[float]: The selected point for the next iteration.
         """
+
         data = ServersideInputSingle(client_data)
+
         if data.strategy == 'random':
             return [random.uniform(low, high) for low, high in data.bounds]
 
-        model = self._train_model(data)
-        backend = data.backend.lower()
-        module = self._get_backend_module(backend)
-        selected_point = greedy_sampling(module, model, data)
+        trained_model = self._train_model(data)
+        selected_point = self._get_new_sample(data, trained_model)
 
         logger.debug('selected point with non-discrete measurements')
         logger.debug(selected_point)
         return selected_point
-
-    def _create_measurement_grid(self, data):
-        """
-        Create a grid of measurement points for discrete optimization.
-
-        Args:
-            data (ServersideInputBase): Input data containing bounds and grid size.
-
-        Returns:
-            list[list[float]]: A grid of measurement points.
-        """
-        row_values = np.linspace(
-            data.bounds[0][0], data.bounds[0][1], data.discrete_measurement_grid_size[0]
-        )
-        col_values = np.linspace(
-            data.bounds[1][0], data.bounds[1][1], data.discrete_measurement_grid_size[1]
-        )
-        return [[row, col] for row in row_values for col in col_values]
 
     @intersect_message
     def get_next_points(self, client_data: DialInputMultiple) -> list[list[float]]:
@@ -148,8 +129,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         """
         data = ServersideInputPrediction(client_data)
         model = self._train_model(data)
-        backend = data.backend.lower()
-        module = self._get_backend_module(backend)
+        module = self._get_backend_module(data)
         means, stddevs = module.predict(model, data.x_predict, data)
         means = data.inverse_transform(means)
         transformed_stddevs = data.inverse_transform(stddevs)

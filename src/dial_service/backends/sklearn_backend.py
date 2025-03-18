@@ -3,8 +3,21 @@ from sklearn.gaussian_process.kernels import RBF, Matern
 import numpy as np
 import scipy as sp
 
+from ..serverside_data import (
+    ServersideInputBase,
+    ServersideInputMultiple,
+    ServersideInputPrediction,
+    ServersideInputSingle,
+)
+
 _KERNELS_SKLEARN = {'rbf': RBF, 'matern': Matern}
 
+_SAMPLERS_SKLEARN = {
+    'uncertainty': 'src.dial_service.utilities.strategies:greedy_sampling',
+    'upper_confidence_bound': 'src.dial_service.utilities.strategies:greedy_sampling',
+    'expected_improvement': 'src.dial_service.utilities.strategies:greedy_sampling',
+    'confidence_bound': 'src.dial_service.utilities.strategies:greedy_sampling'
+}
 
 def get_kernel(data):
     kernel_name = data.kernel.lower()
@@ -13,8 +26,23 @@ def get_kernel(data):
     length_scale = [1.0] * len(data.X_train[0]) if data.length_per_dimension else 1.0
     return _KERNELS_SKLEARN[kernel_name](length_scale=length_scale)
 
+def sample(module, model, data):
 
-def train_model(data):
+    strategy_name = data.strategy.lower()
+    if strategy_name not in _SAMPLERS_SKLEARN:
+        raise ValueError(f"Unknown startegy {strategy_name}")
+
+    sampler_module_path, sampler_func_name = _SAMPLERS_SKLEARN[strategy_name].split(':')
+
+    # Import the module
+    sampler_module = __import__(sampler_module_path, fromlist=[sampler_func_name])
+
+    # Get the function from the module
+    sample_func = getattr(sampler_module, sampler_func_name)
+
+    return sample_func(module, model, data)
+
+def train_model(data: ServersideInputSingle):
     model = GaussianProcessRegressor(kernel=get_kernel(data), n_restarts_optimizer=1000)
     model.fit(data.X_train, data.Y_train)
     return model
@@ -25,8 +53,9 @@ def train_model(data):
 #     means, stddevs = model.predict(x.reshape(-1, dim), return_std=True)
 #     return means, data.stddev * stddevs
 
-
-def predict(model, x, data):
+def predict(model: GaussianProcessRegressor,
+            x : np.ndarray,
+            data: ServersideInputPrediction):
     dim = data.X_train.shape[1]
     means, stddevs = compute_posterior_f_double_prime(model, x.reshape(-1, dim))
     return means, data.stddev * stddevs
@@ -98,4 +127,5 @@ def compute_posterior_f_double_prime(gpr, X_test):
     solved_term = sp.linalg.solve(K, k_2_0.T, assume_a='pos')  # Solve K^{-1} k_2_0
     posterior_variance = k_2_2 - (k_2_0 @ solved_term)
     posterior_sd = np.sqrt(np.diag(posterior_variance))
+
     return posterior_mean, posterior_sd
