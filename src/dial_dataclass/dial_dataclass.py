@@ -112,7 +112,7 @@ class DialInputSingleConfidenceBound(BaseModel):
 
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
-    strategy: Literal['random', 'uncertainty', 'expected_improvement']
+    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'upper_confidence_bound']
     optimization_points: PositiveIntType = Field(default=1000)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
