@@ -36,23 +36,13 @@ if __name__ == '__main__':
         logger.critical('unable to load config file: %s', str(e))
         sys.exit(1)
 
-    """
-    step one: create configuration class, which handles validation - see the IntersectServiceConfig class documentation for more info
-
-    In most cases, everything under from_config_file should come from a configuration file, command line arguments, or environment variables.
-    """
     config = IntersectServiceConfig(
         hierarchy=from_config_file['intersect-hierarchy'],
         **from_config_file['intersect'],
     )
 
-    """
-    step two - create your own capability implementation class.
-
-    You have complete control over how you construct this class, as long as it has decorated functions with
-    @intersect_message and @intersect_status, and that these functions are appropriately type-annotated.
-    """
-    capability = DialCapabilityImplementation()
+    # TODO - we are currently passing credentials to our own database in the constructor, will remove this eventually
+    capability = DialCapabilityImplementation(from_config_file['dial']['mongo'])
 
     """
     step three - create service from both the configuration and your own capability

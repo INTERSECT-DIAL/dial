@@ -33,3 +33,15 @@ services:
       #- "9001:9001" # web UI
     #volumes:
       #- "./tmp/minio:/bitnami/minio/data"
+
+  # environment variable reference: https://github.com/bitnami/containers/tree/62cbab7ed3f2afc8ed432fd293f66fc7e2a3f1d0/bitnami/mongodb#environment-variables
+  mongodb:
+    image: docker.io/bitnami/mongodb:8.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - 'dial_mongodb_data:/bitnami/mongodb'
+
+volumes:
+  dial_mongodb_data:
+    driver: local

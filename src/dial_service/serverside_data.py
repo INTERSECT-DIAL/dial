@@ -3,16 +3,17 @@ from functools import cached_property
 import numpy as np
 
 from dial_dataclass import (
-    DialInputBase,
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingle,
 )
 
+from .service_specific_dataclasses import DialWorkflowCreationParamsService
+
 
 # this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
-    def __init__(self, data: DialInputBase):
+    def __init__(self, data: DialWorkflowCreationParamsService):
         self.X_train = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
@@ -59,23 +60,29 @@ class ServersideInputBase:
 
 
 class ServersideInputSingle(ServersideInputBase):
-    def __init__(self, data: DialInputSingle):
-        super().__init__(data)
-        self.strategy = data.strategy
-        self.optimization_points = data.optimization_points
-        self.confidence_bound = data.confidence_bound
-        self.discrete_measurements = data.discrete_measurements
-        self.discrete_measurement_grid_size = data.discrete_measurement_grid_size
+    def __init__(self, workflow_state: DialWorkflowCreationParamsService, params: DialInputSingle):
+        super().__init__(workflow_state)
+        self.strategy = params.strategy
+        self.optimization_points = params.optimization_points
+        self.confidence_bound = (
+            params.confidence_bound if params.strategy == 'confidence_bound' else None
+        )
+        self.discrete_measurements = params.discrete_measurements
+        self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
 
 
 class ServersideInputMultiple(ServersideInputBase):
-    def __init__(self, data: DialInputMultiple):
-        super().__init__(data)
-        self.strategy = data.strategy
-        self.points = data.points
+    def __init__(
+        self, workflow_state: DialWorkflowCreationParamsService, params: DialInputMultiple
+    ):
+        super().__init__(workflow_state)
+        self.strategy = params.strategy
+        self.points = params.points
 
 
 class ServersideInputPrediction(ServersideInputBase):
-    def __init__(self, data: DialInputPredictions):
-        super().__init__(data)
-        self.x_predict = np.array(data.points_to_predict)
+    def __init__(
+        self, workflow_state: DialWorkflowCreationParamsService, params: DialInputPredictions
+    ):
+        super().__init__(workflow_state)
+        self.x_predict = np.array(params.points_to_predict)

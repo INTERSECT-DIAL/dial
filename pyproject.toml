@@ -16,6 +16,8 @@ dependencies = [
     "scikit-learn>=1.4.0,<2.0.0",        # TODO consider making an optional dependency group
     "scipy>=1.12.0,<2.0.0",
     "gpax>=0.1.8",                       # TODO consider making an optional dependency group
+    "bson>=0.5.10",                      # needed for dial_dataclass, but should be its only required dependency
+    "pymongo>=4.11.1",
 ]
 
 [tool.pdm.dev-dependencies]
@@ -28,7 +30,8 @@ test = ["pytest>=7.3.2", "pytest-cov>=4.1.0", "httpretty>=1.1.4"]
 
 [tool.pdm.scripts]
 # add --cov-fail-under=<NUMBER> when ready to require a minimum coverage amount
-test-all = "pytest tests/ --cov=src/intersect_sdk/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
+test-all = "pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
+test-unit = "pytest tests/unit/"
 
 [tool.ruff]
 line-length = 100
@@ -40,6 +43,7 @@ isort = { known-first-party = ['src'] }
 pydocstyle = { convention = 'google' }
 flake8-quotes = { inline-quotes = 'single', multiline-quotes = 'double' }
 mccabe = { max-complexity = 20 }
+pylint = { max-args = 10, max-branches = 20, max-returns = 10, max-statements = 75 }
 # pyflakes and the relevant pycodestyle rules are already configured
 extend-select = [
     'C90', # mccabe complexity
