@@ -54,7 +54,6 @@ INITIAL_DATASET_X = [
     [-0.38457336507729645, -1.1327391183311766],
     [-0.9293590899359039, 0.25039725076881014],
     [1.984696498789749, -1.7147926093003538],
-    [1.2001856430453541, 1.572387611848939],
     [0.5080666898409634, -1.566722183270571],
     [-1.871124738716507, 1.9022651997285078],
     [-1.572941300813352, 1.0014173171150125],
@@ -67,6 +66,8 @@ INITIAL_MESHGRIDS = np.meshgrid(
     indexing='ij',
 )
 INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS])
+
+NUM_ITERATIONS = 35
 
 
 class ActiveLearningOrchestrator:
@@ -90,7 +91,7 @@ class ActiveLearningOrchestrator:
                 dataset_y=self.dataset_y,
                 bounds=INITIAL_BOUNDS,
                 kernel='rbf',
-                length_per_dimension=True,  # allow the matern to use separate length scales for the two parameters
+                length_per_dimension=False,  # allow the matern to use separate length scales for the two parameters
                 y_is_good=False,  # we wish to minimize y (the error)
                 backend='sklearn',  # "sklearn" or "gpax"
                 seed=-1,  # Use seed = -1 for random results
@@ -151,10 +152,10 @@ class ActiveLearningOrchestrator:
         self,
         _source: str,
         operation: str,
-        _has_error: bool,
+        has_error: bool,
         payload: INTERSECT_JSON_VALUE,
     ) -> IntersectClientCallback:
-        if _has_error:
+        if has_error:
             print('============ERROR==============', file=sys.stderr)
             print(operation, file=sys.stderr)
             print(payload, file=sys.stderr)
@@ -164,10 +165,11 @@ class ActiveLearningOrchestrator:
             # this operation gets called periodically
             self.dataset_y.append(payload)
             print(f'{payload:.3f}')
-            if len(self.dataset_x) == 25:
+            if len(self.dataset_x) == NUM_ITERATIONS:
                 minpos = np.argmin(self.dataset_y)
                 y_opt = self.dataset_y[minpos]
                 optimal_coords = self.dataset_x[minpos]
+                self.graph(optimal_coords, True)
                 coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
                 print(
                     f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}',
@@ -191,9 +193,7 @@ class ActiveLearningOrchestrator:
             operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
             self.mean_grid = np.array(payload[0]).reshape((MESHGRID_SIZE,) * NUM_DIMS)
-            return self.assemble_message(
-                'get_next_point'
-            )  # returning a message automatically sends it to the server
+            return self.assemble_message('get_next_point')
 
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
@@ -206,7 +206,7 @@ class ActiveLearningOrchestrator:
         err_msg = f'Unknown operation received: {operation}'
         raise Exception(err_msg)  # noqa: TRY002 (INTERSECT interaction mechanism)
 
-    def graph(self, x_EI: list[float]):
+    def graph(self, x_EI: list[float], final: bool = False):
         if NUM_DIMS == 2:
             plt.clf()
             data = np.maximum(
@@ -228,15 +228,27 @@ class ActiveLearningOrchestrator:
             # add black dots for data points and a red marker for the recommendation:
             X_train = np.array(self.dataset_x)
             plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='o')
-            plt.scatter([x_EI[0]], [x_EI[1]], color='red', marker='o')
-            plt.scatter(
-                [x_EI[0]],
-                [x_EI[1]],
-                color='none',
-                edgecolors='red',
-                marker='o',
-                s=300,
-            )
+            plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='black', marker='o')
+
+            minpos = np.argmin(self.dataset_y)
+            optimal_coords = self.dataset_x[minpos]
+
+            plt.scatter(optimal_coords[0], optimal_coords[1], color='black', marker='*', s=200)
+            if final:
+                final_x = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
+                plt.title(
+                    f'Best point estimate so far is x=({final_x}), y={self.dataset_y[minpos]:.3f}'
+                )
+            else:
+                plt.scatter([x_EI[0]], [x_EI[1]], color='red', marker='o')
+                plt.scatter(
+                    [x_EI[0]],
+                    [x_EI[1]],
+                    color='none',
+                    edgecolors='red',
+                    marker='o',
+                    s=300,
+                )
             plt.savefig('graph.png')
         else:
             fig, ax = plt.subplots(figsize=(8, 6))
@@ -248,7 +260,7 @@ class ActiveLearningOrchestrator:
             # Remove axes
             ax.set_xticks([])
             ax.set_yticks([])
-            plt.savefig('graph.png')
+            fig.savefig('graph.png')
 
 
 if __name__ == '__main__':
