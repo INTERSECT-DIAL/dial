@@ -1,67 +1,64 @@
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Matern
+"""NOTE: This file should not be imported in application code except dynamically via the get_backend_module function in __init__.py ."""
+
 import numpy as np
 import scipy as sp
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, Kernel, Matern
 
-from ..serverside_data import (
-    ServersideInputBase,
-    ServersideInputMultiple,
-    ServersideInputPrediction,
-    ServersideInputSingle,
-)
+from . import AbstractBackend
 
 _KERNELS_SKLEARN = {'rbf': RBF, 'matern': Matern}
 
-_SAMPLERS_SKLEARN = {
-    'uncertainty': 'src.dial_service.utilities.strategies:greedy_sampling',
-    'upper_confidence_bound': 'src.dial_service.utilities.strategies:greedy_sampling',
-    'expected_improvement': 'src.dial_service.utilities.strategies:greedy_sampling',
-    'confidence_bound': 'src.dial_service.utilities.strategies:greedy_sampling'
-}
 
-def get_kernel(data):
-    kernel_name = data.kernel.lower()
-    if kernel_name not in _KERNELS_SKLEARN:
-        raise ValueError(f'Unknown kernel {kernel_name}')
-    length_scale = [1.0] * len(data.X_train[0]) if data.length_per_dimension else 1.0
-    return _KERNELS_SKLEARN[kernel_name](length_scale=length_scale)
+class SklearnBackend(
+    AbstractBackend[GaussianProcessRegressor, Kernel, tuple[np.ndarray, np.ndarray]]
+):
+    @staticmethod
+    def get_kernel(data):
+        kernel_name = data.kernel.lower()
+        if kernel_name not in _KERNELS_SKLEARN:
+            msg = f'Unknown kernel {kernel_name}'
+            raise ValueError(msg)
+        length_scale = [1.0] * len(data.X_train[0]) if data.length_per_dimension else 1.0
+        return _KERNELS_SKLEARN[kernel_name](length_scale=length_scale)
 
-def sample(module, model, data):
+    @staticmethod
+    def train_model(data):
+        model = GaussianProcessRegressor(
+            kernel=SklearnBackend.get_kernel(data), n_restarts_optimizer=1000
+        )
+        model.fit(data.X_train, data.Y_train)
+        return model
 
-    strategy_name = data.strategy.lower()
-    if strategy_name not in _SAMPLERS_SKLEARN:
-        raise ValueError(f"Unknown startegy {strategy_name}")
+    @staticmethod
+    def predict(model, data):
+        dim = data.X_train.shape[1]
+        means, stddevs = compute_posterior_f_double_prime(model, data.x_predict.reshape(-1, dim))
+        return means, data.stddev * stddevs
 
-    sampler_module_path, sampler_func_name = _SAMPLERS_SKLEARN[strategy_name].split(':')
+    @staticmethod
+    def sample(module, model, data):
+        strategy_name = data.strategy.lower()
 
-    # Import the module
-    sampler_module = __import__(sampler_module_path, fromlist=[sampler_func_name])
+        sample_func = None
+        match strategy_name:
+            case (
+                'uncertainty'
+                | 'upper_confidence_bound'
+                | 'expected_improvement'
+                | 'confidence_bound'
+            ):
+                from dial_service.utilities.strategies import greedy_sampling
 
-    # Get the function from the module
-    sample_func = getattr(sampler_module, sampler_func_name)
+                sample_func = greedy_sampling
+            case _:
+                msg = f'Unknown strategy {strategy_name}'
+                raise ValueError(msg)
 
-    return sample_func(module, model, data)
-
-def train_model(data: ServersideInputSingle):
-    model = GaussianProcessRegressor(kernel=get_kernel(data), n_restarts_optimizer=1000)
-    model.fit(data.X_train, data.Y_train)
-    return model
-
-
-# def predict(model, x, data):
-#     dim = data.X_train.shape[1]
-#     means, stddevs = model.predict(x.reshape(-1, dim), return_std=True)
-#     return means, data.stddev * stddevs
-
-def predict(model: GaussianProcessRegressor,
-            x : np.ndarray,
-            data: ServersideInputPrediction):
-    dim = data.X_train.shape[1]
-    means, stddevs = compute_posterior_f_double_prime(model, x.reshape(-1, dim))
-    return means, data.stddev * stddevs
+        return sample_func(module, model, data)
 
 
-def compute_posterior_f_double_prime(gpr, X_test):
+def compute_posterior_f_double_prime(gpr: GaussianProcessRegressor, X_test: np.ndarray):
     """
     Compute the posterior mean and variance of the second derivative f''(x)
     using a trained GaussianProcessRegressor in sklearn.
@@ -77,9 +74,8 @@ def compute_posterior_f_double_prime(gpr, X_test):
     # Extract trained parameters
     kernel = gpr.kernel_
     if not isinstance(kernel, RBF):
-        raise NotImplementedError(
-            'Second derivative prediction is only implemented for the RBF kernel.'
-        )
+        msg = 'Second derivative prediction is only implemented for the RBF kernel.'
+        raise NotImplementedError(msg)
 
     X_train = gpr.X_train_
     alpha = gpr.alpha_
@@ -127,5 +123,4 @@ def compute_posterior_f_double_prime(gpr, X_test):
     solved_term = sp.linalg.solve(K, k_2_0.T, assume_a='pos')  # Solve K^{-1} k_2_0
     posterior_variance = k_2_2 - (k_2_0 @ solved_term)
     posterior_sd = np.sqrt(np.diag(posterior_variance))
-
     return posterior_mean, posterior_sd

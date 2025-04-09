@@ -109,6 +109,7 @@ ignore = [
 ]
 'scripts/*' = [
     'T20', # allow print/pprint statements in scripts
+    'N999', # allow scripts to have non-pep8-compliant names, i.e. "2d_rosenbrock"
 ]
 'tests/*' = [
     'S101',   # allow assert statements in tests

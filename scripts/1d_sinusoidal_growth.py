@@ -1,4 +1,3 @@
-import numpy as np
 import argparse
 import json
 import logging
@@ -8,7 +7,7 @@ from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
+import numpy as np
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
     HierarchyConfig,
@@ -18,17 +17,14 @@ from intersect_sdk import (
     IntersectDirectMessageParams,
     default_intersect_lifecycle_loop,
 )
+from scipy.stats import qmc
 
-sys.path.append(str(Path(__file__).parents[1]))
-# from dial_dataclass import DialInputPredictions, DialInputSingle
-from src.dial_dataclass import DialInputPredictions, DialInputSingle
+from dial_dataclass import DialInputPredictions, DialInputSingle
 
 mpl.use('agg')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-from scipy.stats import qmc
 
 
 def latin_hypercube_sample(n, search_space, seed=10):
@@ -78,6 +74,7 @@ def sinusoidal_growth(x: np.ndarray) -> np.ndarray:
     np.ndarray: Output array after applying the sinusoidal growth function.
     """
     result = x + np.sin(6 * x)
+    logger.debug(result)
     return result
 
 

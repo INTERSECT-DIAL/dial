@@ -1,31 +1,36 @@
 import logging
-import random
-import numpy as np
-from scipy.stats import norm
-from scipy.optimize import minimize
 
+import numpy as np
+from scipy.optimize import minimize
+from scipy.stats import norm
+
+from ..backends import AbstractBackend
 from ..serverside_data import (
-    ServersideInputBase,
-    ServersideInputMultiple,
-    ServersideInputPrediction,
     ServersideInputSingle,
 )
 
 logger = logging.getLogger(__name__)
 
+
+def random_in_bounds(bounds: list[list[float]], rng: np.random.RandomState):
+    return [rng.uniform(low, high) for low, high in bounds]
+
+
 def get_negative_value_function(data):
     match data.strategy:
         case 'uncertainty':
-            return lambda mean, stddev: -stddev
+            return lambda _mean, stddev: -stddev
         case 'expected_improvement':
             return lambda mean, stddev: _expected_improvement(mean, stddev, data)
         case 'upper_confidence_bound':
-            return lambda mean, stddev: -(mean + 1*stddev)
+            return lambda mean, stddev: -(mean + 1 * stddev)
         case 'confidence_bound':
             z_value = norm.ppf(0.5 + data.confidence_bound / 2)
             return lambda mean, stddev: _confidence_bound(mean, stddev, z_value, data)
         case _:
-            raise ValueError(f"Unknown strategy {data.strategy}")
+            msg = f'Unknown strategy {data.strategy}'
+            raise ValueError(msg)
+
 
 def _expected_improvement(mean, stddev, data):
     if stddev == 0:
@@ -33,25 +38,27 @@ def _expected_improvement(mean, stddev, data):
     z = (mean - data.Y_best) / stddev * (1 if data.y_is_good else -1)
     return -stddev * (z * norm.cdf(z) + norm.pdf(z))
 
+
 def _confidence_bound(mean, stddev, z_value, data):
     return -z_value * stddev + mean * (-1 if data.y_is_good else 1)
 
 
-def _hypercube(data: ServersideInputBase, num_points) -> list[list[float]]:
+def hypercube(
+    bounds: list[list[float]], num_points: int, rng: np.random.RandomState
+) -> list[list[float]]:
     coordinates = []
-    for low, high in data.bounds:
+    for low, high in bounds:
         # for each dimension, generate a list of spaced coordinates and shuffle it:
         step = (high - low) / num_points
         coordinates.append(
-            [random.uniform(low + i * step, low + (i + 1) * step) for i in range(num_points)]  # noqa: S311
-            # (TODO - probably OK to use cryptographically insecure random numbers, but check this first)
+            [rng.uniform(low + i * step, low + (i + 1) * step) for i in range(num_points)]
         )
-        random.shuffle(coordinates[-1])
+        rng.shuffle(coordinates[-1])
     # add the points:
     return [list(point) for point in zip(*coordinates, strict=False)]
 
 
-def _create_measurement_grid(data):
+def _create_measurement_grid(data: ServersideInputSingle):
     """
     Create a grid of measurement points for discrete optimization.
 
@@ -70,11 +77,11 @@ def _create_measurement_grid(data):
     return [[row, col] for row in row_values for col in col_values]
 
 
-def greedy_sampling(backend_module, model, data):
+def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInputSingle):
     negative_value = get_negative_value_function(data)
 
-    def to_minimize(x: np.ndarray):
-        mean, sigma = backend_module.predict(model, x, data)
+    def to_minimize(_x: np.ndarray):
+        mean, sigma = backend_module.predict(model, data)
         return negative_value(mean, sigma)
 
     if data.discrete_measurements:
@@ -87,7 +94,10 @@ def greedy_sampling(backend_module, model, data):
         logger.debug(selected_point)
         return selected_point
 
-    guess = min(np.array(_hypercube(data, data.optimization_points)), key=to_minimize)
+    guess = min(
+        np.array(hypercube(data.bounds, data.optimization_points, data.numpy_rng)), key=to_minimize
+    )
     selected_point = minimize(to_minimize, guess, bounds=data.bounds, method='L-BFGS-B').x.tolist()
+    logger.debug(selected_point)
 
     return selected_point

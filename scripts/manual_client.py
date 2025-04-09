@@ -8,8 +8,6 @@ from typing import Any
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-mpl.use('agg')
 import numpy as np
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
@@ -27,6 +25,8 @@ from dial_dataclass import (
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
 )
+
+mpl.use('agg')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -10,11 +10,7 @@ from dial_dataclass import (
 )
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
-from .dial_service_implementations import (
-    internal_get_next_point,
-    internal_get_next_points,
-    internal_get_surrogate_values,
-)
+from . import core
 from .mongo_handler import MongoDBCredentials, MongoDBHandler
 from .serverside_data import (
     ServersideInputMultiple,
@@ -22,10 +18,6 @@ from .serverside_data import (
     ServersideInputSingle,
 )
 from .service_specific_dataclasses import DialWorkflowCreationParamsService
-
-# os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
-# os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=".10"
-# os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"]="platform"
 
 
 class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
@@ -36,6 +28,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
     def __init__(self, credentials: dict[str, Any]):
         super().__init__()
         self.mongo_handler = MongoDBHandler(MongoDBCredentials(**credentials))
+
+    ### STATEFUL + WORKFLOW FUNCTIONS ###
 
     @intersect_message()
     def initialize_workflow(self, client_data: DialWorkflowCreationParamsService) -> str:
@@ -64,10 +58,19 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if not db_result:
             raise Exception  # noqa: TRY002 (workflow does not exist OR the length of the x value didn't match the rest) - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
+    ### STATELESS FUNCTIONS ###
+
     @intersect_message()
     # trains a model and then recommends a point to measure based on user's requested strategy:
     def get_next_point(self, client_data: DialInputSingle) -> list[float]:
-        """Trains a model, and then recommends a point to measure based on user's requested strategy."""
+        """Trains a model, and then gets the next point for optimization based on the provided strategy.
+
+        Args:
+            client_data (DialInputSingle): Input data containing bounds, strategy, and other parameters.
+
+        Returns:
+            list[float]: The selected point for the next iteration.
+        """
         workflow_id = ValidatedObjectId(client_data.workflow_id)
         workflow_state = self.mongo_handler.get_workflow(workflow_id)
         if not workflow_state:
@@ -78,10 +81,19 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             DialWorkflowCreationParamsService(**workflow_state), client_data
         )
 
-        return internal_get_next_point(data)
+        return core.get_next_point(data)
 
     @intersect_message
     def get_next_points(self, client_data: DialInputMultiple) -> list[list[float]]:
+        """
+        Get multiple next points for optimization based on the provided strategy.
+
+        Args:
+            client_data: Input data containing bounds, strategy, and other parameters.
+
+        Returns:
+            list[list[float]]: A list of selected points for the next iteration.
+        """
         workflow_id = ValidatedObjectId(client_data.workflow_id)
         workflow_state = self.mongo_handler.get_workflow(workflow_id)
         if not workflow_state:
@@ -92,7 +104,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             DialWorkflowCreationParamsService(**workflow_state), client_data
         )
 
-        return internal_get_next_points(data)
+        return core.get_next_points(data)
 
     @intersect_message
     def get_surrogate_values(self, client_data: DialInputPredictions) -> list[list[float]]:
@@ -110,7 +122,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             DialWorkflowCreationParamsService(**workflow_state), client_data
         )
 
-        return internal_get_surrogate_values(data)
+        return core.get_surrogate_values(data)
 
     @intersect_status()
     def status(self) -> str:

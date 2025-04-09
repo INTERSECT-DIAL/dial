@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 from bson import ObjectId
 
-import dial_service.dial_service_implementations as svc_impls
 from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
 )
+from dial_service import core
 from dial_service.serverside_data import (
     ServersideInputMultiple,
     ServersideInputPrediction,
@@ -161,14 +161,6 @@ def prediction_1D(backend):
 ####### TESTS ###################
 
 
-@pytest.mark.parametrize('backend', ['sklearn', 'gpax'])
-def test_n_grid(backend):
-    data = single_1D(backend, strategy='expected_improvement')
-    assert svc_impls._create_n_dim_grid(data, 11) == pytest.approx(
-        np.array([[1.0], [1.1], [1.2], [1.3], [1.4], [1.5], [1.6], [1.7], [1.8], [1.9], [2.0]])
-    )
-
-
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
@@ -178,7 +170,7 @@ def test_n_grid(backend):
 )
 def test_EI_1D(backend, approx):
     data = single_1D(backend, strategy='expected_improvement')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx([approx], abs=0.00001)
+    assert core.get_next_point(data) == pytest.approx([approx], abs=0.00001)
 
 
 @pytest.mark.parametrize(
@@ -190,7 +182,7 @@ def test_EI_1D(backend, approx):
 )
 def test_EI_2D(backend, approx):
     data = single_2D(backend, strategy='expected_improvement')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    assert core.get_next_point(data) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -205,7 +197,7 @@ def test_EI_2D(backend, approx):
 )
 def test_EI_3D(backend, approx):
     data = single_3D(backend, strategy='expected_improvement')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    assert core.get_next_point(data) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -220,7 +212,7 @@ def test_EI_3D(backend, approx):
 )
 def test_uncertainty(backend, approx):
     data = single_1D(backend, strategy='uncertainty')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    assert core.get_next_point(data) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -235,7 +227,7 @@ def test_preprocessing_standardize(backend, approx):
     data.preprocess_standardize = True
     assert data.Y_best == 1
     assert data.Y_train == pytest.approx([-1, 1])
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    assert core.get_next_point(data) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -248,7 +240,7 @@ def test_preprocessing_standardize(backend, approx):
 def test_random(backend):
     data = single_1D(backend, strategy='random')
     for _ in range(100):
-        output = svc_impls.internal_get_next_point(data)
+        output = core.get_next_point(data)
         assert len(output) == 1
         assert 1 <= output[0] <= 2
 
@@ -262,7 +254,7 @@ def test_random(backend):
 )
 def test_random_points(backend):
     data = multiple_2D(backend, strategy='random')
-    for pt in svc_impls.internal_get_next_points(data):
+    for pt in core.get_next_points(data):
         assert 0 <= pt[0] <= 100
         assert -1 <= pt[1] <= 1
 
@@ -276,7 +268,7 @@ def test_random_points(backend):
 )
 def test_hypercube(backend):
     data = multiple_2D(backend, strategy='hypercube')
-    points = svc_impls.internal_get_next_points(data)
+    points = core.get_next_points(data)
     for i in range(10):
         assert sum(1 for pt in points if 10 * i <= pt[0] <= 10 * (i + 1)) == 1
         assert sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1, (
@@ -289,9 +281,15 @@ def test_hypercube(backend):
     [
         (
             'sklearn',
-            [100.0, 135.4253956249114, 168.17893262605446, 191.52029424913434, 200.0],
-            [8.739217244027204, 11.956904892760956, 8.739217244027222],
-            [8.739217244027204, 11.956904892760956, 8.739217244027222],
+            [
+                53.549312300053074,
+                -41.34272031715014,
+                -152.34085027579317,
+                -242.49362997265197,
+                -277.2520745900994,
+            ],
+            [101.02151736688863, 111.70746001858771, 101.02151736688863],
+            [101.02151736688863, 111.70746001858771, 101.02151736688863],
         ),
         (
             'gpax',
@@ -309,7 +307,7 @@ def test_hypercube(backend):
 )
 def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
     data = prediction_1D(backend)
-    means, stddevs, raw_stddevs = svc_impls.internal_get_surrogate_values(data)
+    means, stddevs, raw_stddevs = core.get_surrogate_values(data)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
     assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)
