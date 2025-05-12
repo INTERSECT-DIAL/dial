@@ -162,14 +162,15 @@ def prediction_1D(backend):
         bounds=[[1, 2]],
         kernel='rbf',
         backend=backend,
-        preprocess_standardize=True,
+        preprocess_standardize=False,
         y_is_good=True,
         seed=42,
     )
     params = DialInputPredictions(
         workflow_id=DUMMY_WORKFLOW_ID,
         points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
-        kernel_args={'length_scale': .5, 'length_scale_bounds': "fixed"}
+        kernel_args={'length_scale': .5, 'length_scale_bounds': "fixed"},
+        extra_args={'length_per_dimension': True},
     )
     return ServersideInputPrediction(workflow_state, params)
 
@@ -305,22 +306,22 @@ def test_hypercube(backend):
         (
             'sklearn',
             [
-            100.00000001,
-            116.68792615,
-            148.85898558,
-            181.20361927,
-            200.
+            99.99999999,
+            127.23019909,
+            160.26912982,
+            191.74589221,
+            199.99999999
             ],
-            [4.71404540e-04,
-             1.99052432e+01,
-             2.79660797e+01,
-             1.99052432e+01,
-             3.33333717e-04],
-            [1.0000000413701844e-05,
-             0.4222539741268675,
-             0.5932501381196003,
-             0.42225397408625437,
-             7.071075954854466e-06],
+            [
+            2.11126987e+01,
+            2.96625069e+01,
+            2.11126987e+01
+             ],
+            [
+            21.11269870647274,
+            29.662506906581378,
+            21.112698706472752
+            ],
         ),
         # (
             # 'gpax',
@@ -344,33 +345,33 @@ def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stdde
     assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)
 
 
-# @pytest.mark.parametrize(
-#     ('backend'),
-#     [
-#         ('sklearn'),
-#         ('gpax'),
-#     ],
-# )
-# def test_inverse_transform(backend):
-#     data = prediction_1D(backend)
-#     assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([-1, 0, 1])
-#     assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, 0, 1])
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        # ('gpax'),
+    ],
+)
+def test_inverse_transform(backend):
+    data = prediction_1D(backend)
+    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([-1, 0, 1])
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, 0, 1])
 
-#     data.preprocess_log = True
-#     assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-#         [1 / E_CONSTANT, 1, E_CONSTANT]
-#     )
-#     assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    data.preprocess_log = True
+    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
+        [1 / E_CONSTANT, 1, E_CONSTANT]
+    )
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
 
-#     data.preprocess_log = False
-#     data.preprocess_standardize = True
-#     assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([100, 150, 200])
-#     assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx(
-#         [-50, 0, 50]
-#     )  # technically improper, as uncertainties can't be negative
+    data.preprocess_log = False
+    data.preprocess_standardize = True
+    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([100, 150, 200])
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx(
+        [-50, 0, 50]
+    )  # technically improper, as uncertainties can't be negative
 
-#     data.preprocess_log = True
-#     assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-#         [100, 141.42135623730945, 200]
-#     )  # TODO
-#     assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    data.preprocess_log = True
+    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
+        [100, 141.42135623730945, 200]
+    )  # TODO
+    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
