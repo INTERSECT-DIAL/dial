@@ -40,23 +40,33 @@ To run linter and automatically fix errors:
 
 ## running infrastructure locally
 
-You can use `docker compose up -d` to automatically spin up a broker instance locally.
+You can use `docker compose up -d` to automatically spin up both a broker instance and a database instance locally.
 
-To remove the infrastructure containers: `docker compose down -v`
+To remove the infrastructure containers: `docker compose down -v`; leave off the `-v` flag if you would like to persist the DB data.
 
 Note that if you are also running the Client/Service scripts in Docker, you will need to make sure that you add in appropriate `host` properties inside of `local-conf.json` (the host names are the names of the services in `docker-compose.yml`, instead of `127.0.0.1`):
 
 ```json
 {
-  "brokers": [
-    {
-      "username": "intersect_username",
-      "password": "intersect_password",
-      "host": "broker",
-      "port": 1883,
-      "protocol": "mqtt3.1.1"
+  "intersect": {
+    "brokers": [
+      {
+        "username": "intersect_username",
+        "password": "intersect_password",
+        "host": "broker",
+        "port": 1883,
+        "protocol": "mqtt3.1.1"
+      }
+    ]
+  },
+  "dial": {
+    "mongo": {
+      "username": null,
+      "password": null,
+      "host": "mongodb",
+      "port": 27017
     }
-  ]
+  }
 }
 
 ```
