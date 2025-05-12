@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -33,16 +33,11 @@ class _DialWorkflowCreationParams(BaseModel):
     y_is_good: Annotated[
         bool,
         Field(
+            default=True,  # <-- Set default here
             description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)'
         ),
     ]
     kernel: Literal['rbf', 'matern']
-    length_per_dimension: Annotated[
-        bool,
-        Field(
-            description='If true, will have the kernel use a separate length scale for each dimension (useful if scales differ). If false, all dimensions are forced to the same length scale.'
-        ),
-    ]
     bounds: list[
         Annotated[
             Annotated[list[float], Field(min_length=2, max_length=2)],
@@ -100,10 +95,18 @@ class DialWorkflowDatasetUpdate(BaseModel):
     next_y: float = Field(description='The next Y value you want to append to your overall data')
     """the next Y value you want to append"""
 
-
 class DialInputSingleConfidenceBound(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal['confidence_bound']
+    strategy_args: dict[str, Union[float, int, bool]] | None = Field(default=None)
+    backend_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
+    bounds: list[
+        Annotated[
+            Annotated[list[float], Field(min_length=2, max_length=2)],
+            Field(min_length=2, max_length=2),
+        ]
+    ]
+    extra_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
     optimization_points: PositiveIntType = Field(default=1000)
     confidence_bound: float = Field(gt=0.5, lt=1)
     discrete_measurements: bool = Field(default=False)
@@ -113,6 +116,25 @@ class DialInputSingleConfidenceBound(BaseModel):
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal['random', 'uncertainty', 'expected_improvement', 'upper_confidence_bound']
+    strategy_args: dict[str, Union[float, int, bool]] | None = Field(default=None)
+    kernel_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
+    backend_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
+    bounds: list[
+        Annotated[
+            Annotated[list[float], Field(min_length=2, max_length=2)],
+            Field(min_length=2, max_length=2),
+        ]
+    ]
+    seed: Annotated[
+        int,
+        Field(
+            default=-1,
+            ge=-1,
+            le=4294967295,
+            description='Specific RNG seed - use -1 to use system default',
+        ),
+    ]
+    extra_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
     optimization_points: PositiveIntType = Field(default=1000)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
@@ -140,3 +162,7 @@ class DialInputPredictions(BaseModel):
 
     workflow_id: ValidatedObjectId
     points_to_predict: list[list[float]]
+
+    kernel_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
+    backend_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
+    extra_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)

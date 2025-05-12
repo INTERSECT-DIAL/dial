@@ -75,5 +75,5 @@ def get_surrogate_values(data: ServersideInputPrediction) -> list[list[float]]:
     model = module.train_model(data)
     means, stddevs = module.predict(model, data)
     means = data.inverse_transform(means)
-    transformed_stddevs = data.inverse_transform(stddevs)
+    transformed_stddevs = data.inverse_transform(stddevs, is_stddev=True)
     return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]

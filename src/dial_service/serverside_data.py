@@ -20,7 +20,6 @@ class ServersideInputBase:
         self.bounds = data.bounds
         self.y_is_good = data.y_is_good
         self.kernel = data.kernel
-        self.length_per_dimension = data.length_per_dimension
         self.backend: str = data.backend
         self.seed = data.seed
         self.numpy_rng = np.random.RandomState(None if data.seed == -1 else data.seed)
@@ -64,6 +63,13 @@ class ServersideInputSingle(ServersideInputBase):
     def __init__(self, workflow_state: DialWorkflowCreationParamsService, params: DialInputSingle):
         super().__init__(workflow_state)
         self.strategy = params.strategy
+        self.strategy_args = params.strategy_args
+        self.bounds = params.bounds
+        self.kernel_args = params.kernel_args
+        self.backend_args = params.backend_args
+        self.extra_args = params.extra_args
+        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
+
         self.optimization_points = params.optimization_points
         self.confidence_bound = (
             params.confidence_bound if params.strategy == 'confidence_bound' else 0.0
@@ -87,3 +93,6 @@ class ServersideInputPrediction(ServersideInputBase):
     ):
         super().__init__(workflow_state)
         self.x_predict = np.array(params.points_to_predict)
+        self.kernel_args = params.kernel_args
+        self.backend_args = params.backend_args
+        self.extra_args = params.extra_args
