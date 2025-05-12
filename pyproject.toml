@@ -135,4 +135,5 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
     "statsmodels>=0.14.4",
+    "bumps>=0.9.3",
 ]
