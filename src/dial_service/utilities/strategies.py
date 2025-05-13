@@ -1,5 +1,5 @@
 import logging
-
+import random
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import norm
@@ -11,37 +11,45 @@ from ..serverside_data import (
 
 logger = logging.getLogger(__name__)
 
+STRATEGIES = {
+    'uncertainty': 'uncertainty_sampling',
+    'upper_confidence_bound': 'upper_confidence_bound',
+    'expected_improvement': 'expected_improvement',
+    'confidence_bound': 'confidence_bound'
+}
 
 def random_in_bounds(bounds: list[list[float]], rng: np.random.RandomState):
     return [rng.uniform(low, high) for low, high in bounds]
 
+def uncertainty_sampling(mean, stddev, data):
+    return -stddev
 
-def get_negative_value_function(data):
-    match data.strategy:
-        case 'uncertainty':
-            return lambda _mean, stddev: -stddev
-        case 'expected_improvement':
-            return lambda mean, stddev: _expected_improvement(mean, stddev, data)
-        case 'upper_confidence_bound':
-            return lambda mean, stddev: -(mean + 1 * stddev)
-        case 'confidence_bound':
-            z_value = norm.ppf(0.5 + data.confidence_bound / 2)
-            return lambda mean, stddev: _confidence_bound(mean, stddev, z_value, data)
-        case _:
-            msg = f'Unknown strategy {data.strategy}'
-            raise ValueError(msg)
+def upper_confidence_bound(mean, stddev, data):
 
+    _params = data.strategy_args
+    y_is_good = data.y_is_good
+    _direction =  (1 if y_is_good else -1)
 
-def _expected_improvement(mean, stddev, data):
-    if stddev == 0:
-        return 0
-    z = (mean - data.Y_best) / stddev * (1 if data.y_is_good else -1)
+    if _params is None:
+        return _direction * mean + stddev
+
+    return _direction * _params['exploit']*mean + _params['explore']*stddev
+
+def expected_improvement(mean, stddev, data):
+    _params = data.strategy_args
+    y_is_good = data.y_is_good
+
+    if stddev < 1e-8:
+        return 0.0
+    z = (mean - data.Y_best) / stddev * (1 if y_is_good else -1)
     return -stddev * (z * norm.cdf(z) + norm.pdf(z))
 
+def confidence_bound(mean, stddev, data):
 
-def _confidence_bound(mean, stddev, z_value, data):
-    return -z_value * stddev + mean * (-1 if data.y_is_good else 1)
+    y_is_good = data.y_is_good
+    z_value = norm.ppf(0.5 + data.confidence_bound / 2)
 
+    return -z_value * stddev + mean * (-1 if y_is_good else 1)
 
 def hypercube(
     bounds: list[list[float]], num_points: int, rng: np.random.RandomState
@@ -57,8 +65,7 @@ def hypercube(
     # add the points:
     return [list(point) for point in zip(*coordinates, strict=False)]
 
-
-def _create_measurement_grid(data: ServersideInputSingle):
+def create_measurement_grid(data: ServersideInputSingle):
     """
     Create a grid of measurement points for discrete optimization.
 
@@ -78,26 +85,41 @@ def _create_measurement_grid(data: ServersideInputSingle):
 
 
 def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInputSingle):
-    negative_value = get_negative_value_function(data)
+
+    try:
+        func_name = STRATEGIES[data.strategy]
+        strategy_ = globals()[func_name]
+        if not callable(strategy_):
+            raise ValueError
+    except (KeyError, ValueError) as exc:
+        raise ValueError(f"Invalid strategy: {data.strategy}") from exc
 
     def to_minimize(_x: np.ndarray):
+        data.x_predict = _x
         mean, sigma = backend_module.predict(model, data)
-        return negative_value(mean, sigma)
+        return -strategy_(mean, sigma, data)
 
     if data.discrete_measurements:
-        _measurement_grid = _create_measurement_grid(data)
+        _measurement_grid = create_measurement_grid(data)
         means, stddevs = backend_module.predict(model, _measurement_grid, data)
-        response_surface = negative_value(means, stddevs)
+        response_surface = -strategy_(means, stddevs)
         index = np.int64(np.argmin(response_surface))
         selected_point = _measurement_grid[index]
         logger.debug('selected point with discrete measurements')
         logger.debug(selected_point)
         return selected_point
 
-    guess = min(
-        np.array(hypercube(data.bounds, data.optimization_points, data.numpy_rng)), key=to_minimize
-    )
-    selected_point = minimize(to_minimize, guess, bounds=data.bounds, method='L-BFGS-B').x.tolist()
-    logger.debug(selected_point)
+    n_restarts = 10
+    init_array = np.array(hypercube(data.bounds, n_restarts, data.numpy_rng))
+    best_score = np.inf
+    selected_point = None
+    for x_init in init_array:
+        res = minimize(to_minimize, x_init, bounds=data.bounds,
+                        options={'eps': 1e-6, 'gtol': 1e-10, 'ftol': 1e-12},
+                        method='L-BFGS-B')
+        if res.fun < best_score:
+            best_score = res.fun
+            selected_point = res.x
 
+    selected_point = selected_point.tolist()
     return selected_point

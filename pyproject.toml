@@ -130,3 +130,8 @@ plugins = ["pydantic.mypy"]
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "statsmodels>=0.14.4",
+]
