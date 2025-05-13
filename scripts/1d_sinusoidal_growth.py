@@ -101,9 +101,7 @@ class ActiveLearningOrchestrator:
 
         if operation == 'dial.initialize_workflow':
             self.workflow_id = payload
-            print("\n","--"*20,"\n")
             return self.callback_message('dial.get_surrogate_values')
-        # TODO: repplace this with update_workflow_with_data that can also train the model
 
         # ----------------- Active learning loop -----------------
         if operation == 'dial.get_surrogate_values':

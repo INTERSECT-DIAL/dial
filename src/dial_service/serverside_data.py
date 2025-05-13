@@ -64,6 +64,7 @@ class ServersideInputSingle(ServersideInputBase):
         super().__init__(workflow_state)
         self.strategy = params.strategy
         self.strategy_args = params.strategy_args
+        self.y_is_good = params.y_is_good
         self.bounds = params.bounds
         self.kernel_args = params.kernel_args
         self.backend_args = params.backend_args

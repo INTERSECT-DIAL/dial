@@ -99,6 +99,13 @@ class DialInputSingleConfidenceBound(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal['confidence_bound']
     strategy_args: dict[str, Union[float, int, bool]] | None = Field(default=None)
+    y_is_good: Annotated[
+        bool,
+        Field(
+            default=True,  # <-- Set default here
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)'
+        ),
+    ]
     backend_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
     bounds: list[
         Annotated[
@@ -117,6 +124,13 @@ class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal['random', 'uncertainty', 'expected_improvement', 'upper_confidence_bound']
     strategy_args: dict[str, Union[float, int, bool]] | None = Field(default=None)
+    y_is_good: Annotated[
+        bool,
+        Field(
+            default=True,  # <-- Set default here
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)'
+        ),
+    ]
     kernel_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
     backend_args: dict[str, Union[float, int, bool, str, list[float], tuple]] | None = Field(default=None)
     bounds: list[
