@@ -259,6 +259,10 @@ class AndieBackend(
         # Thermal_next_sample = np.max(data.measuredTemperatureIdx) + 1
         # Thermal_next_sample = np.max(data.X_train[-1][1]) + 1
         Thermal_next_sample = int(data.extra_args['last_idx']) + 1
+        if Thermal_next_sample >= T2.shape[0]:
+            print('You have reached your destination.')
+            off_flag = True
+
 
         above_TN = data.extra_args['above_TN']
         # above_TN = data.above_TN
@@ -278,50 +282,50 @@ class AndieBackend(
         # def find_next_temperature(T2, T_step, above_TN, Thermal_next_sample, Thermal_posterior_results, Thermal_predictions):
 
 
+        if (off_flag == False):
+            next_sample_acquired = False
+            while next_sample_acquired == False:
+                print("**"*20, Thermal_next_sample)
+                uncertainty = Thermal_variance[Thermal_next_sample]
+                Bravery_factor = 8.5
+                if T2[Thermal_next_sample] > TN_upper:
+                    #If the next temp is bigger than the upper confidence bound TN, take a big step
+                    #Or if the isothermal inference did not find a peak, take a big step
+                    above_TN += 1
+                    print('We are in the end game now' )
+                    step = np.round(5*above_TN**2.5) #Degrees to increase the temperature.
+                    if Thermal_next_sample + int(step/T_step) < T2.shape[0]:
+                        #If the index after the step would still be within the search space, choose that temp.
+                        Thermal_next_sample = Thermal_next_sample + int(step/T_step)
 
-        next_sample_acquired = False
-        while next_sample_acquired == False:
-            print("**"*20, Thermal_next_sample)
-            uncertainty = Thermal_variance[Thermal_next_sample]
-            Bravery_factor = 8.5
-            if T2[Thermal_next_sample] > TN_upper:
-                #If the next temp is bigger than the upper confidence bound TN, take a big step
-                #Or if the isothermal inference did not find a peak, take a big step
-                above_TN += 1
-                print('We are in the end game now' )
-                step = np.round(5*above_TN**2.5) #Degrees to increase the temperature.
-                if Thermal_next_sample + int(step/T_step) < T2.shape[0]:
-                    #If the index after the step would still be within the search space, choose that temp.
-                    Thermal_next_sample = Thermal_next_sample + int(step/T_step)
+                    else:
+                        print('You have reached your destination.')
+                        off_flag = True
 
+                    next_sample_acquired = True
+                #Optional further condition to take more data points within confidence interval of the predicted TN
+            #       elif T2[Thermal_next_sample] >= TN_lower:
+            #         #If the next temp is bigger than the lower confidence bound of TN, take a small step
+            #         x_step = 0.5 #Degrees to increase the temperature
+            #         Thermal_next_sample = Thermal_next_sample + int(x_step/T_step)
+            #         next_sample_acquired = True
+            #         print('Theres nothing for it, you got to take the next step' )
+                elif uncertainty < Bravery_factor*Thermal_mean_of_posterior_curves[Thermal_next_sample]/100:  #With the instrument error scaling factor
+                    Thermal_next_sample = Thermal_next_sample+1
                 else:
-                    print('You have reached your destination.')
-                    off_flag = True
-
-                next_sample_acquired = True
-            #Optional further condition to take more data points within confidence interval of the predicted TN
-        #       elif T2[Thermal_next_sample] >= TN_lower:
-        #         #If the next temp is bigger than the lower confidence bound of TN, take a small step
-        #         x_step = 0.5 #Degrees to increase the temperature
-        #         Thermal_next_sample = Thermal_next_sample + int(x_step/T_step)
-        #         next_sample_acquired = True
-        #         print('Theres nothing for it, you got to take the next step' )
-            elif uncertainty < Bravery_factor*Thermal_mean_of_posterior_curves[Thermal_next_sample]/100:  #With the instrument error scaling factor
-                Thermal_next_sample = Thermal_next_sample+1
-            else:
-                print('Acquired Next Temp on Main path')
-                next_sample_acquired = True
+                    print('Acquired Next Temp on Main path')
+                    next_sample_acquired = True
 
 
-            if off_flag:
-                Thermal_next_sample = T2.shape[0] - 1
+                if off_flag:
+                    Thermal_next_sample = T2.shape[0] - 1
 
 
-            ## these updates may not be necessary (they are on the server side)
-            ## the updates on the client side are from the outputs of this function
-            ## the client updates are handled in handle_next_points() in the clinet file
-            data.extra_args['above_TN'] = above_TN
-            data.extra_args['last_idx'] = Thermal_next_sample
+        ## these updates may not be necessary (they are on the server side)
+        ## the updates on the client side are from the outputs of this function
+        ## the client updates are handled in handle_next_points() in the clinet file
+        data.extra_args['above_TN'] = above_TN
+        data.extra_args['last_idx'] = Thermal_next_sample
 
         return [T2[Thermal_next_sample], above_TN, Thermal_next_sample]
 
