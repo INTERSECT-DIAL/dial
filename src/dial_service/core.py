@@ -77,8 +77,4 @@ def get_surrogate_values(data: ServersideInputPrediction) -> list[list[float]]:
     means = data.inverse_transform(means)
     transformed_stddevs = data.inverse_transform(stddevs, is_stddev=True)
 
-    means = means.flatten()
-    transformed_stddevs = transformed_stddevs.flatten()
-    stddevs = stddevs.flatten()
-
     return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]

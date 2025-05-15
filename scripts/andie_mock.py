@@ -242,6 +242,12 @@ class ActiveLearningOrchestrator:
         coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
         print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
 
+
+        plt.figure()
+        x_plot = np.linspace(0,310,300)
+        plt.plot(x_plot,peak_val_at_T(x_plot))
+        plt.plot(self.dataset_x, self.dataset_y, 'o')
+        plt.savefig('andie.png')
     def graph(self):
 
         plt.clf()

@@ -180,7 +180,7 @@ class AndieBackend(
 
         print("initial chisq", problem.chisq_str())
         result = fit(problem, method=method, xtol=1e-6, ftol=1e-8,
-                    samples = 10,
+                    samples = 100000,
                     burn = 100,
                     pop = 10,
                     init = 'eps',
@@ -249,7 +249,7 @@ class AndieBackend(
         #             'Thermal CI Curves': Thermal_CI_curves,
         #             'Thermal lower Curve': Thermal_lower_curve,
         #             'Thermal upper Curve': Thermal_upper_curve}
-        return Thermal_mean_of_posterior_curves, Thermal_variance
+        return Thermal_mean_of_posterior_curves.flatten(), Thermal_variance.flatten()
 
     @staticmethod
     def sample(module, model, data):
@@ -259,10 +259,7 @@ class AndieBackend(
         # Thermal_next_sample = np.max(data.measuredTemperatureIdx) + 1
         # Thermal_next_sample = np.max(data.X_train[-1][1]) + 1
         Thermal_next_sample = int(data.extra_args['last_idx']) + 1
-        if Thermal_next_sample >= T2.shape[0]:
-            print('You have reached your destination.')
-            off_flag = True
-
+        
 
         above_TN = data.extra_args['above_TN']
         # above_TN = data.above_TN
@@ -280,6 +277,10 @@ class AndieBackend(
         Thermal_mean_of_posterior_curves, Thermal_variance = module.predict(model, data)
 
         # def find_next_temperature(T2, T_step, above_TN, Thermal_next_sample, Thermal_posterior_results, Thermal_predictions):
+
+        if Thermal_next_sample >= T2.shape[0]:
+            print('You have reached your destination.')
+            off_flag = True
 
 
         if (off_flag == False):
@@ -317,8 +318,9 @@ class AndieBackend(
                     next_sample_acquired = True
 
 
-                if off_flag:
-                    Thermal_next_sample = T2.shape[0] - 1
+        if off_flag:
+            Thermal_next_sample = T2.shape[0] - 1
+
 
 
         ## these updates may not be necessary (they are on the server side)
