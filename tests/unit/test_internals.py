@@ -25,7 +25,6 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 
 
 def single_1D(backend, strategy, strategy_args):
-
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
@@ -39,9 +38,9 @@ def single_1D(backend, strategy, strategy_args):
     params = DialInputSingleOtherStrategy(
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
-        strategy_args = strategy_args,
+        strategy_args=strategy_args,
         bounds=[[1, 2]],
-        kernel_args={'length_scale': .5, 'length_scale_bounds': "fixed"},
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
@@ -83,9 +82,9 @@ def single_2D(backend, strategy, strategy_args):
     params = DialInputSingleOtherStrategy(
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
-        strategy_args = strategy_args,
+        strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2]],
-        kernel_args={'length_scale': .5, 'length_scale_bounds': "fixed"},
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
@@ -127,11 +126,11 @@ def single_3D(backend, strategy, strategy_args):
     params = DialInputSingleOtherStrategy(
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
-        strategy_args = strategy_args,
+        strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
-        kernel_args={'length_scale': .5, 'length_scale_bounds': "fixed"},
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         extra_args={'length_per_dimension': True},
-        seed=42
+        seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
@@ -169,7 +168,7 @@ def prediction_1D(backend):
     params = DialInputPredictions(
         workflow_id=DUMMY_WORKFLOW_ID,
         points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
-        kernel_args={'length_scale': .5, 'length_scale_bounds': "fixed"},
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         extra_args={'length_per_dimension': True},
     )
     return ServersideInputPrediction(workflow_state, params)
@@ -186,9 +185,9 @@ def prediction_1D(backend):
     ],
 )
 def test_EI_1D(backend, approx):
-    data = single_1D(backend,
-                     strategy='upper_confidence_bound',
-                     strategy_args = {'exploit': 1, 'explore': 1})
+    data = single_1D(
+        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+    )
     assert core.get_next_point(data) == pytest.approx([approx], abs=0.00001)
 
 
@@ -200,9 +199,9 @@ def test_EI_1D(backend, approx):
     ],
 )
 def test_EI_2D(backend, approx):
-    data = single_2D(backend,
-                     strategy='upper_confidence_bound',
-                     strategy_args = {'exploit': 1, 'explore': 1})
+    data = single_2D(
+        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+    )
     assert core.get_next_point(data) == pytest.approx(approx)
 
 
@@ -215,10 +214,11 @@ def test_EI_2D(backend, approx):
     ],
 )
 def test_EI_3D(backend, approx):
-    data = single_3D(backend,
-                     strategy='upper_confidence_bound',
-                     strategy_args = {'exploit': 1, 'explore': 1})
+    data = single_3D(
+        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+    )
     assert core.get_next_point(data) == pytest.approx(approx)
+
 
 @pytest.mark.parametrize(
     ('backend', 'approx'),
@@ -231,7 +231,7 @@ def test_EI_3D(backend, approx):
     ],
 )
 def test_uncertainty(backend, approx):
-    data = single_1D(backend, strategy='uncertainty', strategy_args = None)
+    data = single_1D(backend, strategy='uncertainty', strategy_args=None)
     assert core.get_next_point(data) == pytest.approx(approx)
 
 
@@ -243,9 +243,7 @@ def test_uncertainty(backend, approx):
     ],
 )
 def test_preprocessing_standardize(backend, approx):
-    data = single_1D(backend,
-                     strategy='expected_improvement',
-                     strategy_args = None)
+    data = single_1D(backend, strategy='expected_improvement', strategy_args=None)
     data.preprocess_standardize = True
     assert data.Y_best == 1
     assert data.Y_train == pytest.approx([-1, 1])
@@ -260,9 +258,7 @@ def test_preprocessing_standardize(backend, approx):
     ],
 )
 def test_random(backend):
-    data = single_1D(backend,
-                     strategy='random',
-                     strategy_args = None)
+    data = single_1D(backend, strategy='random', strategy_args=None)
     for _ in range(100):
         output = core.get_next_point(data)
         assert len(output) == 1
@@ -305,35 +301,21 @@ def test_hypercube(backend):
     [
         (
             'sklearn',
-            [
-            99.99999999,
-            127.23019909,
-            160.26912982,
-            191.74589221,
-            199.99999999
-            ],
-            [
-            2.11126987e+01,
-            2.96625069e+01,
-            2.11126987e+01
-             ],
-            [
-            21.11269870647274,
-            29.662506906581378,
-            21.112698706472752
-            ],
+            [99.99999999, 127.23019909, 160.26912982, 191.74589221, 199.99999999],
+            [2.11126987e01, 2.96625069e01, 2.11126987e01],
+            [21.11269870647274, 29.662506906581378, 21.112698706472752],
         ),
         # (
-            # 'gpax',
-            # [
-            #     76.99987768175089,
-            #     79.70037093884447,
-            #     81.5157895856116,
-            #     82.38145329572436,
-            #     82.26569221517353,
-            # ],
-            # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
-            # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
+        # 'gpax',
+        # [
+        #     76.99987768175089,
+        #     79.70037093884447,
+        #     81.5157895856116,
+        #     82.38145329572436,
+        #     82.26569221517353,
+        # ],
+        # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
+        # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
         # ),
     ],
 )

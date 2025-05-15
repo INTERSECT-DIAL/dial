@@ -1,5 +1,5 @@
 import logging
-import random
+
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import norm
@@ -11,29 +11,25 @@ from ..serverside_data import (
 
 logger = logging.getLogger(__name__)
 
-STRATEGIES = {
-    'uncertainty': 'uncertainty_sampling',
-    'upper_confidence_bound': 'upper_confidence_bound',
-    'expected_improvement': 'expected_improvement',
-    'confidence_bound': 'confidence_bound'
-}
 
 def random_in_bounds(bounds: list[list[float]], rng: np.random.RandomState):
     return [rng.uniform(low, high) for low, high in bounds]
 
-def uncertainty_sampling(mean, stddev, data):
+
+def uncertainty_sampling(_mean, stddev, _data):
     return -stddev
 
-def upper_confidence_bound(mean, stddev, data):
 
+def upper_confidence_bound(mean, stddev, data):
     _params = data.strategy_args
     y_is_good = data.y_is_good
-    _direction =  (1 if y_is_good else -1)
+    _direction = 1 if y_is_good else -1
 
     if _params is None:
         return _direction * mean + stddev
 
-    return _direction * _params['exploit']*mean + _params['explore']*stddev
+    return _direction * _params['exploit'] * mean + _params['explore'] * stddev
+
 
 def expected_improvement(mean, stddev, data):
     _params = data.strategy_args
@@ -44,12 +40,21 @@ def expected_improvement(mean, stddev, data):
     z = (mean - data.Y_best) / stddev * (1 if y_is_good else -1)
     return -stddev * (z * norm.cdf(z) + norm.pdf(z))
 
-def confidence_bound(mean, stddev, data):
 
+def confidence_bound(mean, stddev, data):
     y_is_good = data.y_is_good
     z_value = norm.ppf(0.5 + data.confidence_bound / 2)
 
     return -z_value * stddev + mean * (-1 if y_is_good else 1)
+
+
+STRATEGIES = {
+    'uncertainty': uncertainty_sampling,
+    'upper_confidence_bound': upper_confidence_bound,
+    'expected_improvement': expected_improvement,
+    'confidence_bound': confidence_bound,
+}
+
 
 def hypercube(
     bounds: list[list[float]], num_points: int, rng: np.random.RandomState
@@ -64,6 +69,7 @@ def hypercube(
         rng.shuffle(coordinates[-1])
     # add the points:
     return [list(point) for point in zip(*coordinates, strict=False)]
+
 
 def create_measurement_grid(data: ServersideInputSingle):
     """
@@ -85,14 +91,11 @@ def create_measurement_grid(data: ServersideInputSingle):
 
 
 def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInputSingle):
-
     try:
-        func_name = STRATEGIES[data.strategy]
-        strategy_ = globals()[func_name]
-        if not callable(strategy_):
-            raise ValueError
-    except (KeyError, ValueError) as exc:
-        raise ValueError(f"Invalid strategy: {data.strategy}") from exc
+        strategy_ = STRATEGIES[data.strategy]
+    except KeyError as exc:
+        msg = f'Invalid strategy: {data.strategy}'
+        raise ValueError(msg) from exc
 
     def to_minimize(_x: np.ndarray):
         data.x_predict = _x
@@ -114,12 +117,15 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
     best_score = np.inf
     selected_point = None
     for x_init in init_array:
-        res = minimize(to_minimize, x_init, bounds=data.bounds,
-                        options={'eps': 1e-6, 'gtol': 1e-10, 'ftol': 1e-12},
-                        method='L-BFGS-B')
+        res = minimize(
+            to_minimize,
+            x_init,
+            bounds=data.bounds,
+            options={'eps': 1e-6, 'gtol': 1e-10, 'ftol': 1e-12},
+            method='L-BFGS-B',
+        )
         if res.fun < best_score:
             best_score = res.fun
             selected_point = res.x
 
-    selected_point = selected_point.tolist()
-    return selected_point
+    return selected_point.tolist()
