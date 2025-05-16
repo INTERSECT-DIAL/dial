@@ -69,6 +69,9 @@ class ActiveLearningOrchestrator:
         self.bounds = np.array([[T_start, T_stop]])
         self.num_dims = len(self.bounds)
 
+
+        self.plot_results = True
+
         self.x_raw = np.array([[ T_start]])
         self.x_test = np.array(T_grid)
         self.y_raw = peak_val_at_T(self.x_raw)
@@ -124,7 +127,7 @@ class ActiveLearningOrchestrator:
         print("send", operation)
 
         next_payload = None
-        self.at_grids = kwargs.get('at_grids', True)
+        # self.at_grids = kwargs.get('at_grids', True)
 
         if operation == 'dial.get_surrogate_values':
 
@@ -180,18 +183,22 @@ class ActiveLearningOrchestrator:
         if operation == 'dial.initialize_workflow':
             self.workflow_id = payload
             print("\n","--"*20,"\n")
-            return self.callback('dial.get_surrogate_values')
+            # return self.callback('dial.get_surrogate_values')
+            self.niter += 1
+
+            return self.callback('dial.get_next_point')
+            
         # TODO: repplace this with update_workflow_with_data that can also train the model
 
         # ----------------- Active learning loop -----------------
-        if operation == 'dial.get_surrogate_values':
-            self.handle_surrogate_values(payload)
+        # if operation == 'dial.get_surrogate_values':
+        #     self.handle_surrogate_values(payload)
 
-            if self.at_grids:
-                print(f"Step {self.niter}")
-                return self.callback('dial.get_surrogate_values', at_grids=False)
-            else:
-                return self.callback('dial.get_next_point')
+        #     if self.at_grids:
+        #         print(f"Step {self.niter}")
+        #         return self.callback('dial.get_surrogate_values', at_grids=False)
+        #     else:
+        #         return self.callback('dial.get_next_point')
 
         elif operation == 'dial.get_next_point':
             self.handle_next_points(payload)
@@ -199,7 +206,7 @@ class ActiveLearningOrchestrator:
 
         elif operation == 'dial.update_workflow_with_data':
             self.niter += 1
-            return self.callback('dial.get_surrogate_values')
+            return self.callback('dial.get_next_point')
 
         else:
             raise IntersectCallbackError(operation, payload)
@@ -243,68 +250,23 @@ class ActiveLearningOrchestrator:
         print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
 
 
-        plt.figure()
-        x_plot = np.linspace(0,310,300)
-        plt.plot(x_plot,peak_val_at_T(x_plot))
-        plt.plot(self.dataset_x, self.dataset_y, 'o')
-        plt.savefig('andie.png')
-    def graph(self):
-
-        plt.clf()
-
-        fig, axs = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-
-        # First subplot: Mean and variance with training data
-        axs[0].plot(self.x_grid, self.mean_grid, label='Mean Prediction')
-        axs[0].fill_between(
-            self.x_grid[:, 0],
-            self.mean_grid + 2 * self.variance_grid,
-            self.mean_grid - 2 * self.variance_grid,
-            alpha=0.5,
-            label='Confidence Interval'
-        )
-        axs[0].scatter(
-            np.array(self.dataset_x)[:-1, 0],
-            np.array(self.dataset_y)[:-1],
-            color='black',
-            marker='o',
-            label='Training Data'
-        )
-        if self.x_next is not None:
-            axs[0].axvline(
-                x=self.x_next[0],
-                color='red',
-                linestyle='--')
-        axs[0].set_ylabel('Response, y')
-        axs[0].legend()
-        axs[0].grid(True)
-
-        # Second subplot: Acquisition function
-        if self.strategy_args is not None:
-            if self.mean_grid is not None and self.variance_grid is not None:
-                exploit = self.strategy_args.get('exploit', 0.0)
-                explore = self.strategy_args.get('explore', 1.0)
-                acquisition_values = exploit * self.mean_grid + explore * np.sqrt(self.variance_grid)
-            else:
-                acquisition_values = np.zeros_like(self.x_grid)
-
-            axs[1].plot(self.x_grid, acquisition_values)
-            if self.x_next is not None:
-                axs[1].axvline(
-                    x=self.x_next[0],
-                    color='red',
-                    linestyle='--',
-                    label='Next Point (x_next)'
-                )
-            axs[1].set_xlabel('Features, x')
-            axs[1].set_ylabel('Acquisition Value')
-            axs[1].legend()
-            axs[1].grid(True)
-
-        plt.tight_layout()
-        plt.savefig('graph.png')
-        plt.close(fig)
-
+        if self.plot_results:
+            plt.figure()
+            x_plot = np.linspace(0,310,300)
+            plt.plot(x_plot,peak_val_at_T(x_plot))
+            plt.plot(self.dataset_x, self.dataset_y, 'o')
+            plt.savefig('andie.png')
+        
+        # end client when maximum iteration reached
+        if self.niter >= self.max_iter:
+            print("Maximum iteration reached")
+            raise IntersectCallbackEnd()
+        # end client when last point on the grid reached
+        if self.last_idx == len(self.x_test) - 1:
+            print("Last grid point reached")
+            raise IntersectCallbackEnd()
+        
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Automated client')

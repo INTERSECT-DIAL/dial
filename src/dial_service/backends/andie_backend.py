@@ -171,10 +171,13 @@ class AndieBackend(
 
         # X_grid = [temperature for temperature in list(np.array(data.X_train)[0,:])]
         X_grid = np.array(data.X_train)
-        Y_grid = np.array(data.Y_train)
+        Y_grid = np.array(data.Y_train).reshape(-1,1)
         # X_grid = data.measuredTemperatures
         # Y_grid = data.measuredTemperatureDependentIntensities
         problem = AndieBackend._Second_order_model(X_grid, Y_grid)
+
+        print('Sampled temperature,', X_grid.flatten())
+        print('Sampled intensity,', Y_grid.flatten())
 
         method = 'dream'
 
@@ -221,8 +224,6 @@ class AndieBackend(
 
 
         #Calcualte all the predictive curves by interating through the posterior samples
-        print('Predicting')
-        # Thermal_CI_curves = np.empty((data.temperatureGrid.shape[0],0))
         Thermal_CI_curves = np.empty((np.array(data.x_predict).shape[0],0))
         thin_posterior_TN_dist = Posterior_TN[::50]
         thin_posterior_M0_dist = Posterior_M0[::50]
@@ -286,7 +287,6 @@ class AndieBackend(
         if (off_flag == False):
             next_sample_acquired = False
             while next_sample_acquired == False:
-                print("**"*20, Thermal_next_sample)
                 uncertainty = Thermal_variance[Thermal_next_sample]
                 Bravery_factor = 8.5
                 if T2[Thermal_next_sample] > TN_upper:
@@ -313,14 +313,20 @@ class AndieBackend(
             #         print('Theres nothing for it, you got to take the next step' )
                 elif uncertainty < Bravery_factor*Thermal_mean_of_posterior_curves[Thermal_next_sample]/100:  #With the instrument error scaling factor
                     Thermal_next_sample = Thermal_next_sample+1
+                    if Thermal_next_sample >= T2.shape[0]:
+                        print('You have reached your destination.')
+                        off_flag = True
+                        next_sample_acquired = True
                 else:
                     print('Acquired Next Temp on Main path')
                     next_sample_acquired = True
 
+        
 
         if off_flag:
             Thermal_next_sample = T2.shape[0] - 1
 
+        print("*"*20, 'Next sample:', T2[Thermal_next_sample])
 
 
         ## these updates may not be necessary (they are on the server side)
