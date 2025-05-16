@@ -73,13 +73,13 @@ class ActiveLearningOrchestrator:
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
         self.kernel = 'rbf'
-        self.kernel_args = {'length_scale': 0.12, 'length_scale_bounds': 'fixed'}
+        self.kernel_args = {'length_scale': 0.12, 'length_scale_bounds':(0.1, 1.0)}
         self.backend = 'sklearn'
         self.backend_args = None
         self.strategy = 'upper_confidence_bound'
         self.strategy_args = {'exploit': 0.4, 'explore': 1}
         self.niter = 0
-        self.max_iter = 0
+        self.max_iter = 20
         self.at_grids = True
         self.variance_grid = None
         self.mean_grid = None
@@ -134,7 +134,10 @@ class ActiveLearningOrchestrator:
                 dataset_y=self.dataset_y,
                 bounds=self.bounds,
                 kernel=self.kernel,
+                kernel_args=self.kernel_args,
                 backend=self.backend,
+                backend_args=self.backend_args,
+                extra_args={'length_per_dimension': True},
                 preprocess_standardize=True,
                 y_is_good=True,
                 seed=20,
@@ -149,8 +152,6 @@ class ActiveLearningOrchestrator:
             next_payload = DialInputPredictions(
                 workflow_id=self.workflow_id,
                 points_to_predict=_points_to_predict,
-                kernel_args=self.kernel_args,
-                extra_args={'length_per_dimension': True},
             )
 
         elif operation == 'dial.get_next_point':
@@ -159,8 +160,6 @@ class ActiveLearningOrchestrator:
                 strategy=self.strategy,
                 strategy_args=self.strategy_args,
                 bounds=self.bounds.tolist(),
-                kernel_args=self.kernel_args,
-                extra_args={'length_per_dimension': True},
             )
 
         elif operation == 'dial.update_workflow_with_data':
