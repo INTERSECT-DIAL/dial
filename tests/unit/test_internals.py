@@ -188,7 +188,8 @@ def test_EI_1D(backend, approx):
     data = single_1D(
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
-    assert core.get_next_point(data) == pytest.approx([approx], abs=0.00001)
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx([approx], abs=0.00001)
 
 
 @pytest.mark.parametrize(
@@ -202,7 +203,8 @@ def test_EI_2D(backend, approx):
     data = single_2D(
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
-    assert core.get_next_point(data) == pytest.approx(approx)
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -217,7 +219,8 @@ def test_EI_3D(backend, approx):
     data = single_3D(
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
-    assert core.get_next_point(data) == pytest.approx(approx)
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -232,7 +235,8 @@ def test_EI_3D(backend, approx):
 )
 def test_uncertainty(backend, approx):
     data = single_1D(backend, strategy='uncertainty', strategy_args=None)
-    assert core.get_next_point(data) == pytest.approx(approx)
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -245,9 +249,10 @@ def test_uncertainty(backend, approx):
 def test_preprocessing_standardize(backend, approx):
     data = single_1D(backend, strategy='expected_improvement', strategy_args=None)
     data.preprocess_standardize = True
+    model = core.train_model(data)
     assert data.Y_best == 1
     assert data.Y_train == pytest.approx([-1, 1])
-    assert core.get_next_point(data) == pytest.approx(approx)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -259,8 +264,9 @@ def test_preprocessing_standardize(backend, approx):
 )
 def test_random(backend):
     data = single_1D(backend, strategy='random', strategy_args=None)
+    model = core.train_model(data)
     for _ in range(100):
-        output = core.get_next_point(data)
+        output = core.get_next_point(data, model)
         assert len(output) == 1
         assert 1 <= output[0] <= 2
 
@@ -321,7 +327,8 @@ def test_hypercube(backend):
 )
 def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
     data = prediction_1D(backend)
-    means, stddevs, raw_stddevs = core.get_surrogate_values(data)
+    model = core.train_model(data)
+    means, stddevs, raw_stddevs = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
     assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)

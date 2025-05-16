@@ -3,9 +3,12 @@
 The idea is that these functions can easily be unit-tested (or called in a JupyterNotebook, etc.) without having to set up backing service logic.
 """
 
+from typing import Any
+
 from .backends import get_backend_module
 from .logger import logger
 from .serverside_data import (
+    ServersideInputBase,
     ServersideInputMultiple,
     ServersideInputPrediction,
     ServersideInputSingle,
@@ -14,8 +17,10 @@ from .utilities.strategies import hypercube, random_in_bounds
 
 
 # pure functional implementation of message, without MongoDB calls
-def get_next_point(data: ServersideInputSingle) -> list[float]:
-    """Trains a model, and then gets the next point for optimization based on the provided strategy.
+def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
+    """Gets the next point for optimization based on the provided strategy.
+
+    Model parameter should be a pretrained model, you can usually call core.train_model with the same data parameter if you don't yet have a model.
 
     Args:
         client_data (DialInputSingle): Input data containing bounds, strategy, and other parameters.
@@ -29,7 +34,6 @@ def get_next_point(data: ServersideInputSingle) -> list[float]:
 
     backend = data.backend.lower()
     module = get_backend_module(backend)
-    model = module.train_model(data)
     selected_point = module.sample(module, model, data)
 
     logger.debug('selected point with non-discrete measurements: %s', selected_point)
@@ -60,9 +64,11 @@ def get_next_points(data: ServersideInputMultiple) -> list[list[float]]:
 
 
 # pure functional implementation of message, without MongoDB calls
-def get_surrogate_values(data: ServersideInputPrediction) -> list[list[float]]:
+def get_surrogate_values(data: ServersideInputPrediction, model: Any) -> list[list[float]]:
     """
     Get surrogate model predictions for given input points.
+
+    Model parameter should be a pretrained model, you can usually call core.train_model with the same data parameter if you don't yet have a model.
 
     Args:
         client_data (DialInputPredictions): Input data containing prediction points and model parameters.
@@ -72,8 +78,16 @@ def get_surrogate_values(data: ServersideInputPrediction) -> list[list[float]]:
     """
     backend = data.backend.lower()
     module = get_backend_module(backend)
-    model = module.train_model(data)
     means, stddevs = module.predict(model, data)
     means = data.inverse_transform(means)
     transformed_stddevs = data.inverse_transform(stddevs, is_stddev=True)
     return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
+
+
+def train_model(data: ServersideInputBase) -> Any:
+    """
+    Trains a model and returns it
+    """
+    backend = data.backend.lower()
+    module = get_backend_module(backend)
+    return module.train_model(data)

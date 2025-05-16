@@ -103,6 +103,7 @@ class ActiveLearningOrchestrator:
             payload = DialInputSingleOtherStrategy(
                 workflow_id=self.workflow_id,
                 strategy='expected_improvement',
+                bounds=INITIAL_BOUNDS,
             )
         elif operation == 'get_surrogate_values':
             payload = DialInputPredictions(

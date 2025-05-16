@@ -25,6 +25,10 @@ class ServersideInputBase:
         self.numpy_rng = np.random.RandomState(None if data.seed == -1 else data.seed)
         self.preprocess_log = data.preprocess_log
         self.preprocess_standardize = data.preprocess_standardize
+        # TODO should probably just allow for args to be passed through the constructor
+        self.backend_args = None
+        self.kernel_args = None
+        self.extra_args = None
 
     @cached_property
     def stddev(self) -> float:
