@@ -41,7 +41,6 @@ if __name__ == '__main__':
         **from_config_file['intersect'],
     )
 
-    # TODO - we are currently passing credentials to our own database in the constructor, will remove this eventually
     capability = DialCapabilityImplementation(from_config_file['dial']['mongo'])
 
     """
