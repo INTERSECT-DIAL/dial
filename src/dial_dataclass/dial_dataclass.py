@@ -59,6 +59,19 @@ class _DialWorkflowCreationParams(BaseModel):
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)
 
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the kernel type."""
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the backend type."""
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Miscellaneous additional arguments."""
+
     @field_validator('dataset_x')
     @classmethod
     def ensure_consistent_dataset_x_lengths(cls, x):
@@ -96,6 +109,18 @@ class DialWorkflowDatasetUpdate(BaseModel):
     """the next collection of X values you want to append"""
     next_y: float = Field(description='The next Y value you want to append to your overall data')
     """the next Y value you want to append"""
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the kernel type. These arguments will OVERRIDE prior saved arguments."""
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the backend type. These arguments will OVERRIDE prior saved arguments."""
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Miscellaneous additional arguments. These arguments will OVERRIDE prior saved arguments."""
 
 
 class DialInputSingleConfidenceBound(BaseModel):
@@ -109,9 +134,6 @@ class DialInputSingleConfidenceBound(BaseModel):
             description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
         ),
     ]
-    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
-        default=None
-    )
     bounds: list[
         Annotated[
             Annotated[list[float], Field(min_length=2, max_length=2)],
@@ -121,6 +143,7 @@ class DialInputSingleConfidenceBound(BaseModel):
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
     )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
     optimization_points: PositiveIntType = Field(default=1000)
     confidence_bound: float = Field(gt=0.5, lt=1)
     discrete_measurements: bool = Field(default=False)
@@ -138,12 +161,6 @@ class DialInputSingleOtherStrategy(BaseModel):
             description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
         ),
     ]
-    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
-        default=None
-    )
-    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
-        default=None
-    )
     bounds: list[
         Annotated[
             Annotated[list[float], Field(min_length=2, max_length=2)],
@@ -162,6 +179,7 @@ class DialInputSingleOtherStrategy(BaseModel):
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
     )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
     optimization_points: PositiveIntType = Field(default=1000)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
@@ -182,6 +200,10 @@ class DialInputMultiple(BaseModel):
     workflow_id: ValidatedObjectId
     points: int
     strategy: Literal['random', 'hypercube']
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
 
 
 class DialInputPredictions(BaseModel):
@@ -189,13 +211,7 @@ class DialInputPredictions(BaseModel):
 
     workflow_id: ValidatedObjectId
     points_to_predict: list[list[float]]
-
-    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
-        default=None
-    )
-    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
-        default=None
-    )
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
     )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""

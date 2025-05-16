@@ -25,10 +25,9 @@ class ServersideInputBase:
         self.numpy_rng = np.random.RandomState(None if data.seed == -1 else data.seed)
         self.preprocess_log = data.preprocess_log
         self.preprocess_standardize = data.preprocess_standardize
-        # TODO should probably just allow for args to be passed through the constructor
-        self.backend_args = None
-        self.kernel_args = None
-        self.extra_args = None
+        self.backend_args = data.backend_args
+        self.kernel_args = data.kernel_args
+        self.extra_args = data.extra_args
 
     @cached_property
     def stddev(self) -> float:
@@ -70,9 +69,6 @@ class ServersideInputSingle(ServersideInputBase):
         self.strategy_args = params.strategy_args
         self.y_is_good = params.y_is_good
         self.bounds = params.bounds
-        self.kernel_args = params.kernel_args
-        self.backend_args = params.backend_args
-        self.extra_args = params.extra_args
         self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
 
         self.optimization_points = params.optimization_points
@@ -98,6 +94,3 @@ class ServersideInputPrediction(ServersideInputBase):
     ):
         super().__init__(workflow_state)
         self.x_predict = np.array(params.points_to_predict)
-        self.kernel_args = params.kernel_args
-        self.backend_args = params.backend_args
-        self.extra_args = params.extra_args

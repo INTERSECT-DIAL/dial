@@ -66,6 +66,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id)
         if not db_get_result:
             raise Exception  # noqa: TRY002 (workflow does not exist)
+
         pretrain_result = DialWorkflowCreationParamsService(**db_get_result)
         if len(pretrain_result.dataset_x) > 0 and len(pretrain_result.dataset_x[0]) != len(
             update_params.next_x
@@ -73,8 +74,10 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise Exception  # noqa: TRY002 (data structure mismatch)
         pretrain_result.dataset_x.append(update_params.next_x)
         pretrain_result.dataset_y.append(update_params.next_y)
+
         server_data = ServersideInputBase(pretrain_result)
         model = pickle.dumps(core.train_model(server_data), protocol=5)
+
         db_update_result = self.mongo_handler.update_workflow_dataset(update_params, model)
         if not db_update_result:
             raise Exception  # noqa: TRY002 (couldn't update for some reason) - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
@@ -99,9 +102,10 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
         model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
-        data = ServersideInputSingle(
-            DialWorkflowCreationParamsService(**workflow_state), client_data
-        )
+        validated_state = DialWorkflowCreationParamsService(**workflow_state)
+        if client_data.extra_args and validated_state.extra_args:
+            validated_state.extra_args.update(client_data.extra_args)
+        data = ServersideInputSingle(validated_state, client_data)
 
         return core.get_next_point(data, model)
 
@@ -122,9 +126,10 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
-        data = ServersideInputMultiple(
-            DialWorkflowCreationParamsService(**workflow_state), client_data
-        )
+        validated_state = DialWorkflowCreationParamsService(**workflow_state)
+        if client_data.extra_args and validated_state.extra_args:
+            validated_state.extra_args.update(client_data.extra_args)
+        data = ServersideInputMultiple(validated_state, client_data)
 
         return core.get_next_points(data)
 
@@ -142,9 +147,10 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
         model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
-        data = ServersideInputPrediction(
-            DialWorkflowCreationParamsService(**workflow_state), client_data
-        )
+        validated_state = DialWorkflowCreationParamsService(**workflow_state)
+        if client_data.extra_args and validated_state.extra_args:
+            validated_state.extra_args.update(client_data.extra_args)
+        data = ServersideInputPrediction(validated_state, client_data)
 
         return core.get_surrogate_values(data, model)
 

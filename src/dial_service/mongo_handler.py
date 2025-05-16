@@ -78,13 +78,20 @@ class MongoDBHandler:
 
     def update_workflow_dataset(self, params: DialWorkflowDatasetUpdate, model: bytes) -> bool:
         """Update the dataset of a workflow"""
+        set_args = {
+            'model': Binary(model),
+        }
+        if params.backend_args is not None:
+            set_args['backend_args'] = params.backend_args
+        if params.extra_args is not None:
+            set_args['extra_args'] = params.extra_args
+        if params.kernel_args is not None:
+            set_args['kernel_args'] = params.kernel_args
         try:
             self._mongo_collection.update_one(
                 {'_id': params.workflow_id},
                 {
-                    '$set': {
-                        'model': Binary(model),
-                    },
+                    '$set': set_args,
                     '$push': {
                         'dataset_x': params.next_x,
                         'dataset_y': params.next_y,
