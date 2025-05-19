@@ -73,7 +73,7 @@ class ActiveLearningOrchestrator:
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
         self.kernel = 'rbf'
-        self.kernel_args = {'length_scale': 0.12, 'length_scale_bounds':(0.1, 1.0)}
+        self.kernel_args = {'length_scale': 0.12, 'length_scale_bounds': (0.1, 1.0)}
         self.backend = 'sklearn'
         self.backend_args = None
         self.strategy = 'upper_confidence_bound'
