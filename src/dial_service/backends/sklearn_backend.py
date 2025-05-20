@@ -41,7 +41,7 @@ class SklearnBackend(
         if data.backend_args is None:
             _extra_args = {}
         else:
-            _extra_args = data.backend_args  # Ensure it's a dictionary
+            _extra_args = data.backend_args.copy()  # Ensure it's a dictionary
             if 'alpha' in _extra_args and not isinstance(_extra_args['alpha'], np.ndarray):
                 # Process alpha as a numpy array
                 _extra_args['alpha'] = np.array(_extra_args['alpha'])
