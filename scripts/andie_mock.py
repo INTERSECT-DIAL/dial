@@ -258,7 +258,7 @@ class ActiveLearningOrchestrator:
 
         if self.plot_results:
             plt.figure()
-            x_plot = np.linspace(0,310,300)
+            x_plot = np.linspace(90,510,600)
             plt.plot(x_plot,peak_val_at_T(x_plot))
             plt.plot(self.dataset_x, self.dataset_y, 'o')
             plt.savefig('andie.png')

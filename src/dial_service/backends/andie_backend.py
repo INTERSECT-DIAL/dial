@@ -311,7 +311,7 @@ class AndieBackend(
             next_sample_acquired = False
             while next_sample_acquired == False:
                 uncertainty = Thermal_variance[Thermal_next_sample]
-                Bravery_factor = 4.0
+                Bravery_factor = 6.0
                 if T2[Thermal_next_sample] > TN_upper:
                     #If the next temp is bigger than the upper confidence bound TN, take a big step
                     #Or if the isothermal inference did not find a peak, take a big step
