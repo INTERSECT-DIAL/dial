@@ -28,7 +28,14 @@ def upper_confidence_bound(mean, stddev, data):
     if _params is None:
         return _direction * mean + stddev
 
-    return _direction * _params['exploit'] * mean + _params['explore'] * stddev
+    _radius = .025
+    _center = data.X_train[-1] + _radius/5
+    _delta = (data.x_predict - _center) / _radius
+    _delta = np.where(np.abs(_delta) < 1, 0.0, _delta)
+    _distances = _delta**2
+    _penalty_factor = np.exp(-.02*_distances).flatten()
+
+    return _penalty_factor*(_direction * _params['exploit'] * mean + _params['explore'] * stddev)
 
 
 def expected_improvement(mean, stddev, data):
