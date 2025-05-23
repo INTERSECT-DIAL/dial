@@ -21,14 +21,37 @@ class AndieBackend(
     ### ---          These are hyperparameters             --- ###
     ### --- Define the priors on the Isothermal parameters --- ###
 
+    ### --- OLD hyperparameters for temperature range 0.5-100 K --- ###
+    # #Transition Temperature
+    # TN_guess = 60.0
+    # TN_std = 20
+    # TN_limits = (0.01, 200.0)
+
+    # #Background
+    # BK_guess = 70.0
+    # BK_std = 20.0
+    # BK_limits = (0.0, 150.0)
+
+    # #Second Order Scale
+    # M0_guess = 18.0
+    # M0_std = 3.0
+    # M0_limits = (0.01, 35.0)
+
+    # #Total Anglular Momentum
+    # J_guess = 0.6
+    # J_std = 0.5
+    # J_limits = (0.01, 14.0)
+
+    ### --- NEW hyperparameters for temperature range 100-500 K --- ###
+
     #Transition Temperature
-    TN_guess = 60.0
-    TN_std = 20
-    TN_limits = (0.01, 200.0)
+    TN_guess = 250.0
+    TN_std = 80
+    TN_limits = (90.0, 500.0)
 
     #Background
-    BK_guess = 70.0
-    BK_std = 20.0
+    BK_guess = 75.0
+    BK_std = 50.0
     BK_limits = (0.0, 150.0)
 
     #Second Order Scale
@@ -176,8 +199,8 @@ class AndieBackend(
         # Y_grid = data.measuredTemperatureDependentIntensities
         problem = AndieBackend._Second_order_model(X_grid, Y_grid)
 
-        print('Sampled temperature,', X_grid.flatten())
-        print('Sampled intensity,', Y_grid.flatten())
+        print('Sampled temperature:', X_grid.flatten())
+        print('Sampled intensity:', Y_grid.flatten())
 
         method = 'dream'
 
@@ -288,7 +311,7 @@ class AndieBackend(
             next_sample_acquired = False
             while next_sample_acquired == False:
                 uncertainty = Thermal_variance[Thermal_next_sample]
-                Bravery_factor = 8.5
+                Bravery_factor = 4.0
                 if T2[Thermal_next_sample] > TN_upper:
                     #If the next temp is bigger than the upper confidence bound TN, take a big step
                     #Or if the isothermal inference did not find a peak, take a big step

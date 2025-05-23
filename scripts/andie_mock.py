@@ -32,7 +32,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def peak_val_at_T(T: np.ndarray) -> np.ndarray:
-    result = 40.0 * 1.0/(1.0+np.exp((T-50)/5)) + 35.0
+    # result = 40.0 * 1.0/(1.0+np.exp((T-50)/5)) + 35.0
+    result = 70.0 * 1.0/(1.0+np.exp((T-200)/7)) + 30.0
+
     logger.debug(result)
     return result
 
@@ -54,9 +56,13 @@ class ActiveLearningOrchestrator:
         #Maximum Measurments in Temperature:
         Temperature_Loops = 30
 
-        T_start = 5.0 #Kelvin
-        T_stop = 300.0 #Kelvin
+        # T_start = 5.0 #Kelvin
+        # T_stop = 300.0 #Kelvin
+        # T_step = .5 #Kelvin
+        T_start = 100.0 #Kelvin
+        T_stop = 500.0 #Kelvin
         T_step = .5 #Kelvin
+        
         T_grid = np.linspace(T_start, T_stop, int((T_stop-T_start)/T_step)+1).reshape(-1,1)
 
         self.T_step = T_step
