@@ -5,7 +5,7 @@
 groups = ["default", "dev", "lint", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:53c785e022328218799c1a8af52a53be7159165d21459197218fc73dfa39244d"
+content_hash = "sha256:17b29d9385eda10783ba9efdcab725cae8fcd7fbfdda110a83a87e8d4600532f"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -106,7 +106,7 @@ files = [
 name = "bumps"
 version = "0.9.3"
 summary = "Data fitting with bayesian uncertainty analysis"
-groups = ["dev"]
+groups = ["default"]
 files = [
     {file = "bumps-0.9.3-py3-none-any.whl", hash = "sha256:269f5e86c50fde2b80015b8c9aff9b06eb045be675bdef065d2897670c5b56e5"},
     {file = "bumps-0.9.3.tar.gz", hash = "sha256:3295298f7fe1b2392bb2ff88c7a0ae69d77a7698af580a81570052ca05ba530f"},
@@ -1025,7 +1025,7 @@ name = "numpy"
 version = "1.26.4"
 requires_python = ">=3.9"
 summary = "Fundamental package for array computing in Python"
-groups = ["default", "dev"]
+groups = ["default"]
 files = [
     {file = "numpy-1.26.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:9ff0f4f29c51e2803569d7a51c2304de5554655a60c5d776e35b4a41413830d0"},
     {file = "numpy-1.26.4-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:2e4ee3380d6de9c9ec04745830fd9e2eccb3e6cf790d39d7b98ffd19b0dd754a"},
@@ -1088,7 +1088,7 @@ name = "packaging"
 version = "24.1"
 requires_python = ">=3.8"
 summary = "Core utilities for Python packages"
-groups = ["default", "dev", "test"]
+groups = ["default", "test"]
 files = [
     {file = "packaging-24.1-py3-none-any.whl", hash = "sha256:5b8f2217dbdbd2f7f384c41c628544e6d52f2d0f53c6d0c3ea61aa5d1d7ff124"},
     {file = "packaging-24.1.tar.gz", hash = "sha256:026ed72c8ed3fcce5bf8950572258698927fd1dbda10a5e981cdf0ac37f4f002"},
@@ -1108,7 +1108,7 @@ name = "pandas"
 version = "2.2.3"
 requires_python = ">=3.9"
 summary = "Powerful data structures for data analysis, time series, and statistics"
-groups = ["dev"]
+groups = ["default"]
 dependencies = [
     "numpy>=1.22.4; python_version < \"3.11\"",
     "numpy>=1.23.2; python_version == \"3.11\"",
@@ -1160,7 +1160,7 @@ name = "patsy"
 version = "1.0.1"
 requires_python = ">=3.6"
 summary = "A Python package for describing statistical models and for building design matrices."
-groups = ["dev"]
+groups = ["default"]
 dependencies = [
     "numpy>=1.4",
 ]
@@ -1518,7 +1518,7 @@ name = "python-dateutil"
 version = "2.9.0.post0"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 summary = "Extensions to the standard Python datetime module"
-groups = ["default", "dev"]
+groups = ["default"]
 dependencies = [
     "six>=1.5",
 ]
@@ -1531,7 +1531,7 @@ files = [
 name = "pytz"
 version = "2025.2"
 summary = "World timezone definitions, modern and historical"
-groups = ["dev"]
+groups = ["default"]
 files = [
     {file = "pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00"},
     {file = "pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3"},
@@ -1778,7 +1778,7 @@ name = "scipy"
 version = "1.14.1"
 requires_python = ">=3.10"
 summary = "Fundamental algorithms for scientific computing in Python"
-groups = ["default", "dev"]
+groups = ["default"]
 dependencies = [
     "numpy<2.3,>=1.23.5",
 ]
@@ -1823,7 +1823,7 @@ name = "six"
 version = "1.16.0"
 requires_python = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 summary = "Python 2 and 3 compatibility utilities"
-groups = ["default", "dev"]
+groups = ["default"]
 files = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
@@ -1834,7 +1834,7 @@ name = "statsmodels"
 version = "0.14.4"
 requires_python = ">=3.9"
 summary = "Statistical computations and models for Python"
-groups = ["dev"]
+groups = ["default"]
 dependencies = [
     "numpy<3,>=1.22.3",
     "packaging>=21.3",
@@ -1945,7 +1945,7 @@ name = "tzdata"
 version = "2025.2"
 requires_python = ">=2"
 summary = "Provider of IANA time zone data"
-groups = ["dev"]
+groups = ["default"]
 files = [
     {file = "tzdata-2025.2-py2.py3-none-any.whl", hash = "sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8"},
     {file = "tzdata-2025.2.tar.gz", hash = "sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9"},
