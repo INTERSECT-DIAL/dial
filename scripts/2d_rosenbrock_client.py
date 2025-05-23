@@ -8,9 +8,6 @@ from typing import Any
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-mpl.use('agg')
-
 import numpy as np
 from intersect_sdk import (
     INTERSECT_JSON_VALUE,
@@ -30,6 +27,7 @@ from dial_dataclass import (
     DialWorkflowDatasetUpdate,
 )
 
+mpl.use('agg')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -105,6 +103,7 @@ class ActiveLearningOrchestrator:
             payload = DialInputSingleOtherStrategy(
                 workflow_id=self.workflow_id,
                 strategy='expected_improvement',
+                bounds=INITIAL_BOUNDS,
             )
         elif operation == 'get_surrogate_values':
             payload = DialInputPredictions(
@@ -291,13 +290,12 @@ if __name__ == '__main__':
         initial_message_event_config=active_learning.assemble_rosenbrock_message('rosenbrock_bulk'),
         **from_config_file['intersect'],
     )
-
     # use the orchestator to create the client
     client = IntersectClient(
         config=config,
-        user_callback=active_learning,  # the callback (here we use a callable object, as discussed above)
+        # the callback (here we use a callable object, as discussed above)
+        user_callback=active_learning,
     )
-
     # This will run the send message -> wait for response -> callback -> repeat cycle until we have 25 points (and then raise an Exception)
     default_intersect_lifecycle_loop(
         client,
