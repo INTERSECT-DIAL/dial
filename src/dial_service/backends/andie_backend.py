@@ -65,6 +65,30 @@ class AndieBackend(
     J_limits = (0.01, 14.0)
 
 
+    # ### --- NEW nano particle hyperparameters for temperature range 100-500 K --- ###
+
+    # #Transition Temperature
+    # TN_guess = 290.0
+    # TN_std = 25
+    # TN_limits = (90.0, 500.0)
+
+    # #Background
+    # BK_guess = 13.0
+    # BK_std = 2.0
+    # BK_limits = (0.0, 20.0)
+
+    # #Second Order Scale
+    # M0_guess = 3.50
+    # M0_std = 1.0
+    # M0_limits = (0.01, 5.0)
+
+    # #Total Anglular Momentum
+    # J_guess = 0.6
+    # J_std = 0.5
+    # J_limits = (0.01, 14.0)
+
+
+
     #Define the prior distributions
     TN_dist =  BoundedNormal(TN_guess, TN_std, limits=TN_limits)
     M0_dist =  BoundedNormal(M0_guess, M0_std, limits=M0_limits)
