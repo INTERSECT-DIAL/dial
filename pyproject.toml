@@ -10,7 +10,7 @@ license = {text = "BSD-3-Clause"}
 classifiers = ["Programming Language :: Python :: 3"]
 # TODO move some dependencies into optional dependencies
 dependencies = [
-    "intersect_sdk[amqp]>=0.8.0,<0.9.0",
+    "intersect_sdk[amqp]>=0.8.3,<0.9.0",
     "matplotlib>=3.8.2,<4.0.0",          # TODO - this is only required if using gpax or running the client, consider making an optional dependency group
     "numpy>=1.26.3,<2.0.0",
     "scikit-learn>=1.4.0,<2.0.0",        # TODO consider making an optional dependency group

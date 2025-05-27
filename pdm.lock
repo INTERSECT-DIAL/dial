@@ -5,7 +5,7 @@
 groups = ["default", "lint", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:53c785e022328218799c1a8af52a53be7159165d21459197218fc73dfa39244d"
+content_hash = "sha256:8bbc7d5ee7a2310d322bf305ff0d6c3f07fa2980405f7d1dd3ef3da455fb947f"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -627,7 +627,7 @@ files = [
 
 [[package]]
 name = "intersect-sdk"
-version = "0.8.0"
+version = "0.8.3"
 requires_python = "<4.0,>=3.8.10"
 summary = "Python SDK to interact with INTERSECT"
 groups = ["default"]
@@ -640,24 +640,24 @@ dependencies = [
     "retrying<2.0.0,>=1.3.4",
 ]
 files = [
-    {file = "intersect_sdk-0.8.0-py3-none-any.whl", hash = "sha256:f46530da9ae2b0560ad0157eae15e542aed1923704233ee31125790bfff9adf8"},
-    {file = "intersect_sdk-0.8.0.tar.gz", hash = "sha256:270a606989244bad3c938e7cd26af2065e6d62a26309b5d5e0590284bc90d03c"},
+    {file = "intersect_sdk-0.8.3-py3-none-any.whl", hash = "sha256:11955870d8b7232b9ab9cb44cb4780d311fe2fd05f66fc3c1a341d40bd7670c5"},
+    {file = "intersect_sdk-0.8.3.tar.gz", hash = "sha256:0a33f777f8b84667a031c96d1921b849da8a3feabf320daef7a41b1f8645f7c2"},
 ]
 
 [[package]]
 name = "intersect-sdk"
-version = "0.8.0"
+version = "0.8.3"
 extras = ["amqp"]
 requires_python = "<4.0,>=3.8.10"
 summary = "Python SDK to interact with INTERSECT"
 groups = ["default"]
 dependencies = [
-    "intersect-sdk==0.8.0",
+    "intersect-sdk==0.8.3",
     "pika<2.0.0,>=1.3.2",
 ]
 files = [
-    {file = "intersect_sdk-0.8.0-py3-none-any.whl", hash = "sha256:f46530da9ae2b0560ad0157eae15e542aed1923704233ee31125790bfff9adf8"},
-    {file = "intersect_sdk-0.8.0.tar.gz", hash = "sha256:270a606989244bad3c938e7cd26af2065e6d62a26309b5d5e0590284bc90d03c"},
+    {file = "intersect_sdk-0.8.3-py3-none-any.whl", hash = "sha256:11955870d8b7232b9ab9cb44cb4780d311fe2fd05f66fc3c1a341d40bd7670c5"},
+    {file = "intersect_sdk-0.8.3.tar.gz", hash = "sha256:0a33f777f8b84667a031c96d1921b849da8a3feabf320daef7a41b1f8645f7c2"},
 ]
 
 [[package]]
