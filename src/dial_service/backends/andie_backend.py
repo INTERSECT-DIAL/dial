@@ -42,22 +42,22 @@ class AndieBackend(
     # J_std = 0.5
     # J_limits = (0.01, 14.0)
 
-    ### --- NEW hyperparameters for temperature range 100-500 K --- ###
+    ### --- NEW BULK hyperparameters for temperature range 100-500 K --- ###
 
     #Transition Temperature
-    TN_guess = 250.0
-    TN_std = 80
+    TN_guess = 275.0
+    TN_std = 25
     TN_limits = (90.0, 500.0)
 
     #Background
-    BK_guess = 75.0
-    BK_std = 50.0
-    BK_limits = (0.0, 150.0)
+    BK_guess = 10.0
+    BK_std = 2.0
+    BK_limits = (0.0, 20.0)
 
     #Second Order Scale
-    M0_guess = 18.0
-    M0_std = 3.0
-    M0_limits = (0.01, 35.0)
+    M0_guess = 3.25
+    M0_std = 1.0
+    M0_limits = (0.01, 5.0)
 
     #Total Anglular Momentum
     J_guess = 0.6
@@ -311,7 +311,7 @@ class AndieBackend(
             next_sample_acquired = False
             while next_sample_acquired == False:
                 uncertainty = Thermal_variance[Thermal_next_sample]
-                Bravery_factor = 6.0
+                Bravery_factor = 2.5
                 if T2[Thermal_next_sample] > TN_upper:
                     #If the next temp is bigger than the upper confidence bound TN, take a big step
                     #Or if the isothermal inference did not find a peak, take a big step
