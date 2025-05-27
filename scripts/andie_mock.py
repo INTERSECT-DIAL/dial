@@ -59,8 +59,8 @@ class ActiveLearningOrchestrator:
         # T_start = 5.0 #Kelvin
         # T_stop = 300.0 #Kelvin
         # T_step = .5 #Kelvin
-        T_start = 100.0 #Kelvin
-        T_stop = 500.0 #Kelvin
+        T_start = 180.0 #Kelvin
+        T_stop = 400.0 #Kelvin
         T_step = .5 #Kelvin
         
         T_grid = np.linspace(T_start, T_stop, int((T_stop-T_start)/T_step)+1).reshape(-1,1)
