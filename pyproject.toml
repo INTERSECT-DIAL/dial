@@ -16,8 +16,9 @@ dependencies = [
     "scikit-learn>=1.4.0,<2.0.0",        # TODO consider making an optional dependency group
     "scipy>=1.12.0,<2.0.0",
     "gpax>=0.1.8",                       # TODO consider making an optional dependency group
-    "bson>=0.5.10",                      # needed for dial_dataclass, but should be its only required dependency
-    "pymongo>=4.11.1",
+    "pymongo>=4.12.1",                   # TODO - this is only needed for dial_service, dial_dataclass can use a simple fixture for ObjectID representation which allows it to skip this dependency
+    "bumps>=0.9.3",
+    "statsmodels>=0.14.4",
 ]
 
 [tool.pdm.dev-dependencies]
@@ -131,9 +132,3 @@ plugins = ["pydantic.mypy"]
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
-
-[dependency-groups]
-dev = [
-    "statsmodels>=0.14.4",
-    "bumps>=0.9.3",
-]
