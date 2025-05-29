@@ -20,11 +20,14 @@ class ServersideInputBase:
         self.bounds = data.bounds
         self.y_is_good = data.y_is_good
         self.kernel = data.kernel
-        self.length_per_dimension = data.length_per_dimension
-        self.backend = data.backend
+        self.backend: str = data.backend
         self.seed = data.seed
+        self.numpy_rng = np.random.RandomState(None if data.seed == -1 else data.seed)
         self.preprocess_log = data.preprocess_log
         self.preprocess_standardize = data.preprocess_standardize
+        self.backend_args = data.backend_args
+        self.kernel_args = data.kernel_args
+        self.extra_args = data.extra_args
 
     @cached_property
     def stddev(self) -> float:
@@ -63,9 +66,14 @@ class ServersideInputSingle(ServersideInputBase):
     def __init__(self, workflow_state: DialWorkflowCreationParamsService, params: DialInputSingle):
         super().__init__(workflow_state)
         self.strategy = params.strategy
+        self.strategy_args = params.strategy_args
+        self.y_is_good = params.y_is_good
+        self.bounds = params.bounds
+        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
+
         self.optimization_points = params.optimization_points
         self.confidence_bound = (
-            params.confidence_bound if params.strategy == 'confidence_bound' else None
+            params.confidence_bound if params.strategy == 'confidence_bound' else 0.0
         )
         self.discrete_measurements = params.discrete_measurements
         self.discrete_measurement_grid_size = params.discrete_measurement_grid_size

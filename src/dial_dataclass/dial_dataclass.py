@@ -8,6 +8,8 @@ PositiveIntType = Annotated[int, Field(ge=0)]
 
 _POSSIBLE_BACKENDS = ('sklearn', 'gpax')
 
+BackendType = Literal[_POSSIBLE_BACKENDS]
+
 
 class _DialWorkflowCreationParams(BaseModel):
     """This comprises the information needed to create a DIAL workflow.
@@ -33,16 +35,11 @@ class _DialWorkflowCreationParams(BaseModel):
     y_is_good: Annotated[
         bool,
         Field(
-            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)'
+            default=True,  # <-- Set default here
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
         ),
     ]
     kernel: Literal['rbf', 'matern']
-    length_per_dimension: Annotated[
-        bool,
-        Field(
-            description='If true, will have the kernel use a separate length scale for each dimension (useful if scales differ). If false, all dimensions are forced to the same length scale.'
-        ),
-    ]
     bounds: list[
         Annotated[
             Annotated[list[float], Field(min_length=2, max_length=2)],
@@ -61,6 +58,19 @@ class _DialWorkflowCreationParams(BaseModel):
 
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)
+
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the kernel type."""
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the backend type."""
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Miscellaneous additional arguments."""
 
     @field_validator('dataset_x')
     @classmethod
@@ -87,7 +97,7 @@ class _DialWorkflowCreationParams(BaseModel):
 class DialWorkflowCreationParamsClient(_DialWorkflowCreationParams):
     """Dataclass which clients can use to help verify requests to the DIAL microservice."""
 
-    backend: Literal[_POSSIBLE_BACKENDS]
+    backend: BackendType
 
 
 class DialWorkflowDatasetUpdate(BaseModel):
@@ -99,11 +109,41 @@ class DialWorkflowDatasetUpdate(BaseModel):
     """the next collection of X values you want to append"""
     next_y: float = Field(description='The next Y value you want to append to your overall data')
     """the next Y value you want to append"""
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the kernel type. These arguments will OVERRIDE prior saved arguments."""
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the backend type. These arguments will OVERRIDE prior saved arguments."""
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Miscellaneous additional arguments. These arguments will OVERRIDE prior saved arguments."""
 
 
 class DialInputSingleConfidenceBound(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal['confidence_bound']
+    strategy_args: dict[str, float | int | bool] | None = Field(default=None)
+    y_is_good: Annotated[
+        bool,
+        Field(
+            default=True,  # <-- Set default here
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+        ),
+    ]
+    bounds: list[
+        Annotated[
+            Annotated[list[float], Field(min_length=2, max_length=2)],
+            Field(min_length=2, max_length=2),
+        ]
+    ]
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
     optimization_points: PositiveIntType = Field(default=1000)
     confidence_bound: float = Field(gt=0.5, lt=1)
     discrete_measurements: bool = Field(default=False)
@@ -112,7 +152,34 @@ class DialInputSingleConfidenceBound(BaseModel):
 
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
-    strategy: Literal['random', 'uncertainty', 'expected_improvement']
+    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'upper_confidence_bound']
+    strategy_args: dict[str, float | int | bool] | None = Field(default=None)
+    y_is_good: Annotated[
+        bool,
+        Field(
+            default=True,  # <-- Set default here
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+        ),
+    ]
+    bounds: list[
+        Annotated[
+            Annotated[list[float], Field(min_length=2, max_length=2)],
+            Field(min_length=2, max_length=2),
+        ]
+    ]
+    seed: Annotated[
+        int,
+        Field(
+            default=-1,
+            ge=-1,
+            le=4294967295,
+            description='Specific RNG seed - use -1 to use system default',
+        ),
+    ]
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
     optimization_points: PositiveIntType = Field(default=1000)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
@@ -133,6 +200,10 @@ class DialInputMultiple(BaseModel):
     workflow_id: ValidatedObjectId
     points: int
     strategy: Literal['random', 'hypercube']
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
 
 
 class DialInputPredictions(BaseModel):
@@ -140,3 +211,7 @@ class DialInputPredictions(BaseModel):
 
     workflow_id: ValidatedObjectId
     points_to_predict: list[list[float]]
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
