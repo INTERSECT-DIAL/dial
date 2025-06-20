@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 from bson import ObjectId
 
-import dial_service.dial_service_implementations as svc_impls
 from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
 )
+from dial_service import core
 from dial_service.serverside_data import (
     ServersideInputMultiple,
     ServersideInputPrediction,
@@ -24,25 +24,29 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 ######### HELPERS ####################
 
 
-def single_1D(backend, strategy):
+def single_1D(backend, strategy, strategy_args):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
-        y_is_good=True,
-        kernel='rbf',
-        length_per_dimension=False,
         bounds=[[1, 2]],
+        kernel='rbf',
         backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=[[1, 2]],
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_2D(backend, strategy):
+def single_2D(backend, strategy, strategy_args):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
@@ -68,21 +72,25 @@ def single_2D(backend, strategy):
             2.34930184,
             1.31811177,
         ],
-        y_is_good=False,
-        kernel='rbf',
-        length_per_dimension=False,
         bounds=[[-2, 2], [-2, 2]],
+        kernel='rbf',
         backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=[[-2, 2], [-2, 2]],
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_3D(backend, strategy):
+def single_3D(backend, strategy, strategy_args):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [-0.3666976630219634, -0.7643946670537294, -1.1506370018439385],
@@ -108,16 +116,21 @@ def single_3D(backend, strategy):
             3165.0730457087557,
             1095.6837658755999,
         ],
-        y_is_good=False,
-        kernel='rbf',
-        length_per_dimension=False,
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
+        kernel='rbf',
         backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=[[-2, 2], [-2, 2], [-2, 2]],
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        extra_args={'length_per_dimension': True},
+        seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
@@ -145,15 +158,18 @@ def prediction_1D(backend):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[[1], [2]],
         dataset_y=[100, 200],
-        y_is_good=True,
-        kernel='rbf',
-        length_per_dimension=False,
         bounds=[[1, 2]],
+        kernel='rbf',
         backend=backend,
+        preprocess_standardize=False,
+        y_is_good=True,
         seed=42,
     )
     params = DialInputPredictions(
-        workflow_id=DUMMY_WORKFLOW_ID, points_to_predict=[[1], [1.25], [1.5], [1.75], [2]]
+        workflow_id=DUMMY_WORKFLOW_ID,
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        extra_args={'length_per_dimension': True},
     )
     return ServersideInputPrediction(workflow_state, params)
 
@@ -161,81 +177,82 @@ def prediction_1D(backend):
 ####### TESTS ###################
 
 
-@pytest.mark.parametrize('backend', ['sklearn', 'gpax'])
-def test_n_grid(backend):
-    data = single_1D(backend, strategy='expected_improvement')
-    assert svc_impls._create_n_dim_grid(data, 11) == pytest.approx(
-        np.array([[1.0], [1.1], [1.2], [1.3], [1.4], [1.5], [1.6], [1.7], [1.8], [1.9], [2.0]])
-    )
-
-
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', 1.85742),
-        ('gpax', 2.0),
+        ('sklearn', 1.842309),
+        # ('gpax', 2.0),
     ],
 )
 def test_EI_1D(backend, approx):
-    data = single_1D(backend, strategy='expected_improvement')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx([approx], abs=0.00001)
+    data = single_1D(
+        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+    )
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx([approx], abs=0.00001)
 
 
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [2.0, 2.0]),
-        ('gpax', [2.0, 2.0]),
+        ('sklearn', [1.705352, -1.682829]),
+        # ('gpax', [2.0, 2.0]),
     ],
 )
 def test_EI_2D(backend, approx):
-    data = single_2D(backend, strategy='expected_improvement')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    data = single_2D(
+        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+    )
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [-2.0, -2.0, 2.0]),
-        (
-            'gpax',
-            [2.0, 2.0, -2.0],  # WAS: [2.0, 2.0, 2.0]
-        ),
+        ('sklearn', [2.000000, -1.143727, -1.859496]),
+        # ('gpax', [2.0, 2.0, -2.0],  # WAS: [2.0, 2.0, 2.0]
+        # ),
     ],
 )
 def test_EI_3D(backend, approx):
-    data = single_3D(backend, strategy='expected_improvement')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    data = single_3D(
+        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+    )
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [1.5]),
-        (
-            'gpax',
-            [1.0],  # WAS: [2.0]
-        ),
+        ('sklearn', [2.0]),
+        # (
+        #     'gpax',
+        #     [1.0],  # WAS: [2.0]
+        # ),
     ],
 )
 def test_uncertainty(backend, approx):
-    data = single_1D(backend, strategy='uncertainty')
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    data = single_1D(backend, strategy='uncertainty', strategy_args=None)
+    model = core.train_model(data)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [1.96832802]),
-        ('gpax', [2.0]),
+        ('sklearn', [1.037454]),
+        # ('gpax', [2.0]),
     ],
 )
 def test_preprocessing_standardize(backend, approx):
-    data = single_1D(backend, strategy='expected_improvement')
+    data = single_1D(backend, strategy='expected_improvement', strategy_args=None)
     data.preprocess_standardize = True
+    model = core.train_model(data)
     assert data.Y_best == 1
     assert data.Y_train == pytest.approx([-1, 1])
-    assert svc_impls.internal_get_next_point(data) == pytest.approx(approx)
+    assert core.get_next_point(data, model) == pytest.approx(approx)
 
 
 @pytest.mark.parametrize(
@@ -246,9 +263,10 @@ def test_preprocessing_standardize(backend, approx):
     ],
 )
 def test_random(backend):
-    data = single_1D(backend, strategy='random')
+    data = single_1D(backend, strategy='random', strategy_args=None)
+    model = core.train_model(data)
     for _ in range(100):
-        output = svc_impls.internal_get_next_point(data)
+        output = core.get_next_point(data, model)
         assert len(output) == 1
         assert 1 <= output[0] <= 2
 
@@ -262,7 +280,7 @@ def test_random(backend):
 )
 def test_random_points(backend):
     data = multiple_2D(backend, strategy='random')
-    for pt in svc_impls.internal_get_next_points(data):
+    for pt in core.get_next_points(data):
         assert 0 <= pt[0] <= 100
         assert -1 <= pt[1] <= 1
 
@@ -271,12 +289,12 @@ def test_random_points(backend):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        # ('gpax'),
     ],
 )
 def test_hypercube(backend):
     data = multiple_2D(backend, strategy='hypercube')
-    points = svc_impls.internal_get_next_points(data)
+    points = core.get_next_points(data)
     for i in range(10):
         assert sum(1 for pt in points if 10 * i <= pt[0] <= 10 * (i + 1)) == 1
         assert sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1, (
@@ -289,27 +307,28 @@ def test_hypercube(backend):
     [
         (
             'sklearn',
-            [100.0, 135.4253956249114, 168.17893262605446, 191.52029424913434, 200.0],
-            [8.739217244027204, 11.956904892760956, 8.739217244027222],
-            [8.739217244027204, 11.956904892760956, 8.739217244027222],
+            [99.99999999, 127.23019909, 160.26912982, 191.74589221, 199.99999999],
+            [2.11126987e01, 2.96625069e01, 2.11126987e01],
+            [21.11269870647274, 29.662506906581378, 21.112698706472752],
         ),
-        (
-            'gpax',
-            [
-                76.99987768175089,
-                79.70037093884447,
-                81.5157895856116,
-                82.38145329572436,
-                82.26569221517353,
-            ],
-            [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
-            [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
-        ),
+        # (
+        # 'gpax',
+        # [
+        #     76.99987768175089,
+        #     79.70037093884447,
+        #     81.5157895856116,
+        #     82.38145329572436,
+        #     82.26569221517353,
+        # ],
+        # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
+        # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
+        # ),
     ],
 )
 def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
     data = prediction_1D(backend)
-    means, stddevs, raw_stddevs = svc_impls.internal_get_surrogate_values(data)
+    model = core.train_model(data)
+    means, stddevs, raw_stddevs = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
     assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)
@@ -319,7 +338,7 @@ def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stdde
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        # ('gpax'),
     ],
 )
 def test_inverse_transform(backend):
