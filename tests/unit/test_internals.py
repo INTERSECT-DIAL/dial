@@ -168,8 +168,7 @@ def prediction_1D(backend):
         seed=42,
     )
     params = DialInputPredictions(
-        workflow_id=DUMMY_WORKFLOW_ID,
-        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]]
+        workflow_id=DUMMY_WORKFLOW_ID, points_to_predict=[[1], [1.25], [1.5], [1.75], [2]]
     )
     return ServersideInputPrediction(workflow_state, params)
 
