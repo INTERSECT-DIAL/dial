@@ -30,6 +30,7 @@ def single_1D(backend, strategy, strategy_args):
         dataset_y=[100, 200],
         bounds=[[1, 2]],
         kernel='rbf',
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -40,7 +41,6 @@ def single_1D(backend, strategy, strategy_args):
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[1, 2]],
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
@@ -74,6 +74,7 @@ def single_2D(backend, strategy, strategy_args):
         ],
         bounds=[[-2, 2], [-2, 2]],
         kernel='rbf',
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -84,7 +85,6 @@ def single_2D(backend, strategy, strategy_args):
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2]],
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
@@ -118,9 +118,11 @@ def single_3D(backend, strategy, strategy_args):
         ],
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
         kernel='rbf',
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
+        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
@@ -128,8 +130,6 @@ def single_3D(backend, strategy, strategy_args):
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
@@ -160,16 +160,16 @@ def prediction_1D(backend):
         dataset_y=[100, 200],
         bounds=[[1, 2]],
         kernel='rbf',
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=False,
         y_is_good=True,
+        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputPredictions(
         workflow_id=DUMMY_WORKFLOW_ID,
-        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
-        extra_args={'length_per_dimension': True},
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]]
     )
     return ServersideInputPrediction(workflow_state, params)
 
