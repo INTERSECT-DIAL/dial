@@ -13,6 +13,7 @@ _KERNELS_SKLEARN = {'rbf': RBF, 'matern': Matern}
 _SAMPLERS_SKLEARN = {
     'uncertainty': strategies.greedy_sampling,
     'upper_confidence_bound': strategies.greedy_sampling,
+    'upper_confidence_bound_nomad': strategies.greedy_sampling,
     'expected_improvement': strategies.greedy_sampling,
     'confidence_bound': strategies.greedy_sampling,
 }
