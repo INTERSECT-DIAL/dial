@@ -152,7 +152,8 @@ class DialInputSingleConfidenceBound(BaseModel):
 
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
-    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'upper_confidence_bound']
+    strategy: Literal['random', 'uncertainty', 'expected_improvement', 'upper_confidence_bound',
+                      'upper_confidence_bound_nomad']
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
         bool,
