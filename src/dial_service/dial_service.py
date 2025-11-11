@@ -43,20 +43,28 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         Takes in initial data points, and returns the ID of the associated workflow.
         """
 
-        server_data = ServersideInputBase(client_data)
-        model = pickle.dumps(core.train_model(server_data), protocol=5)
-        workflow_id = self.mongo_handler.create_workflow(client_data.model_dump(), model)
+        try:
+            server_data = ServersideInputBase(client_data)
+            model = pickle.dumps(core.train_model(server_data), protocol=5)
+            workflow_id = self.mongo_handler.create_workflow(client_data.model_dump(), model)
+        except Exception:
+            logger.exception('initialize_workflow exception')
+            workflow_id = None
         if not workflow_id:
-            msg = 'Could not create workflow'
+            msg = "Couldn't initialize workflow"
             raise Exception(msg)  # noqa: TRY002 (Expected, we don't need to provide a detailed error message at this point)
         return workflow_id
 
     @intersect_message()
     def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowCreationParamsService:
         """Returns the current state of the workflow associated with the id"""
-        db_result = self.mongo_handler.get_workflow(uuid)
+        try:
+            db_result = self.mongo_handler.get_workflow(uuid)
+        except Exception:
+            logger.exception('get_workflow_data exception for %s', uuid)
+            db_result = None
         if not db_result:
-            msg = f'Could not get workflow with id {uuid}'
+            msg = f"Couldn't get workflow data with id {uuid}"
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO the former should realistically be a Pydantic ValidationError that can propogate to the client)
         return DialWorkflowCreationParamsService(**db_result)
 
@@ -65,36 +73,52 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         """Updates the DB with the provided params. Success of operation is based off whether or not the INTERSECT response is an error."""
 
         # TODO - all exceptions should realistically provide error information to the client. INTERSECT-SDK v0.9 will introduce a specific exception we can throw which will allow us to do this.
-        db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id)
+        try:
+            db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id)
+        except Exception:
+            logger.exception('update_workflow exception for %s', update_params.workflow_id)
+            db_get_result = None
         if not db_get_result:
             msg = f'Could not get workflow with id {update_params.workflow_id}'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist)
 
-        pretrain_result = DialWorkflowCreationParamsService(**db_get_result)
-        if len(pretrain_result.dataset_x) > 0 and len(pretrain_result.dataset_x[0]) != len(
-            update_params.next_x
+        try:
+            pretrain_result = DialWorkflowCreationParamsService(**db_get_result)
+        except Exception:
+            logger.exception(
+                'update_workflow validation exception for %s', update_params.workflow_id
+            )
+            pretrain_result = None
+        if not pretrain_result or (
+            len(pretrain_result.dataset_x) > 0
+            and len(pretrain_result.dataset_x[0]) != len(update_params.next_x)
         ):
             msg = f'Length mismatch in update function for workflow ID {update_params.workflow_id}'
             raise Exception(msg)  # noqa: TRY002 (data structure mismatch)
-        pretrain_result.dataset_x.append(update_params.next_x)
-        pretrain_result.dataset_y.append(update_params.next_y)
-        server_data = ServersideInputBase(pretrain_result)
 
-        if update_params.backend_args is not None:
-            server_data.backend_args = update_params.backend_args
+        try:
+            pretrain_result.dataset_x.append(update_params.next_x)
+            pretrain_result.dataset_y.append(update_params.next_y)
+            server_data = ServersideInputBase(pretrain_result)
 
-        if update_params.kernel_args is not None:
-            server_data.kernel_args = update_params.kernel_args
+            if update_params.backend_args is not None:
+                server_data.backend_args = update_params.backend_args
 
-        if update_params.extra_args is not None:
-            server_data.extra_args = update_params.extra_args
+            if update_params.kernel_args is not None:
+                server_data.kernel_args = update_params.kernel_args
 
-        model = pickle.dumps(core.train_model(server_data), protocol=5)
+            if update_params.extra_args is not None:
+                server_data.extra_args = update_params.extra_args
 
-        db_update_result = self.mongo_handler.update_workflow_dataset(update_params, model)
+            model = pickle.dumps(core.train_model(server_data), protocol=5)
+
+            db_update_result = self.mongo_handler.update_workflow_dataset(update_params, model)
+        except Exception:
+            logger.exception('update_workflow exception for %s', update_params.workflow_id)
+            db_update_result = None
         if not db_update_result:
-            msg = f'Could not update workflow with id {update_params.workflow_id}'
-            raise Exception(msg)  # noqa: TRY002 (couldn't update for some reason) - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
+            msg = f"Couldn't update workflow with new data for workflow {update_params.workflow_id}"
+            raise Exception(msg)  # noqa: TRY002 (workflow does not exist OR the length of the x value didn't match the rest) - TODO this should realistically be a Pydantic ValidationError that can propogate to the client) a Pydantic ValidationError that can propogate to the client)
 
     ### STATELESS FUNCTIONS ###
 
@@ -109,22 +133,35 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         Returns:
             list[float]: The selected point for the next iteration.
         """
-        workflow_id = ValidatedObjectId(client_data.workflow_id)
-        workflow_state = self.mongo_handler.get_workflow(workflow_id, include_model=True)
+        try:
+            workflow_id = ValidatedObjectId(client_data.workflow_id)
+            workflow_state = self.mongo_handler.get_workflow(workflow_id)
+        except Exception:
+            logger.exception(
+                'get_next_point exception (state initialization) for %s', client_data.workflow_id
+            )
+            workflow_state = None
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
-        model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
-        validated_state = DialWorkflowCreationParamsService(**workflow_state)
-        if client_data.extra_args:
-            if validated_state.extra_args:
-                validated_state.extra_args.update(client_data.extra_args)
-            else:
-                validated_state.extra_args = client_data.extra_args
-        data = ServersideInputSingle(validated_state, client_data)
+        try:
+            model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
+            validated_state = DialWorkflowCreationParamsService(**workflow_state)
+            if client_data.extra_args:
+                if validated_state.extra_args:
+                    validated_state.extra_args.update(client_data.extra_args)
+                else:
+                    validated_state.extra_args = client_data.extra_args
+            data = ServersideInputSingle(validated_state, client_data)
 
-        return core.get_next_point(data, model)
+            return core.get_next_point(data, model)
+        except Exception as err:
+            logger.exception(
+                'get_next_point exception (primary logic) for %s', client_data.workflow_id
+            )
+            msg = f'get_next_point exception (primary logic) for {client_data.workflow_id}'
+            raise Exception(msg) from err  # noqa: TRY002 (for INTERSECT)
 
     @intersect_message
     def get_next_points(self, client_data: DialInputMultiple) -> list[list[float]]:
@@ -137,21 +174,34 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         Returns:
             list[list[float]]: A list of selected points for the next iteration.
         """
-        workflow_id = ValidatedObjectId(client_data.workflow_id)
-        workflow_state = self.mongo_handler.get_workflow(workflow_id)
+        try:
+            workflow_id = ValidatedObjectId(client_data.workflow_id)
+            workflow_state = self.mongo_handler.get_workflow(workflow_id)
+        except Exception:
+            logger.exception(
+                'get_next_pointS exception (state initialization) for %s', client_data.workflow_id
+            )
+            workflow_state = None
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
-        validated_state = DialWorkflowCreationParamsService(**workflow_state)
-        if client_data.extra_args:
-            if validated_state.extra_args:
-                validated_state.extra_args.update(client_data.extra_args)
-            else:
-                validated_state.extra_args = client_data.extra_args
-        data = ServersideInputMultiple(validated_state, client_data)
+        try:
+            validated_state = DialWorkflowCreationParamsService(**workflow_state)
+            if client_data.extra_args:
+                if validated_state.extra_args:
+                    validated_state.extra_args.update(client_data.extra_args)
+                else:
+                    validated_state.extra_args = client_data.extra_args
+            data = ServersideInputMultiple(validated_state, client_data)
 
-        return core.get_next_points(data)
+            return core.get_next_points(data)
+        except Exception as err:
+            logger.exception(
+                'get_next_pointS exception (primary logic) for %s', client_data.workflow_id
+            )
+            msg = f'get_next_pointS exception (primary logic) for {client_data.workflow_id}'
+            raise Exception(msg) from err  # noqa: TRY002 (for INTERSECT)
 
     @intersect_message
     def get_surrogate_values(self, client_data: DialInputPredictions) -> list[list[float]]:
@@ -160,22 +210,36 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         -Index 1: Inverse-transformed uncertainties.  If inverse-transforming is not possible (due to log-preprocessing), this will be all -1
         -Index 2: Uncertainties without inverse transformation
         """
-        workflow_id = ValidatedObjectId(client_data.workflow_id)
-        workflow_state = self.mongo_handler.get_workflow(workflow_id, include_model=True)
+        try:
+            workflow_id = ValidatedObjectId(client_data.workflow_id)
+            workflow_state = self.mongo_handler.get_workflow(workflow_id, include_model=True)
+        except Exception:
+            logger.exception(
+                'get_surrogate_values exception (state initialization) for %s',
+                client_data.workflow_id,
+            )
+            workflow_state = None
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
-        model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
-        validated_state = DialWorkflowCreationParamsService(**workflow_state)
-        if client_data.extra_args:
-            if validated_state.extra_args:
-                validated_state.extra_args.update(client_data.extra_args)
-            else:
-                validated_state.extra_args = client_data.extra_args
-        data = ServersideInputPrediction(validated_state, client_data)
+        try:
+            model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
+            validated_state = DialWorkflowCreationParamsService(**workflow_state)
+            if client_data.extra_args:
+                if validated_state.extra_args:
+                    validated_state.extra_args.update(client_data.extra_args)
+                else:
+                    validated_state.extra_args = client_data.extra_args
+            data = ServersideInputPrediction(validated_state, client_data)
 
-        return core.get_surrogate_values(data, model)
+            return core.get_surrogate_values(data, model)
+        except Exception as err:
+            logger.exception(
+                'get_surrogate_values exception (primary logic) for %s', client_data.workflow_id
+            )
+            msg = f'get_surrogate_values exception (primary logic) for {client_data.workflow_id}'
+            raise Exception(msg) from err  # noqa: TRY002 (for INTERSECT)
 
     @intersect_status()
     def status(self) -> str:
