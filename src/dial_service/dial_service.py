@@ -203,8 +203,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             list[float]: The selected point for the next iteration.
         """
         try:
-            workflow_id = ValidatedObjectId(client_data.workflow_id)
-            workflow_state = self.mongo_handler.get_workflow(workflow_id)
+            workflow_state = self.mongo_handler.get_workflow(client_data.workflow_id)
         except Exception:
             logger.exception(
                 'get_next_point exception (state initialization) for %s', client_data.workflow_id
@@ -227,7 +226,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return_data = core.get_next_point(data, model)
             return DialDataResponse1D(
                 data=return_data,
-                workflow_id=workflow_id,
+                workflow_id=client_data.workflow_id,
             )
         except Exception as err:
             logger.exception(
@@ -248,8 +247,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             list[list[float]]: A list of selected points for the next iteration.
         """
         try:
-            workflow_id = ValidatedObjectId(client_data.workflow_id)
-            workflow_state = self.mongo_handler.get_workflow(workflow_id)
+            workflow_state = self.mongo_handler.get_workflow(client_data.workflow_id)
         except Exception:
             logger.exception(
                 'get_next_pointS exception (state initialization) for %s', client_data.workflow_id
@@ -272,7 +270,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return_data = core.get_next_points(data, model)
             return DialDataResponse2D(
                 data=return_data,
-                workflow_id=workflow_id,
+                workflow_id=client_data.workflow_id,
             )
         except Exception as err:
             logger.exception(
@@ -289,8 +287,9 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         -Index 2: Uncertainties without inverse transformation
         """
         try:
-            workflow_id = ValidatedObjectId(client_data.workflow_id)
-            workflow_state = self.mongo_handler.get_workflow(workflow_id, include_model=True)
+            workflow_state = self.mongo_handler.get_workflow(
+                client_data.workflow_id, include_model=True
+            )
         except Exception:
             logger.exception(
                 'get_surrogate_values exception (state initialization) for %s',
@@ -314,7 +313,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return_data = core.get_surrogate_values(data, model)
             return DialDataResponse2D(
                 data=return_data,
-                workflow_id=workflow_id,
+                workflow_id=client_data.workflow_id,
             )
         except Exception as err:
             logger.exception(
