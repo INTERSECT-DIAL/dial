@@ -39,7 +39,7 @@ class _DialWorkflowCreationParams(BaseModel):
             description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
         ),
     ]
-    kernel: Literal['rbf', 'matern']
+    kernel: Literal['rbf', 'matern', 'linear']
     bounds: list[
         Annotated[
             Annotated[list[float], Field(min_length=2, max_length=2)],
@@ -122,6 +122,13 @@ class DialWorkflowDatasetUpdate(BaseModel):
     )
     """Miscellaneous additional arguments. These arguments will OVERRIDE prior saved arguments."""
 
+class DialWorkflowDatasetUpdates(BaseModel):
+    workflow_id: ValidatedObjectId
+    next_x_list: list[list[float]] = Field(min_length=1)
+    next_y_list: list[float] = Field(min_length=1)
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
 
 class DialInputSingleConfidenceBound(BaseModel):
     workflow_id: ValidatedObjectId
@@ -158,6 +165,7 @@ class DialInputSingleOtherStrategy(BaseModel):
         'expected_improvement',
         'upper_confidence_bound',
         'upper_confidence_bound_nomad',
+        'polymer_acl_sampler'
     ]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
@@ -200,17 +208,51 @@ DialInputSingle = Annotated[
 ]
 
 
-class DialInputMultiple(BaseModel):
-    """This is the input dataclass for Dial for selecting a multiple new point to measures (i.e., a batch of measurements)."""
-
+class DialInputMultipleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
-    points: int
-    strategy: Literal['random', 'hypercube']
+    points: PositiveIntType
+    strategy: Literal[
+        'uncertainty',
+        'expected_improvement',
+        'upper_confidence_bound',
+        'upper_confidence_bound_nomad',
+        'polymer_acl_sampler',
+    ]
+    strategy_args: dict[str, float | int | bool] | None = Field(default=None)
+    y_is_good: Annotated[
+        bool,
+        Field(
+            default=True,  # <-- Set default here
+            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+        ),
+    ]
+    bounds: list[
+        Annotated[
+            Annotated[list[float], Field(min_length=2, max_length=2)],
+            Field(min_length=2, max_length=2),
+        ]
+    ]
+    seed: Annotated[
+        int,
+        Field(
+            default=-1,
+            ge=-1,
+            le=4294967295,
+            description='Specific RNG seed - use -1 to use system default',
+        ),
+    ]
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
     )
     """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
+    optimization_points: PositiveIntType = Field(default=1000)
+    discrete_measurements: bool = Field(default=False)
+    discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
 
+DialInputMultiple = Annotated[
+    DialInputMultipleOtherStrategy,
+    Field(discriminator='strategy'),
+]
 
 class DialInputPredictions(BaseModel):
     """This is the input dataclass for Dial for requesting a surrogate evaluation at a given number of points."""

@@ -5,7 +5,7 @@ from bson import Binary
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
-from dial_dataclass import DialWorkflowDatasetUpdate
+from dial_dataclass import DialWorkflowDatasetUpdate, DialWorkflowDatasetUpdates
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
 from .logger import logger
@@ -102,3 +102,27 @@ class MongoDBHandler:
             logger.warning(e)
             return False
         return True
+
+    def update_workflow_dataset_batch(self, params: DialWorkflowDatasetUpdates, model: bytes) -> bool:
+        set_args = {'model': Binary(model)}
+        if params.backend_args is not None:
+            set_args['backend_args'] = params.backend_args
+        if params.extra_args is not None:
+            set_args['extra_args'] = params.extra_args
+        if params.kernel_args is not None:
+            set_args['kernel_args'] = params.kernel_args
+        try:
+            result = self._mongo_collection.update_one(
+                {'_id': params.workflow_id},
+                {
+                    '$set': set_args,
+                    '$push': {
+                        'dataset_x': {'$each': params.next_x_list},
+                        'dataset_y': {'$each': params.next_y_list},
+                    },
+                },
+            )
+        except (TypeError, IndexError, PyMongoError) as e:
+            logger.warning(e)
+            return False
+        return result.matched_count == 1 and result.modified_count >= 1

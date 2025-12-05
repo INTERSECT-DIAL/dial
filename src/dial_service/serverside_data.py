@@ -86,6 +86,18 @@ class ServersideInputMultiple(ServersideInputBase):
         super().__init__(workflow_state)
         self.strategy = params.strategy
         self.points = params.points
+        self.strategy = params.strategy
+        self.strategy_args = params.strategy_args
+        self.y_is_good = params.y_is_good
+        self.bounds = params.bounds
+        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
+
+        self.optimization_points = params.optimization_points
+        self.confidence_bound = (
+            params.confidence_bound if params.strategy == 'confidence_bound' else 0.0
+        )
+        self.discrete_measurements = params.discrete_measurements
+        self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
 
 
 class ServersideInputPrediction(ServersideInputBase):
