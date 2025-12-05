@@ -1,5 +1,5 @@
 import logging
-
+import itertools
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import norm
@@ -7,6 +7,7 @@ from scipy.stats import norm
 from ..backends import AbstractBackend
 from ..serverside_data import (
     ServersideInputSingle,
+    ServersideInputMultiple
 )
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,6 @@ def confidence_bound(mean, stddev, data):
 
     return -z_value * stddev + mean * (-1 if y_is_good else 1)
 
-
 STRATEGIES = {
     'uncertainty': uncertainty_sampling,
     'upper_confidence_bound': upper_confidence_bound,
@@ -100,13 +100,13 @@ def create_measurement_grid(data: ServersideInputSingle):
     Returns:
         list[list[float]]: A grid of measurement points.
     """
-    row_values = np.linspace(
-        data.bounds[0][0], data.bounds[0][1], data.discrete_measurement_grid_size[0]
-    )
-    col_values = np.linspace(
-        data.bounds[1][0], data.bounds[1][1], data.discrete_measurement_grid_size[1]
-    )
-    return [[row, col] for row in row_values for col in col_values]
+    axes = [
+        np.linspace(low, high, n)
+        for (low, high), n in zip(data.bounds, data.discrete_measurement_grid_size)
+    ]
+
+    # 2. Cartesian product → grid points
+    return [list(point) for point in itertools.product(*axes)]
 
 
 def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInputSingle):
@@ -148,3 +148,127 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
             selected_point = res.x
 
     return selected_point.tolist()
+
+
+
+def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
+    """
+    Greedy batch selection using GP std and multiple penalties:
+
+      score(t) =
+          sd_dev(t)
+        - lambda_time * (t / t_max)^2
+        - lambda_near_train * near_train_penalty(t)
+        - lambda_near_batch * near_batch_penalty(t)
+        - lambda_batchT * ΔT(t) / t_max
+
+    Where:
+      - near_train_penalty(t) is large if t is within radius_train of x_train
+      - near_batch_penalty(t) is large if t is within radius_batch of already chosen batch points
+      - ΔT(t) = max(current_batch_t_max, t) - current_batch_t_max (parallel reactor cost)
+    """
+
+    x_grid = create_measurement_grid(data)
+    x_grid = np.array(x_grid)
+
+    data.x_predict = x_grid
+    mean, sd_dev = backend_module.predict(model, data)
+    x_train = data.X_train
+    _params = data.strategy_args
+
+    batch_size = data.points
+    lambda_time =_params['lambda_time'],                    # penalty on large t
+    lambda_near_train = _params['lambda_near_train']        # penalty on being close to existing points
+    lambda_near_batch = _params['lambda_near_batch']        # penalty on being close to other batch points
+    lambda_batchT = _params['lambda_batchT']                # penalty on extending max t in batch (parallel reactors)
+    radius_train_factor = _params['radius_train_factor']    # neighborhood size as fraction of t_max
+    radius_batch_factor = _params['radius_batch_factor']
+    eps=_params['eps'],
+
+    xg = x_grid.ravel()          # shape (N,)
+    xt = x_train.ravel()         # shape (n,)
+    t_max = np.max(xg)
+
+    # Avoid divide-by-zero if t_max == 0
+    if t_max <= 0:
+        t_max = 1.0
+
+    # Precompute distance to existing training points
+    if xt.size > 0:
+        # (N, n) distances -> min over n
+        dist_to_train = np.min(np.abs(xg[:, None] - xt[None, :]), axis=1)
+    else:
+        dist_to_train = np.full_like(xg, fill_value=t_max)
+
+    radius_train = radius_train_factor * t_max
+    radius_batch = radius_batch_factor * t_max
+
+    # Base mask: exclude points already in training set
+    base_mask = np.ones_like(xg, dtype=bool)
+    for x in xt:
+        base_mask &= np.abs(xg - x) > eps
+
+    batch_idx = []
+    current_t_max = 0.0
+
+    for _ in range(batch_size):
+        # Start from allowed candidates (not in training)
+        mask = base_mask.copy()
+        # Also exclude already chosen batch points
+        for j in batch_idx:
+            mask &= np.abs(xg - xg[j]) > eps
+
+        if not np.any(mask):
+            break  # nothing left to pick
+
+        # --- penalties shared across candidates ---
+
+        # 1) Time penalty: larger t → heavier penalty (quadratic)
+        penalty_time = lambda_time * (xg / t_max) ** 2
+
+        # 2) Penalty for being close to existing training points
+        #    Linear ramp inside radius_train, 0 outside
+        if radius_train > 0:
+            near_train = np.maximum(0.0, (radius_train - dist_to_train) / radius_train)
+        else:
+            near_train = 0.0
+        penalty_train = lambda_near_train * near_train
+
+        # 3) Penalty for extending batch max time (parallel reactors)
+        delta_T = np.maximum(current_t_max, xg) - current_t_max
+        penalty_batchT = lambda_batchT * (delta_T / t_max)
+
+        # 4) Penalty for being close to existing batch points (diversity term)
+        if batch_idx:
+            dist_to_batch = np.min(
+                np.abs(xg[:, None] - xg[np.array(batch_idx)][None, :]),
+                axis=1,
+            )
+            if radius_batch > 0:
+                near_batch = np.maximum(0.0, (radius_batch - dist_to_batch) / radius_batch)
+            else:
+                near_batch = 0.0
+            penalty_batch = lambda_near_batch * near_batch
+        else:
+            penalty_batch = 0.0
+
+        # --- final score ---
+        score = (
+            sd_dev
+            - penalty_time
+            - penalty_train
+            - penalty_batch
+            - penalty_batchT
+        )
+
+        # Remove invalid points from consideration
+        score[~mask] = -np.inf
+
+        j_star = np.argmax(score)
+        if not np.isfinite(score[j_star]):
+            break
+
+        batch_idx.append(j_star)
+        current_t_max = max(current_t_max, xg[j_star])
+
+    return xg[batch_idx]

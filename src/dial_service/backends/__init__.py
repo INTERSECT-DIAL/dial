@@ -40,6 +40,9 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
     @abstractmethod
     def sample(module, model: _MODEL, data: ServersideInputBase): ...
 
+    @staticmethod
+    @abstractmethod
+    def samples(module, model: _MODEL, data: ServersideInputBase): ...
 
 def get_backend_module(backend: str) -> AbstractBackend:
     """Get the backend module; to be more precise, get the class which follows the AbstractBackend interface.

@@ -1,14 +1,14 @@
 """NOTE: This file should not be imported in application code except dynamically via the get_backend_module function in __init__.py ."""
-
+import inspect
 import numpy as np
 import scipy as sp
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Kernel, Matern
+from sklearn.gaussian_process.kernels import RBF, Kernel, Matern, ConstantKernel, DotProduct, WhiteKernel
 
 from ..utilities import strategies
 from . import AbstractBackend
 
-_KERNELS_SKLEARN = {'rbf': RBF, 'matern': Matern}
+_KERNELS_SKLEARN = {'rbf': RBF, 'matern': Matern, 'linear': DotProduct}
 
 _SAMPLERS_SKLEARN = {
     'uncertainty': strategies.greedy_sampling,
@@ -16,7 +16,14 @@ _SAMPLERS_SKLEARN = {
     'upper_confidence_bound_nomad': strategies.greedy_sampling,
     'expected_improvement': strategies.greedy_sampling,
     'confidence_bound': strategies.greedy_sampling,
+    'polymer_acl_sampler': strategies.batch_sampling_acl
 }
+
+def _filter_kwargs_for(cls, params: dict) -> dict:
+    """Keep only kwargs that `cls.__init__` actually accepts."""
+    sig = inspect.signature(cls.__init__)
+    allowed = set(sig.parameters) - {'self', 'args', 'kwargs'}
+    return {k: v for k, v in params.items() if k in allowed}
 
 
 class SklearnBackend(
@@ -35,7 +42,18 @@ class SklearnBackend(
                 data.extra_args.get('length_per_dimension') if data.extra_args else False
             )
             _params['length_scale'] = [1.0] * len(data.X_train[0]) if length_per_dimension else 1.0
-        return _KERNELS_SKLEARN[kernel_name](**_params)
+
+        base_kernel_cls = _KERNELS_SKLEARN[kernel_name]
+        const_params = _filter_kwargs_for(ConstantKernel, _params)
+        white_params = _filter_kwargs_for(WhiteKernel, _params)
+        base_params = _filter_kwargs_for(base_kernel_cls, _params)
+
+        constant_kernel = ConstantKernel(**const_params)
+        base_kernel = base_kernel_cls(**base_params)
+        white_kernel = WhiteKernel(**white_params)
+
+        # TODO : Generalized expression from client
+        return constant_kernel * base_kernel + white_kernel
 
     @staticmethod
     def train_model(data):
@@ -50,6 +68,7 @@ class SklearnBackend(
         model = GaussianProcessRegressor(
             kernel=SklearnBackend.get_kernel(data), n_restarts_optimizer=1000, **_extra_args
         )
+        print(data.X_train, data.Y_train)
         model.fit(data.X_train, data.Y_train)
         return model
 
@@ -79,7 +98,19 @@ class SklearnBackend(
             msg = f'Unknown strategy {strategy_name}'
             raise ValueError(msg)
 
-        return _SAMPLERS_SKLEARN[strategy_name](module, model, data)
+        sample = _SAMPLERS_SKLEARN[strategy_name](module, model, data)
+        return sample
+
+    @staticmethod
+    def samples(module, model, data):
+        strategy_name = data.strategy.lower()
+
+        if strategy_name not in _SAMPLERS_SKLEARN:
+            msg = f'Unknown strategy {strategy_name}'
+            raise ValueError(msg)
+
+        samples = _SAMPLERS_SKLEARN[strategy_name](module, model, data)
+        return [[float(x)] for x in samples]
 
 
 def compute_posterior_f_double_prime(gpr, x_predict):

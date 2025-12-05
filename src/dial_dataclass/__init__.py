@@ -4,7 +4,9 @@ from .dial_dataclass import (
     DialInputSingle,
     DialInputSingleConfidenceBound,
     DialInputSingleOtherStrategy,
+    DialInputMultipleOtherStrategy,
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
+    DialWorkflowDatasetUpdates,
 )
 from .pydantic_helpers import ValidatedObjectId

@@ -9,6 +9,7 @@ from dial_dataclass import (
     DialInputPredictions,
     DialInputSingle,
     DialWorkflowDatasetUpdate,
+    DialWorkflowDatasetUpdates
 )
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
@@ -120,6 +121,50 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             msg = f"Couldn't update workflow with new data for workflow {update_params.workflow_id}"
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist OR the length of the x value didn't match the rest) - TODO this should realistically be a Pydantic ValidationError that can propogate to the client) a Pydantic ValidationError that can propogate to the client)
 
+    @intersect_message()
+    def update_workflow_with_batch_data(self, update_params: DialWorkflowDatasetUpdates) -> None:
+        try:
+            db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id, include_model=True)
+        except Exception:
+            logger.exception('update_workflow_with_batch_data init %s', update_params.workflow_id)
+            db_get_result = None
+        if not db_get_result:
+            raise Exception(f'Could not get workflow with id {update_params.workflow_id}')
+
+        try:
+            pretrain = DialWorkflowCreationParamsService(**db_get_result)
+        except Exception:
+            logger.exception('update_workflow_with_batch_data validation %s', update_params.workflow_id)
+            pretrain = None
+        if not pretrain:
+            raise Exception(f'Workflow validation failed for {update_params.workflow_id}')
+
+        # shape check
+        expected_dim = len(pretrain.dataset_x[0]) if pretrain.dataset_x else len(update_params.next_x_list[0])
+        for row in update_params.next_x_list:
+            if len(row) != expected_dim:
+                raise Exception('Length mismatch in update function')
+
+        try:
+            pretrain.dataset_x.extend(update_params.next_x_list)
+            pretrain.dataset_y.extend(update_params.next_y_list)
+            server_data = ServersideInputBase(pretrain)
+
+            if update_params.backend_args is not None:
+                server_data.backend_args = update_params.backend_args
+            if update_params.kernel_args is not None:
+                server_data.kernel_args = update_params.kernel_args
+            if update_params.extra_args is not None:
+                server_data.extra_args = update_params.extra_args
+
+            model = pickle.dumps(core.train_model(server_data), protocol=5)
+            db_update_result = self.mongo_handler.update_workflow_dataset_batch(update_params, model)
+        except Exception:
+            logger.exception('update_workflow_with_batch_data training %s', update_params.workflow_id)
+            db_update_result = None
+        if not db_update_result:
+            raise Exception(f"Couldn't update workflow with new batch data for {update_params.workflow_id}")
+
     ### STATELESS FUNCTIONS ###
 
     @intersect_message()
@@ -187,6 +232,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
 
         try:
+            model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
             if client_data.extra_args:
                 if validated_state.extra_args:
@@ -195,7 +241,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     validated_state.extra_args = client_data.extra_args
             data = ServersideInputMultiple(validated_state, client_data)
 
-            return core.get_next_points(data)
+            return core.get_next_points(data, model)
         except Exception as err:
             logger.exception(
                 'get_next_pointS exception (primary logic) for %s', client_data.workflow_id

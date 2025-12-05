@@ -41,7 +41,7 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
 
 
 # pure functional implementation of message, without MongoDB calls
-def get_next_points(data: ServersideInputMultiple) -> list[list[float]]:
+def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[float]]:
     """
     Get multiple next points for optimization based on the provided strategy.
 
@@ -60,6 +60,11 @@ def get_next_points(data: ServersideInputMultiple) -> list[list[float]]:
             ]
         case 'hypercube':
             output_points = hypercube(data.bounds, data.points, data.numpy_rng)
+
+    backend = data.backend.lower()
+    module = get_backend_module(backend)
+    output_points = module.samples(module, model, data)
+
     return output_points
 
 
