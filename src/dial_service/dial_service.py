@@ -128,7 +128,9 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return update_params.workflow_id
 
     @intersect_message()
-    def update_workflow_with_batch_data(self, update_params: DialWorkflowDatasetUpdates) -> None:
+    def update_workflow_with_batch_data(
+        self, update_params: DialWorkflowDatasetUpdates
+    ) -> ValidatedObjectId:
         try:
             db_get_result = self.mongo_handler.get_workflow(
                 update_params.workflow_id, include_model=True
@@ -184,6 +186,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if not db_update_result:
             exc = f"Couldn't update workflow with new batch data for {update_params.workflow_id}"
             raise Exception(exc)  # noqa: TRY002
+
+        return update_params.workflow_id
 
     ### STATELESS FUNCTIONS ###
 
