@@ -45,10 +45,14 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
         Takes in initial data points, and returns the ID of the associated workflow.
         """
-
         try:
             server_data = ServersideInputBase(client_data)
-            model = pickle.dumps(core.train_model(server_data), protocol=5)
+            if client_data.dataset_x:
+                # the user provided some initial data, so train a model
+                model = pickle.dumps(core.train_model(server_data), protocol=5)
+            else:
+                # no initial data was provided, so just initialize a workflow ID and some common settings for the user
+                model = pickle.dumps(core.initialize_model(server_data), protocol=5)
             workflow_id = self.mongo_handler.create_workflow(client_data.model_dump(), model)
         except Exception:
             logger.exception('initialize_workflow exception')

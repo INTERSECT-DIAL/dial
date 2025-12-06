@@ -103,7 +103,9 @@ class MongoDBHandler:
             return False
         return True
 
-    def update_workflow_dataset_batch(self, params: DialWorkflowDatasetUpdates, model: bytes) -> bool:
+    def update_workflow_dataset_batch(
+        self, params: DialWorkflowDatasetUpdates, model: bytes
+    ) -> bool:
         set_args = {'model': Binary(model)}
         if params.backend_args is not None:
             set_args['backend_args'] = params.backend_args

@@ -65,7 +65,7 @@ def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[floa
     module = get_backend_module(backend)
     output_points = module.samples(module, model, data)
 
-    return output_points
+    return output_points  # noqa: RET504
 
 
 # pure functional implementation of message, without MongoDB calls
@@ -96,3 +96,12 @@ def train_model(data: ServersideInputBase) -> Any:
     backend = data.backend.lower()
     module = get_backend_module(backend)
     return module.train_model(data)
+
+
+def initialize_model(data: ServersideInputBase) -> Any:
+    """
+    Creates an untrained model and returns it
+    """
+    backend = data.backend.lower()
+    module = get_backend_module(backend)
+    return module.initialize_model(data)

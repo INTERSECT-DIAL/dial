@@ -13,6 +13,7 @@ gpax.utils.enable_x64()
 class GpaxBackend(AbstractBackend[gpax.viGP, str, tuple[jnp.ndarray, jnp.ndarray]]):
     @staticmethod
     def train_model(data):
+        """Generate a trained model."""
         rng_key_train, rng_key_predict = gpax.utils.get_keys(
             seed=data.seed if data.seed != -1 else None
         )
@@ -27,6 +28,14 @@ class GpaxBackend(AbstractBackend[gpax.viGP, str, tuple[jnp.ndarray, jnp.ndarray
             progress_bar=False,
         )
         return gp_model
+
+    @staticmethod
+    def initialize_model(data):
+        """Generate an untrained model."""
+        rng_key_train, rng_key_predict = gpax.utils.get_keys(
+            seed=data.seed if data.seed != -1 else None
+        )
+        return gpax.viGP(len(data.bounds), GpaxBackend.get_kernel(data), guide='delta')
 
     @staticmethod
     def predict(model, data):

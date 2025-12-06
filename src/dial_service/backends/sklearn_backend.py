@@ -1,9 +1,18 @@
 """NOTE: This file should not be imported in application code except dynamically via the get_backend_module function in __init__.py ."""
+
 import inspect
+
 import numpy as np
 import scipy as sp
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Kernel, Matern, ConstantKernel, DotProduct, WhiteKernel
+from sklearn.gaussian_process.kernels import (
+    RBF,
+    ConstantKernel,
+    DotProduct,
+    Kernel,
+    Matern,
+    WhiteKernel,
+)
 
 from ..utilities import strategies
 from . import AbstractBackend
@@ -16,8 +25,9 @@ _SAMPLERS_SKLEARN = {
     'upper_confidence_bound_nomad': strategies.greedy_sampling,
     'expected_improvement': strategies.greedy_sampling,
     'confidence_bound': strategies.greedy_sampling,
-    'polymer_acl_sampler': strategies.batch_sampling_acl
+    'polymer_acl_sampler': strategies.batch_sampling_acl,
 }
+
 
 def _filter_kwargs_for(cls, params: dict) -> dict:
     """Keep only kwargs that `cls.__init__` actually accepts."""
@@ -57,6 +67,7 @@ class SklearnBackend(
 
     @staticmethod
     def train_model(data):
+        """Create a model with training."""
         if data.backend_args is None:
             _extra_args = {}
         else:
@@ -68,9 +79,23 @@ class SklearnBackend(
         model = GaussianProcessRegressor(
             kernel=SklearnBackend.get_kernel(data), n_restarts_optimizer=1000, **_extra_args
         )
-        print(data.X_train, data.Y_train)
         model.fit(data.X_train, data.Y_train)
         return model
+
+    @staticmethod
+    def intialize_model(data):
+        """Create a model without training."""
+        if data.backend_args is None:
+            _extra_args = {}
+        else:
+            _extra_args = data.backend_args.copy()  # Ensure it's a dictionary
+            if 'alpha' in _extra_args and not isinstance(_extra_args['alpha'], np.ndarray):
+                # Process alpha as a numpy array
+                _extra_args['alpha'] = np.array(_extra_args['alpha'])
+
+        return GaussianProcessRegressor(
+            kernel=SklearnBackend.get_kernel(data), n_restarts_optimizer=1000, **_extra_args
+        )
 
     @staticmethod
     def predict(model, data):
@@ -98,8 +123,7 @@ class SklearnBackend(
             msg = f'Unknown strategy {strategy_name}'
             raise ValueError(msg)
 
-        sample = _SAMPLERS_SKLEARN[strategy_name](module, model, data)
-        return sample
+        return _SAMPLERS_SKLEARN[strategy_name](module, model, data)
 
     @staticmethod
     def samples(module, model, data):

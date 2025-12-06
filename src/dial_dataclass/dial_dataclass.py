@@ -21,7 +21,7 @@ class _DialWorkflowCreationParams(BaseModel):
         list[
             Annotated[
                 list[float],
-                Field(description='Field lengths of all subarrays should be equal', min_length=1),
+                Field(description='Field lengths of all subarrays should be equal'),
             ]
         ],
         Field(description='The input vectors of the training data'),
@@ -122,6 +122,7 @@ class DialWorkflowDatasetUpdate(BaseModel):
     )
     """Miscellaneous additional arguments. These arguments will OVERRIDE prior saved arguments."""
 
+
 class DialWorkflowDatasetUpdates(BaseModel):
     workflow_id: ValidatedObjectId
     next_x_list: list[list[float]] = Field(min_length=1)
@@ -129,6 +130,7 @@ class DialWorkflowDatasetUpdates(BaseModel):
     kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
     backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
+
 
 class DialInputSingleConfidenceBound(BaseModel):
     workflow_id: ValidatedObjectId
@@ -165,7 +167,7 @@ class DialInputSingleOtherStrategy(BaseModel):
         'expected_improvement',
         'upper_confidence_bound',
         'upper_confidence_bound_nomad',
-        'polymer_acl_sampler'
+        'polymer_acl_sampler',
     ]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
@@ -249,10 +251,12 @@ class DialInputMultipleOtherStrategy(BaseModel):
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
 
+
 DialInputMultiple = Annotated[
     DialInputMultipleOtherStrategy,
     Field(discriminator='strategy'),
 ]
+
 
 class DialInputPredictions(BaseModel):
     """This is the input dataclass for Dial for requesting a surrogate evaluation at a given number of points."""
