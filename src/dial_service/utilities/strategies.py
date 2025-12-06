@@ -1,14 +1,12 @@
-import logging
 import itertools
+import logging
+
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import norm
 
 from ..backends import AbstractBackend
-from ..serverside_data import (
-    ServersideInputSingle,
-    ServersideInputMultiple
-)
+from ..serverside_data import ServersideInputMultiple, ServersideInputSingle
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +64,7 @@ def confidence_bound(mean, stddev, data):
 
     return -z_value * stddev + mean * (-1 if y_is_good else 1)
 
+
 STRATEGIES = {
     'uncertainty': uncertainty_sampling,
     'upper_confidence_bound': upper_confidence_bound,
@@ -102,7 +101,7 @@ def create_measurement_grid(data: ServersideInputSingle):
     """
     axes = [
         np.linspace(low, high, n)
-        for (low, high), n in zip(data.bounds, data.discrete_measurement_grid_size)
+        for (low, high), n in zip(data.bounds, data.discrete_measurement_grid_size, strict=False)
     ]
 
     # 2. Cartesian product → grid points
@@ -150,7 +149,6 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
     return selected_point.tolist()
 
 
-
 def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
     """
     Greedy batch selection using GP std and multiple penalties:
@@ -177,16 +175,18 @@ def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideI
     _params = data.strategy_args
 
     batch_size = data.points
-    lambda_time =_params['lambda_time'],                    # penalty on large t
-    lambda_near_train = _params['lambda_near_train']        # penalty on being close to existing points
-    lambda_near_batch = _params['lambda_near_batch']        # penalty on being close to other batch points
-    lambda_batchT = _params['lambda_batchT']                # penalty on extending max t in batch (parallel reactors)
-    radius_train_factor = _params['radius_train_factor']    # neighborhood size as fraction of t_max
+    lambda_time = _params['lambda_time']  # penalty on large t
+    lambda_near_train = _params['lambda_near_train']  # penalty on being close to existing points
+    lambda_near_batch = _params['lambda_near_batch']  # penalty on being close to other batch points
+    lambda_batchT = _params[
+        'lambda_batchT'
+    ]  # penalty on extending max t in batch (parallel reactors)
+    radius_train_factor = _params['radius_train_factor']  # neighborhood size as fraction of t_max
     radius_batch_factor = _params['radius_batch_factor']
-    eps=_params['eps'],
+    eps = _params['eps']
 
-    xg = x_grid.ravel()          # shape (N,)
-    xt = x_train.ravel()         # shape (n,)
+    xg = x_grid.ravel()  # shape (N,)
+    xt = x_train.ravel()  # shape (n,)
     t_max = np.max(xg)
 
     # Avoid divide-by-zero if t_max == 0
@@ -253,13 +253,7 @@ def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideI
             penalty_batch = 0.0
 
         # --- final score ---
-        score = (
-            sd_dev
-            - penalty_time
-            - penalty_train
-            - penalty_batch
-            - penalty_batchT
-        )
+        score = sd_dev - penalty_time - penalty_train - penalty_batch - penalty_batchT
 
         # Remove invalid points from consideration
         score[~mask] = -np.inf

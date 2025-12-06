@@ -55,6 +55,11 @@ class _DialWorkflowCreationParams(BaseModel):
             description='Specific RNG seed - use -1 to use system default',
         ),
     ]
+    dim_x: Annotated[
+        int,
+        Field(
+            default=1
+    )]
 
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)

@@ -28,6 +28,7 @@ class ServersideInputBase:
         self.backend_args = data.backend_args
         self.kernel_args = data.kernel_args
         self.extra_args = data.extra_args
+        self.dim_x = data.dim_x
 
     @cached_property
     def stddev(self) -> float:

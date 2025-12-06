@@ -51,7 +51,7 @@ class SklearnBackend(
             length_per_dimension = (
                 data.extra_args.get('length_per_dimension') if data.extra_args else False
             )
-            _params['length_scale'] = [1.0] * len(data.X_train[0]) if length_per_dimension else 1.0
+            _params['length_scale'] = [1.0] * data.dim_x if length_per_dimension else 1.0
 
         base_kernel_cls = _KERNELS_SKLEARN[kernel_name]
         const_params = _filter_kwargs_for(ConstantKernel, _params)
@@ -83,7 +83,7 @@ class SklearnBackend(
         return model
 
     @staticmethod
-    def intialize_model(data):
+    def initialize_model(data):
         """Create a model without training."""
         if data.backend_args is None:
             _extra_args = {}
@@ -99,7 +99,8 @@ class SklearnBackend(
 
     @staticmethod
     def predict(model, data):
-        dim = data.X_train.shape[1]
+
+        dim = data.dim_x
 
         derivative_type = data.extra_args.get('derivative_type', 0) if data.extra_args else 0
         if derivative_type == 0:
