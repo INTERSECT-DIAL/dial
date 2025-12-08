@@ -62,7 +62,6 @@ class SklearnBackend(
         base_kernel = base_kernel_cls(**base_params)
         white_kernel = WhiteKernel(**white_params)
 
-        # TODO : Generalized expression from client
         return constant_kernel * base_kernel + white_kernel
 
     @staticmethod
@@ -75,7 +74,7 @@ class SklearnBackend(
             if 'alpha' in _extra_args and not isinstance(_extra_args['alpha'], np.ndarray):
                 # Process alpha as a numpy array
                 _extra_args['alpha'] = np.array(_extra_args['alpha'])
-
+        # print(_extra_args['alpha'])
         model = GaussianProcessRegressor(
             kernel=SklearnBackend.get_kernel(data), n_restarts_optimizer=1000, **_extra_args
         )
@@ -105,7 +104,7 @@ class SklearnBackend(
         derivative_type = data.extra_args.get('derivative_type', 0) if data.extra_args else 0
         if derivative_type == 0:
             means, stddevs = model.predict(data.x_predict.reshape(-1, dim), return_std=True)
-            return means, data.stddev * stddevs
+            return means, stddevs
 
         if derivative_type == 2:
             means, stddevs = compute_posterior_f_double_prime(

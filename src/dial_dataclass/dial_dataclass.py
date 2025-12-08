@@ -224,6 +224,7 @@ class DialInputMultipleOtherStrategy(BaseModel):
         'upper_confidence_bound',
         'upper_confidence_bound_nomad',
         'polymer_acl_sampler',
+        'hypercube'
     ]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[

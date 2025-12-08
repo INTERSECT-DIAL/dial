@@ -14,7 +14,7 @@ from .service_specific_dataclasses import DialWorkflowCreationParamsService
 # this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
     def __init__(self, data: DialWorkflowCreationParamsService):
-        self.X_train = np.array(data.dataset_x)
+        self.X_raw = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
         self.bounds = data.bounds
@@ -47,8 +47,40 @@ class ServersideInputBase:
             y = (y - np.mean(y)) / np.std(y)
         return y
 
+    def _scale_X(self, X: np.ndarray) -> np.ndarray:
+        """
+        Scale X into [0, 1]^D using self.bounds.
+        X: array of shape (N, D)
+        """
+        X = np.asarray(X, dtype=float)
+
+        if X.size == 0:
+            D = len(self.bounds)
+            return np.empty((0, D))
+
+        bounds = np.asarray(self.bounds, float)  # (D, 2)
+        lows = bounds[:, 0]
+        highs = bounds[:, 1]
+        span = np.where(highs - lows == 0, 1.0, highs - lows)
+
+        return (X - lows) / span
+
+    @cached_property
+    def X_train(self) -> np.ndarray:
+        """
+        Return X scaled to [0, 1] per dimension based on self.bounds.
+
+        dataset_x: list[list[float]], shape (N, D)
+        bounds: list[[low, high], ...], shape (D, 2)
+        """
+        return self._scale_X(self.X_raw)
+
     # undoes the preprocessing.
     def inverse_transform(self, data: np.ndarray, is_stddev: bool = False):
+
+        if len(self.Y_raw) == 0:
+            return data
+
         # not possible to un-log the standard deviations (-1 +- 1 in log space != .1 +- 10 in realspace)
         if self.preprocess_log and is_stddev:
             return np.repeat(-1, len(data))
@@ -79,6 +111,14 @@ class ServersideInputSingle(ServersideInputBase):
         self.discrete_measurements = params.discrete_measurements
         self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
 
+    def set_x_predict(self, X_raw: np.ndarray) -> None:
+        """
+        Store raw prediction points and their scaled version.
+        X_raw: shape (N, D) or (D,) for a single point.
+        """
+        raw_vals = np.asarray(X_raw, dtype=float).reshape(-1, self.dim_x)
+        self.x_predict = self._scale_X(raw_vals)
+
 
 class ServersideInputMultiple(ServersideInputBase):
     def __init__(
@@ -100,10 +140,26 @@ class ServersideInputMultiple(ServersideInputBase):
         self.discrete_measurements = params.discrete_measurements
         self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
 
+    def set_x_predict(self, X_raw: np.ndarray) -> None:
+        """
+        Store raw prediction points and their scaled version.
+        X_raw: shape (N, D) or (D,) for a single point.
+        """
+        raw_vals = np.asarray(X_raw, dtype=float).reshape(-1, self.dim_x)
+        self.x_predict = self._scale_X(raw_vals)
 
 class ServersideInputPrediction(ServersideInputBase):
     def __init__(
         self, workflow_state: DialWorkflowCreationParamsService, params: DialInputPredictions
     ):
         super().__init__(workflow_state)
-        self.x_predict = np.array(params.points_to_predict)
+        self.x_predict_raw = np.asarray(params.points_to_predict, dtype=float)
+        self.set_x_predict(self.x_predict_raw)
+
+    def set_x_predict(self, X_raw: np.ndarray) -> None:
+        """
+        Store raw prediction points and their scaled version.
+        X_raw: shape (N, D) or (D,) for a single point.
+        """
+        raw_vals = np.asarray(X_raw, dtype=float).reshape(-1, self.dim_x)
+        self.x_predict = self._scale_X(raw_vals)

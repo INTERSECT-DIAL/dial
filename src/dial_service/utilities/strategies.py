@@ -116,7 +116,7 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
         raise ValueError(msg) from exc
 
     def to_minimize(_x: np.ndarray):
-        data.x_predict = _x
+        data.set_x_predict(_x)
         mean, sigma = backend_module.predict(model, data)
         return -strategy_(mean, sigma, data)
 
@@ -169,9 +169,9 @@ def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideI
     x_grid = create_measurement_grid(data)
     x_grid = np.array(x_grid)
 
-    data.x_predict = x_grid
+    data.set_x_predict(x_grid)
     mean, sd_dev = backend_module.predict(model, data)
-    x_train = data.X_train
+    x_train = data.X_raw
     _params = data.strategy_args
 
     batch_size = data.points

@@ -58,8 +58,10 @@ def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[floa
             output_points = [
                 random_in_bounds(data.bounds, data.numpy_rng) for _ in range(data.points)
             ]
+            return output_points
         case 'hypercube':
             output_points = hypercube(data.bounds, data.points, data.numpy_rng)
+            return output_points
 
     backend = data.backend.lower()
     module = get_backend_module(backend)
