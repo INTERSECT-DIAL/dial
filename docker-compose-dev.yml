@@ -42,10 +42,6 @@ services:
     volumes:
       - 'dial_mongodb_data:/bitnami/mongodb'
 
-  dial:
-    build: .
-    
-
 volumes:
   dial_mongodb_data:
     driver: local
