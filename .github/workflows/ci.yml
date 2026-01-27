@@ -5,6 +5,7 @@ on:
     branches:
       - develop
       - main
+      - 16-add-docker # TODO: remove this when PR is opened
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
