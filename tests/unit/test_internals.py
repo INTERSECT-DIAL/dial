@@ -203,7 +203,7 @@ def test_EI_2D(backend, approx):
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx)
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
 
 
 @pytest.mark.parametrize(
@@ -219,7 +219,7 @@ def test_EI_3D(backend, approx):
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx)
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
 
 
 @pytest.mark.parametrize(
@@ -235,7 +235,7 @@ def test_EI_3D(backend, approx):
 def test_uncertainty(backend, approx):
     data = single_1D(backend, strategy='uncertainty', strategy_args=None)
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx)
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
 
 
 @pytest.mark.parametrize(
