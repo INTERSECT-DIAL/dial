@@ -223,9 +223,9 @@ def test_EI_3D(backend, approx):
 
 
 @pytest.mark.parametrize(
-    ('backend',),
+    'backend',
     [
-        ('sklearn',),
+        'sklearn',
         # ('gpax',),
     ],
 )
@@ -236,9 +236,9 @@ def test_uncertainty(backend):
     # The uncertainty sampling should select one of the boundary points (1.0 or 2.0)
     # since training data is at both boundaries. Which boundary is selected can vary
     # based on optimizer and numerical precision across Python versions.
-    assert (
-        abs(result[0] - 1.0) < 0.01 or abs(result[0] - 2.0) < 0.01
-    ), f"Expected result near 1.0 or 2.0, got {result[0]}"
+    assert abs(result[0] - 1.0) < 0.01 or abs(result[0] - 2.0) < 0.01, (
+        f'Expected result near 1.0 or 2.0, got {result[0]}'
+    )
 
 
 @pytest.mark.parametrize(
