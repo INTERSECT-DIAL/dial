@@ -72,9 +72,19 @@ jobs:
       - run: pdm run test-all
         continue-on-error: ${{ matrix.os.continue-on-error || matrix.python-version.continue-on-error }}
 
+  docker-test:
+    name: Build Docker image and run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t dial:test --target test .
+      - name: Run tests in container
+        run: docker run --rm dial:test pytest tests/
+
   continuous-deployment:
     name: Update deployments automatically
-    needs: ['lint', 'test-all']
+    needs: ['lint', 'test-all', 'docker-test']
     if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     steps:
