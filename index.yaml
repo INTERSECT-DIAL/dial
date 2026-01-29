@@ -1,0 +1,21 @@
+apiVersion: v1
+entries:
+  dial:
+  - apiVersion: v2
+    created: "2026-01-29T18:11:35.9396357Z"
+    dependencies:
+    - name: common
+      repository: https://charts.bitnami.com/bitnami
+      version: ^2.9.1
+    - condition: mongodb.enabled
+      name: mongodb
+      repository: https://charts.bitnami.com/bitnami
+      version: ^15.0.0
+    description: 'DIAL (Distributed INTERSECT Active Learning): An INTERSECT service
+      that provides Bayesian optimization and active learning'
+    digest: 0154ba0ee311d7b8a942b3dd741b1d39bcda77cdb276a0f894b651d31779bb28
+    name: dial
+    urls:
+    - https://github.com/INTERSECT-DIAL/dial/releases/download/dial-0.1.0/dial-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-01-29T18:11:35.939644446Z"
