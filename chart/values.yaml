@@ -1,0 +1,245 @@
+# global values used by this chart
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+  kubeVersion: ""
+
+### Generic Kubernetes parameters ###
+
+kubeVersion: ""
+nameOverride: ""
+fullnameOverride: ""
+namespaceOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+extraDeploy: []
+
+podSecurityContext:
+  enabled: false
+  fsGroup: 1001
+containerSecurityContext:
+  enabled: false
+  runAsUser: 1001
+  runAsNonRoot: true
+  readOnlyRootFilesystem: false
+
+podLabels: {}
+podAnnotations: {}
+podAffinityPreset: ""
+podAntiAffinityPreset: soft
+
+### Pod Disruption Budget, Autoscaling, and Node Affinity ###
+
+pdb:
+  create: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: ""
+
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+
+affinity: {}
+nodeSelector: {}
+tolerations: []
+updateStrategy:
+  type: RollingUpdate
+priorityClassName: ""
+topologySpreadConstraints: []
+schedulerName: ""
+terminationGracePeriodSeconds: ""
+lifecycleHooks: {}
+extraEnvVars: []
+extraEnvVarsCM: ""
+extraEnvVarsSecret: ""
+extraVolumeMounts: []
+initContainers: []
+sidecars: []
+
+### Replica Count ###
+
+replicaCount: 1
+
+### Dial Service Configuration ###
+
+dial:
+  enabled: true
+
+  ### container image - uses GitHub Container Registry
+  image:
+    registry: ghcr.io
+    repository: "marshallmcdonnell/dial"
+    tag: "latest"
+    digest: ""
+    pullPolicy: "IfNotPresent"
+    pullSecrets: []
+
+  ### Configuration file (local-conf.json)
+  ### This will be mounted at /app/local-conf.json
+  configFile: |
+    {
+      "intersect": {
+        "brokers": [
+          {
+            "username": "intersect_username",
+            "password": "intersect_password",
+            "host": "broker",
+            "port": 1883,
+            "protocol": "mqtt3.1.1"
+          }
+        ]
+      },
+      "intersect-hierarchy": {
+        "organization": "intersect",
+        "facility": "default",
+        "system": "dial-system",
+        "subsystem": "dial-subsystem",
+        "service": "dial-service"
+      },
+      "dial": {
+        "mongo": {
+          "username": "dial",
+          "password": "changeme",
+          "host": "dial-mongodb",
+          "port": 27017
+        }
+      }
+    }
+
+  diagnosticMode:
+    enabled: false
+    command:
+      - sleep
+    args:
+      - infinity
+
+  containerPorts:
+    http: 5000
+
+  extraContainerPorts: []
+
+  # Health probes
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+    successThreshold: 1
+
+  startupProbe:
+    enabled: false
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  customLivenessProbe: {}
+  customReadinessProbe: {}
+  customStartupProbe: {}
+
+  resources:
+    limits: {}
+    requests: {}
+
+  command: []
+  args: []
+  hostAliases: []
+
+  ### Environment variables for Dial service
+  extraEnvVars: []
+  extraEnvVarsCM: ""
+  extraEnvVarsSecret: ""
+
+  ### Traffic exposure
+
+  service:
+    type: ClusterIP
+    port: 5000
+    nodePort: ""
+    clusterIP: ""
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    externalTrafficPolicy: Cluster
+    annotations: {}
+    sessionAffinity: None
+    sessionAffinityConfig: {}
+
+  ingress:
+    enabled: false
+    pathType: ImplementationSpecific
+    hostname: dial.local
+    ingressClassName: ""
+    path: /
+    annotations: {}
+    tls: false
+    selfSigned: false
+    extraHosts: []
+    extraPaths: []
+    extraTls: []
+    secrets: []
+    extraRules: []
+
+### Service Account Configuration ###
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: true
+
+### MongoDB Subchart Configuration ###
+### See: https://github.com/bitnami/charts/tree/main/bitnami/mongodb
+
+mongodb:
+  enabled: true
+  auth:
+    enabled: true
+    username: dial
+    password: "changeme"
+    rootPassword: "changeme"
+    database: dial
+  service:
+    port: 27017
+  persistence:
+    enabled: true
+    size: 8Gi
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/mongodb
+    tag: "7.0"
+
+### External MongoDB Configuration (used if mongodb.enabled is false) ###
+
+externalMongoDB:
+  enabled: false
+  connectionString: "mongodb://user:password@mongodb-host:27017/dial?authSource=admin"
+
+### INTERSECT Configuration for Dial ###
+
+intersectConfig:
+  brokers: []
+  hierarchy:
+    organization: "intersect"
+    facility: "default"
+    system: "dial"
+    subsystem: "service"
+    service: "dial"

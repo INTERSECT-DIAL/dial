@@ -98,6 +98,49 @@ To run the client, select one of the following:
 - Automatic run: `docker run --rm -it -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json dial-image python scripts/automated_client.py`
 - Manual run: `docker run --rm -it -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json dial-image python scripts/manual_client.py`
 
+## Kubernetes Deployment (Helm)
+
+A comprehensive Helm chart is available for deploying Dial to Kubernetes with MongoDB database support. The chart includes:
+
+- Dial service deployment
+- MongoDB subchart for persistent storage
+- INTERSECT broker configuration
+- Automatic MongoDB connection management
+- Health checks and probes
+- Scalability support
+
+### Quick Start
+
+```bash
+cd chart
+helm dependency update
+helm install dial . -n dial --create-namespace
+```
+
+For detailed Helm chart documentation, see:
+- [chart/README.md](chart/README.md) - Comprehensive Helm documentation
+- [HELM_QUICK_START.md](HELM_QUICK_START.md) - Quick start guide with examples
+- [HELM_CHART_IMPLEMENTATION.md](HELM_CHART_IMPLEMENTATION.md) - Implementation details
+
+### Common Helm Commands
+
+With custom INTERSECT configuration:
+```bash
+helm install dial . -n dial --create-namespace -f values.yaml -f values.config.yaml
+```
+
+With NodePort service:
+```bash
+helm install dial . -n dial --create-namespace -f values.yaml -f values.nodePort.yaml
+```
+
+With external MongoDB:
+```bash
+helm install dial . -n dial --create-namespace \
+  --set mongodb.enabled=false \
+  --set externalMongoDB.connectionString="mongodb://user:pass@host:27017/dial"
+```
+
 ## Testing
 
 You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
