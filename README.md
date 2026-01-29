@@ -84,15 +84,13 @@ A Helm chart is available for deploying Dial to Kubernetes with MongoDB database
 ### Quick Start
 
 ```bash
-cd chart
+cd charts/dial
 helm dependency update
 helm install dial . -n dial --create-namespace
 ```
 
 For detailed Helm chart documentation, see:
-- [chart/README.md](chart/README.md) - Comprehensive Helm documentation
-- [HELM_QUICK_START.md](HELM_QUICK_START.md) - Quick start guide with examples
-- [HELM_CHART_IMPLEMENTATION.md](HELM_CHART_IMPLEMENTATION.md) - Implementation details
+- [charts/dial/README.md](charts/dial/README.md) - Comprehensive Helm documentation
 
 ### Common Helm Commands
 
