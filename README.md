@@ -40,36 +40,11 @@ To run linter and automatically fix errors:
 
 ## running infrastructure locally
 
-You can use `docker compose up -d` to automatically spin up both a broker instance and a database instance locally.
+You can use `docker compose up -d -f docker-compose-dev.yml` or to automatically spin up both a broker instance and a database instance locally.
+
+If you also want to run DIAL inside the container, you can instead run `docker compose up -d`
 
 To remove the infrastructure containers: `docker compose down -v`; leave off the `-v` flag if you would like to persist the DB data.
-
-Note that if you are also running the Client/Service scripts in Docker, you will need to make sure that you add in appropriate `host` properties inside of `local-conf.json` (the host names are the names of the services in `docker-compose.yml`, instead of `127.0.0.1`):
-
-```json
-{
-  "intersect": {
-    "brokers": [
-      {
-        "username": "intersect_username",
-        "password": "intersect_password",
-        "host": "broker",
-        "port": 1883,
-        "protocol": "mqtt3.1.1"
-      }
-    ]
-  },
-  "dial": {
-    "mongo": {
-      "username": null,
-      "password": null,
-      "host": "mongodb",
-      "port": 27017
-    }
-  }
-}
-
-```
 
 ## Running
 
@@ -82,6 +57,7 @@ In a separate terminal, you can run one of the following clients:
 CLI arg `--config` or environment variable `DIAL_CONFIG_FILE` should be a path to a valid JSON configuration. If neither value is set, it will default to `local-conf.json` .
 
 - `local-conf.json` - If you set up the infrastructure locally via `docker compose up`, use this config file.
+- `local-conf-docker.json` - This config file should only be used if you are running DIAL in the Docker image as well.
 
 ## Docker
 
@@ -97,6 +73,43 @@ To run the client, select one of the following:
 
 - Automatic run: `docker run --rm -it -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json dial-image python scripts/automated_client.py`
 - Manual run: `docker run --rm -it -e DIAL_CONFIG_FILE=/app/config.json -v path-to-your-config.json:/app/config.json dial-image python scripts/manual_client.py`
+
+## Kubernetes Deployment (Helm)
+
+A Helm chart is available for deploying Dial to Kubernetes with MongoDB database support. The chart includes:
+
+- Dial service deployment
+- MongoDB subchart from bitnami
+
+### Quick Start
+
+```bash
+cd charts/dial
+helm dependency update
+helm install dial . -n dial --create-namespace
+```
+
+For detailed Helm chart documentation, see:
+- [charts/dial/README.md](charts/dial/README.md) - Comprehensive Helm documentation
+
+### Common Helm Commands
+
+With custom INTERSECT configuration:
+```bash
+helm install dial . -n dial --create-namespace -f values.yaml -f values.config.yaml
+```
+
+With NodePort service:
+```bash
+helm install dial . -n dial --create-namespace -f values.yaml -f values.nodePort.yaml
+```
+
+With external MongoDB:
+```bash
+helm install dial . -n dial --create-namespace \
+  --set mongodb.enabled=false \
+  --set externalMongoDB.connectionString="mongodb://user:pass@host:27017/dial"
+```
 
 ## Testing
 

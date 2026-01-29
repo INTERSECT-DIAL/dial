@@ -42,12 +42,6 @@ services:
     volumes:
       - 'dial_mongodb_data:/bitnami/mongodb'
 
-  dial:
-    build: .
-    volumes:
-      - ./local-docker-conf.json:/app/local-conf.json:ro
-    
-
 volumes:
   dial_mongodb_data:
     driver: local

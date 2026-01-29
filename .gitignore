@@ -8,6 +8,7 @@
 # ignore all configuration files except for our default one
 *.json
 !local-conf.json
+!local-docker-conf.json
 
 # testing reports
 reports/
