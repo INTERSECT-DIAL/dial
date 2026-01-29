@@ -100,14 +100,10 @@ To run the client, select one of the following:
 
 ## Kubernetes Deployment (Helm)
 
-A comprehensive Helm chart is available for deploying Dial to Kubernetes with MongoDB database support. The chart includes:
+A Helm chart is available for deploying Dial to Kubernetes with MongoDB database support. The chart includes:
 
 - Dial service deployment
-- MongoDB subchart for persistent storage
-- INTERSECT broker configuration
-- Automatic MongoDB connection management
-- Health checks and probes
-- Scalability support
+- MongoDB subchart from bitnami
 
 ### Quick Start
 
