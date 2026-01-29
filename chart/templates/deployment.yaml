@@ -108,47 +108,6 @@ spec:
           {{- if .Values.dial.resources }}
           resources: {{- toYaml .Values.dial.resources | nindent 12 }}
           {{- end }}
-          {{- if not .Values.dial.diagnosticMode.enabled }}
-          {{- if .Values.dial.customLivenessProbe }}
-          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.customLivenessProbe "context" $) | nindent 12 }}
-          {{- else if .Values.dial.livenessProbe.enabled }}
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: {{ .Values.dial.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.dial.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.dial.livenessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.dial.livenessProbe.failureThreshold }}
-            successThreshold: {{ .Values.dial.livenessProbe.successThreshold }}
-          {{- end }}
-          {{- if .Values.dial.customReadinessProbe }}
-          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.customReadinessProbe "context" $) | nindent 12 }}
-          {{- else if .Values.dial.readinessProbe.enabled }}
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: {{ .Values.dial.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.dial.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.dial.readinessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.dial.readinessProbe.failureThreshold }}
-            successThreshold: {{ .Values.dial.readinessProbe.successThreshold }}
-          {{- end }}
-          {{- if .Values.dial.customStartupProbe }}
-          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.customStartupProbe "context" $) | nindent 12 }}
-          {{- else if .Values.dial.startupProbe.enabled }}
-          startupProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: {{ .Values.dial.startupProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.dial.startupProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.dial.startupProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.dial.startupProbe.failureThreshold }}
-            successThreshold: {{ .Values.dial.startupProbe.successThreshold }}
-          {{- end }}
-          {{- end }}
           {{- if .Values.lifecycleHooks }}
           lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
           {{- end }}

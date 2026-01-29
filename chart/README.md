@@ -49,8 +49,6 @@ helm install dial . -n dial --create-namespace -f values.yaml -f values.config.y
 |-----------|-------------|---------|
 | `dial.image.repository` | Dial image repository | `intersect-fabric/dial` |
 | `dial.image.tag` | Dial image tag | `latest` |
-| `dial.containerPorts.http` | HTTP port for Dial | `5000` |
-| `dial.service.type` | Service type | `ClusterIP` |
 | `dial.replicaCount` | Number of replicas | `1` |
 | `mongodb.enabled` | Enable MongoDB subchart | `true` |
 | `mongodb.auth.username` | MongoDB username | `dial` |
@@ -59,6 +57,8 @@ helm install dial . -n dial --create-namespace -f values.yaml -f values.config.y
 | `mongodb.persistence.size` | MongoDB storage size | `8Gi` |
 
 ### INTERSECT Configuration
+
+NOTE: Not sure if this is used by DIAL, looks like JSON is way.
 
 Configure INTERSECT-specific settings in `values.yaml`:
 
@@ -78,18 +78,38 @@ intersectConfig:
     service: "dial"
 ```
 
-### Service Type
-
-Default is `ClusterIP`. To use NodePort, either:
-
-1. Use the provided `values.nodePort.yaml`:
-```bash
-helm install dial . -f values.yaml -f values.nodePort.yaml
-```
-
-2. Or override directly:
-```bash
-helm install dial . --set dial.service.type=NodePort --set dial.service.nodePort=30000
+Also, the same information is in the `values.yaml` as JSON block under `dial.configFile`:
+```yaml
+dial:
+  configFile: |
+    {
+      "intersect": {
+        "brokers": [
+          {
+            "username": "intersect_username",
+            "password": "intersect_password",
+            "host": "broker",
+            "port": 1883,
+            "protocol": "mqtt3.1.1"
+          }
+        ]
+      },
+      "intersect-hierarchy": {
+        "organization": "intersect",
+        "facility": "default",
+        "system": "dial-system",
+        "subsystem": "dial-subsystem",
+        "service": "dial-service"
+      },
+      "dial": {
+        "mongo": {
+          "username": "dial",
+          "password": "changeme",
+          "host": "dial-mongodb",
+          "port": 27017
+        }
+      }
+    }
 ```
 
 ## MongoDB Configuration
@@ -134,24 +154,6 @@ dial:
     - name: CUSTOM_VAR
       value: "value"
 ```
-
-## Health Checks
-
-Dial container includes configurable health probes:
-
-```yaml
-dial:
-  livenessProbe:
-    enabled: true
-    initialDelaySeconds: 30
-    periodSeconds: 10
-  readinessProbe:
-    enabled: true
-    initialDelaySeconds: 10
-    periodSeconds: 10
-```
-
-The probes expect a `/health` endpoint on the Dial service.
 
 ## Resources
 
@@ -217,13 +219,9 @@ helm install dial . --dry-run --debug
 chart/
 ├── Chart.yaml                 # Chart metadata and dependencies
 ├── values.yaml               # Default values
-├── values.nodePort.yaml      # NodePort service override
-├── values.config.yaml        # INTERSECT configuration example
 ├── templates/
 │   ├── deployment.yaml       # Dial deployment
-│   ├── service.yaml          # Service definition
 │   ├── _helpers.tpl          # Template helpers
-│   ├── service-account.yaml  # Service account
 │   └── ...                   # Other templates
 └── README.md                 # This file
 ```
