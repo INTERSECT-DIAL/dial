@@ -2,6 +2,9 @@ name: Release
 
 on:
   push:
+    branches:
+      - develop
+      - main    
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -33,6 +36,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
+            type=ref,event=branch
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -42,6 +46,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          build-args: |
+            PRODUCTION=1
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

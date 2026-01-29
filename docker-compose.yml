@@ -44,6 +44,8 @@ services:
 
   dial:
     build: .
+    volumes:
+      - ./local-docker-conf.json:/app/local-conf.json:ro
     
 
 volumes:

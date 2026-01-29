@@ -82,11 +82,12 @@ spec:
           args: {{- include "common.tplvalues.render" (dict "value" .Values.dial.args "context" $) | nindent 12 }}
           {{- end }}
           env:
-            - name: MONGODB_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ template "common.names.fullname" . }}-mongodb-uri
-                  key: mongodb-uri
+            # TODO - have application code accomodate URI from env var as a substitute to explicitly defining each part of URI
+            #- name: MONGODB_URI
+              #valueFrom:
+                #secretKeyRef:
+                  #name: {{ template "common.names.fullname" . }}-mongodb-uri
+                  #key: mongodb-uri
             {{- if .Values.dial.extraEnvVars }}
             {{- include "common.tplvalues.render" (dict "value" .Values.dial.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
@@ -100,25 +101,17 @@ spec:
                 name: {{ include "common.tplvalues.render" (dict "value" .Values.dial.extraEnvVarsSecret "context" $) }}
             {{- end }}
           ports:
-            - name: http
-              containerPort: {{ .Values.dial.containerPorts.http }}
             {{- if .Values.dial.extraContainerPorts }}
             {{- include "common.tplvalues.render" (dict "value" .Values.dial.extraContainerPorts "context" $) | nindent 12 }}
             {{- end }}
           {{- if .Values.dial.customLivenessProbe }}
           livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.customLivenessProbe "context" $) | nindent 12 }}
-          {{- else if .Values.dial.livenessProbe }}
-          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.livenessProbe "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.dial.customReadinessProbe }}
           readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.customReadinessProbe "context" $) | nindent 12 }}
-          {{- else if .Values.dial.readinessProbe }}
-          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.readinessProbe "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.dial.customStartupProbe }}
           startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.customStartupProbe "context" $) | nindent 12 }}
-          {{- else if .Values.dial.startupProbe }}
-          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.dial.startupProbe "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.dial.resources }}
           resources: {{- toYaml .Values.dial.resources | nindent 12 }}

@@ -72,15 +72,13 @@ replicaCount: 1
 ### Dial Service Configuration ###
 
 dial:
-  enabled: true
-
   ### container image - uses GitHub Container Registry
   image:
     registry: ghcr.io
-    repository: "marshallmcdonnell/dial"
+    repository: "intersect-dial/dial"
     tag: "latest"
     digest: ""
-    pullPolicy: "IfNotPresent"
+    pullPolicy: ""
     pullSecrets: []
 
   ### Configuration file (local-conf.json)
@@ -122,9 +120,6 @@ dial:
     args:
       - infinity
 
-  containerPorts:
-    http: 5000
-
   extraContainerPorts: []
 
   resources:
@@ -139,35 +134,6 @@ dial:
   extraEnvVars: []
   extraEnvVarsCM: ""
   extraEnvVarsSecret: ""
-
-  ### Traffic exposure
-
-  service:
-    type: ClusterIP
-    port: 5000
-    nodePort: ""
-    clusterIP: ""
-    loadBalancerIP: ""
-    loadBalancerSourceRanges: []
-    externalTrafficPolicy: Cluster
-    annotations: {}
-    sessionAffinity: None
-    sessionAffinityConfig: {}
-
-  ingress:
-    enabled: false
-    pathType: ImplementationSpecific
-    hostname: dial.local
-    ingressClassName: ""
-    path: /
-    annotations: {}
-    tls: false
-    selfSigned: false
-    extraHosts: []
-    extraPaths: []
-    extraTls: []
-    secrets: []
-    extraRules: []
 
 ### Service Account Configuration ###
 

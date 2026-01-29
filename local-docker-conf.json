@@ -4,7 +4,7 @@
       {
         "username": "intersect_username",
         "password": "intersect_password",
-        "host": "127.0.0.1",
+        "host": "broker",
         "port": 5672,
         "protocol": "amqp0.9.1"
       }
@@ -21,7 +21,7 @@
     "mongo": {
       "username": null,
       "password": null,
-      "host": "127.0.0.1",
+      "host": "mongodb",
       "port": 27017
     }
   },

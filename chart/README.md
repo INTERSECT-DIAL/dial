@@ -49,7 +49,7 @@ helm install dial . -n dial --create-namespace -f values.yaml -f values.config.y
 |-----------|-------------|---------|
 | `dial.image.repository` | Dial image repository | `intersect-fabric/dial` |
 | `dial.image.tag` | Dial image tag | `latest` |
-| `dial.replicaCount` | Number of replicas | `1` |
+| `replicaCount` | Number of replicas | `1` |
 | `mongodb.enabled` | Enable MongoDB subchart | `true` |
 | `mongodb.auth.username` | MongoDB username | `dial` |
 | `mongodb.auth.password` | MongoDB password | `changeme` |
