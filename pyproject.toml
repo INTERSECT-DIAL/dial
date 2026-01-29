@@ -108,6 +108,7 @@ ignore = [
 ]
 'scripts/*' = [
     'T20', # allow print/pprint statements in scripts
+    'N999', # allow scripts to have non-pep8-compliant names, i.e. "2d_rosenbrock"
 ]
 'tests/*' = [
     'S101',   # allow assert statements in tests
@@ -129,3 +130,8 @@ plugins = ["pydantic.mypy"]
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "statsmodels>=0.14.4",
+]
