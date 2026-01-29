@@ -25,7 +25,7 @@ spec:
         {{- end }}
       labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
     spec:
-      serviceAccountName: {{ template "dial.serviceAccountName" . }}
+      #serviceAccountName: {{ template "dial.serviceAccountName" . }}
       {{- include "dial.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.hostAliases }}
       hostAliases: {{- include "common.tplvalues.render" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
