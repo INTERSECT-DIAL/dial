@@ -1,8 +1,10 @@
 {{- if .Values.autoscaling.enabled }}
 {{- if semverCompare ">=1.23-0" .Capabilities.KubeVersion.GitVersion -}}
 apiVersion: autoscaling/v2
+{{- else if semverCompare ">=1.19-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: autoscaling/v2beta2
 {{- else -}}
-{{- fail "Invalid k8s version, version >=1.23 is required" }}
+{{- fail "Invalid k8s version, version >=1.19 is required" }}
 {{- end }}
 kind: HorizontalPodAutoscaler
 metadata:
