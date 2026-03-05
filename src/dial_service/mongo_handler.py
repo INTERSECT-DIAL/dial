@@ -36,8 +36,10 @@ class MongoDBHandler:
             username=creds.username,
             password=creds.password,
         )
-        logger.info(client.admin.command('ping'))
-        self._mongo_collection = client.get_database(creds.db_name).get_collection('workflows')
+        db = client.get_database(creds.db_name)
+        ping_result = db.command('ping')
+        logger.info(ping_result)
+        self._mongo_collection = db.get_collection('workflows')
         # DO THE BELOW INSTEAD IF USING CUSTOM INDEXES INSTEAD
         # self._mongo_collection.create_index([('workflow_id', ASCENDING)], unique=True)
 

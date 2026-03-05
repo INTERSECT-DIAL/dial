@@ -1,0 +1,12 @@
+apiVersion: v2
+name: dial
+description: "DIAL (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
+version: 0.1.0
+dependencies:
+  - name: common
+    repository: https://charts.bitnami.com/bitnami
+    version: "^2.9.1"
+  - name: mongodb
+    repository: https://charts.bitnami.com/bitnami
+    version: "^15.0.0"
+    condition: mongodb.enabled

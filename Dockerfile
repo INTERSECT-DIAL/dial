@@ -4,7 +4,7 @@ FROM ${REPO}python:3.12-slim AS environment
 
 # set to non-empty string to skip dev dependencies
 ARG PRODUCTION=
-ENV PDM_VERSION=2.19.3 \
+ENV PDM_VERSION=2.21.0 \
   PDM_HOME=/usr/local \
   PDM_CHECK_UPDATE=false \
   PIP_NO_CACHE_DIR=off \
