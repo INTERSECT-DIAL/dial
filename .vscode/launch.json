@@ -1,0 +1,57 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Debug scripts/* (pick file)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "program": "${workspaceFolder}/scripts/${input:scriptFile}",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "args": [
+        "--config",
+        "${workspaceFolder}/local-conf.json"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "DIAL_CONFIG_FILE": "${workspaceFolder}/local-conf.json"
+      }
+    },
+    {
+      "name": "Python: Debug current file in scripts/",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "args": [
+        "--config",
+        "${workspaceFolder}/local-conf.json"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "DIAL_CONFIG_FILE": "${workspaceFolder}/local-conf.json"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "scriptFile",
+      "type": "pickString",
+      "description": "Choose a script in scripts/ to debug",
+      "options": [
+        "1d_ras_client.py",
+        "1d_sinusoidal_growth_client.py",
+        "2d_rosenbrock_client.py",
+        "launch_service.py",
+        "manual_client.py",
+        "mock_rosenbrock_service.py"
+      ],
+      "default": "1d_sinusoidal_growth_client.py"
+    }
+  ]
+}
