@@ -189,6 +189,9 @@ class ActiveLearningOrchestrator:
                 strategy=self.strategy,
                 strategy_args=self.strategy_args,
                 bounds=self.bounds.tolist(),
+                # To acquire data only on a grid, comment in the following
+                # discrete_measurements=True,
+                # discrete_measurement_grid_size=[50],
             )
 
         elif operation == 'dial.update_workflow_with_data':
@@ -237,11 +240,12 @@ class ActiveLearningOrchestrator:
         self.dataset_x.append(self.x_next)
         self.dataset_y.append(y_scalar)
 
-        optpos = np.argmax(self.dataset_y)
-        y_opt = self.dataset_y[optpos]
-        optimal_coords = self.dataset_x[optpos]
-        coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
-        print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
+        # In this example we are running pure exploration, no optimization:
+        # optpos = np.argmax(self.dataset_y)
+        # y_opt = self.dataset_y[optpos]
+        # optimal_coords = self.dataset_x[optpos]
+        # coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
+        # print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
 
     def graph(self):
         plt.clf()

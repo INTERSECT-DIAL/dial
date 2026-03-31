@@ -122,8 +122,7 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
 
     if data.discrete_measurements:
         _measurement_grid = create_measurement_grid(data)
-        means, stddevs = backend_module.predict(model, _measurement_grid, data)
-        response_surface = -strategy_(means, stddevs)
+        response_surface = to_minimize(_measurement_grid)
         index = np.int64(np.argmin(response_surface))
         selected_point = _measurement_grid[index]
         logger.debug('selected point with discrete measurements')
