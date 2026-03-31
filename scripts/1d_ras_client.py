@@ -58,6 +58,7 @@ def truth_model(x, noise_level, rng):
 
     return y, y_err
 
+
 class IntersectCallbackError(Exception):
     def __init__(self, operation, payload):
         message = f"Intersect callback_message error during operation \
@@ -80,7 +81,7 @@ class ActiveLearningOrchestrator:
         self.rng = np.random.default_rng(self.seed)
 
         self.x_raw = np.linspace(-1.0, 1.0, 5).reshape(-1, 1)
-        self.x_test = np.array([[-0.5], [0.5]])
+        self.x_test = np.array([[-0.051], [0.051]])
         self.meshgrid_size = 1000
         self.grid_points = [
             np.linspace(dim_bounds[0], dim_bounds[1], self.meshgrid_size)
@@ -109,7 +110,7 @@ class ActiveLearningOrchestrator:
         self.strategy = 'upper_confidence_bound'
         self.strategy_args = {'exploit': 0.0, 'explore': 1.0}
         self.niter = 0
-        self.max_iter = 10
+        self.max_iter = 30
         self.at_grids = True
         self.stddev_grid = None
         self.mean_grid = None
@@ -219,7 +220,7 @@ class ActiveLearningOrchestrator:
         else:
             self.stddev_test = np.array(response_data[1])
             self.mean_test = np.array(response_data[0])
-            print(f'Test Mean: {self.mean_test}, Stddev: {self.stddev_test}')
+            print(f'Values at testing points {self.x_test.reshape(-1)}: Mean: {self.mean_test}, Stddev: {self.stddev_test}')
 
         if self.niter > self.max_iter:
             raise IntersectCallbackEnd
