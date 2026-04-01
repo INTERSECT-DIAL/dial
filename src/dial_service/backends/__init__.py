@@ -7,7 +7,7 @@ from ..serverside_data import ServersideInputBase, ServersideInputPrediction
 # tuple of module and class name
 _BACKENDS = {
     'gpax': ('dial_service.backends.gpax_backend', 'GpaxBackend'),
-    'ras': ('dial_service.backends.ras_backend', 'RASBackend'),
+    'sable': ('dial_service.backends.sable_backend', 'SABLEBackend'),
     'sklearn': ('dial_service.backends.sklearn_backend', 'SklearnBackend'),
 }
 

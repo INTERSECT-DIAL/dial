@@ -1,14 +1,14 @@
 """NOTE: This file should not be imported in application code except dynamically via the get_backend_module function in __init__.py ."""
 
 import numpy as np
-from RAS import DiscretizedSurrogateModel, ScaledRBFModel
+from sable import DiscretizedSurrogateModel, ScaledRBFModel
 
 from ..utilities import strategies
 from . import AbstractBackend
 
-_KERNELS_RAS = {'rbf': ScaledRBFModel}
+_KERNELS_SABLE = {'rbf': ScaledRBFModel}
 
-_SAMPLERS_RAS = {
+_SAMPLERS_SABLE = {
     'uncertainty': strategies.greedy_sampling,
     'upper_confidence_bound': strategies.greedy_sampling,
     'upper_confidence_bound_nomad': strategies.greedy_sampling,
@@ -31,6 +31,7 @@ def _get_model_kwargs(data) -> dict:
 def _get_observation_errors(data, n_observations: int) -> np.ndarray:
     backend_args = {} if data.backend_args is None else data.backend_args
     y_err = backend_args.get('y_err', backend_args.get('noise_level', 1e-6))
+    # TODO figure this out: We need a consistent way to configure alpha / noise_level / y_err
 
     y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
     if y_err_arr.size == 1:
@@ -44,13 +45,13 @@ def _get_observation_errors(data, n_observations: int) -> np.ndarray:
     return y_err_arr
 
 
-class RASBackend(
+class SABLEBackend(
     AbstractBackend[DiscretizedSurrogateModel, ScaledRBFModel, tuple[np.ndarray, np.ndarray]]
 ):
     @staticmethod
     def get_kernel(data):
         kernel_args = {} if data.kernel_args is None else data.kernel_args
-        return _KERNELS_RAS[data.kernel.lower()](
+        return _KERNELS_SABLE[data.kernel.lower()](
             x_dimension=data.dim_x,
             x_range=kernel_args.get('x_range', (0.0, 1.0)),
             sigma_range=kernel_args.get('sigma_range', (1e-2, 1.0)),
@@ -59,17 +60,17 @@ class RASBackend(
 
     @staticmethod
     def train_model(data):
-        """Create and train a RAS surrogate model."""
-        model = RASBackend.initialize_model(data)
+        """Create and train a SABLE surrogate model."""
+        model = SABLEBackend.initialize_model(data)
         y_err = _get_observation_errors(data, len(data.Y_train))
         model.fit(data.X_train, data.Y_train, y_err=y_err)
         return model
 
     @staticmethod
     def initialize_model(data):
-        """Create a RAS surrogate model without training."""
+        """Create a SABLE surrogate model without training."""
         return DiscretizedSurrogateModel(
-            featuremodel=RASBackend.get_kernel(data),
+            featuremodel=SABLEBackend.get_kernel(data),
             **_get_model_kwargs(data),
         )
 
@@ -83,9 +84,9 @@ class RASBackend(
 
     @staticmethod
     def sample(module, model, data):
-        return _SAMPLERS_RAS[data.strategy.lower()](module, model, data)
+        return _SAMPLERS_SABLE[data.strategy.lower()](module, model, data)
 
     @staticmethod
     def samples(module, model, data):
-        samples = _SAMPLERS_RAS[data.strategy.lower()](module, model, data)
+        samples = _SAMPLERS_SABLE[data.strategy.lower()](module, model, data)
         return [[float(x)] for x in samples]

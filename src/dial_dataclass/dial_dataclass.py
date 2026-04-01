@@ -6,7 +6,7 @@ from .pydantic_helpers import ValidatedObjectId
 
 PositiveIntType = Annotated[int, Field(ge=0)]
 
-_POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'RAS')
+_POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'sable')
 
 BackendType = Literal[_POSSIBLE_BACKENDS]
 

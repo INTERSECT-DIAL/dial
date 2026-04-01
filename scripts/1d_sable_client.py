@@ -99,7 +99,7 @@ class ActiveLearningOrchestrator:
 
         self.kernel = 'rbf'
         self.kernel_args = {'x_range': [0.0, 1.0], 'sigma_range': [2.5e-3, 0.5], 'gamma': 0.1}
-        self.backend = 'RAS'
+        self.backend = 'sable'
         self.backend_args = {
             'n_features': 5000,
             'alpha': 0.05,
@@ -288,7 +288,7 @@ class ActiveLearningOrchestrator:
         axs[1].grid(True)
 
         plt.tight_layout()
-        plt.savefig('graph_ras.png')
+        plt.savefig('graph_sable.png')
         plt.close(fig)
 
 
