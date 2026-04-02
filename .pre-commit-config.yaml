@@ -13,13 +13,11 @@ repos:
       - id: ruff
         args: [ --fix ]
       - id: ruff-format
-  - repo: https://github.com/pdm-project/pdm
-    rev: 2.17.2
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.10.6
     hooks:
-      - id: pdm-export
-        args: ['--without-hashes']
-      - id: pdm-lock-check
-      - id: pdm-sync
+      - id: uv-lock
+      #- id: uv-export
   # TODO - enable mypy
   #- repo: local
     #hooks:

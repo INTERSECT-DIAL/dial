@@ -4,6 +4,7 @@
 !tests/**/*
 !pyproject.toml
 !pdm.lock
+!uv.lock
 !README.md
 !docker-entrypoint.sh
 __pycache__
