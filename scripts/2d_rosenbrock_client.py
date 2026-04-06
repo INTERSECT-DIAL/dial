@@ -67,6 +67,11 @@ INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHG
 
 NUM_ITERATIONS = 35
 
+# HYPERPARAMETERS
+LENGTH_SCALE = 0.2
+NOISE_LEVEL = 10e-6
+CONSTANT_VALUE = 1.0
+
 
 class ActiveLearningOrchestrator:
     def __init__(self, service_destination: str, rosenbrock_destination: str):
@@ -90,6 +95,13 @@ class ActiveLearningOrchestrator:
                 bounds=INITIAL_BOUNDS,
                 dim_x=NUM_DIMS,  # Explicitly set the dimension based on the bounds
                 kernel='rbf',
+                kernel_args={
+                    'length_scale': LENGTH_SCALE,
+                    'noise_level': NOISE_LEVEL,
+                    'noise_level_bounds': 'fixed',
+                    'constant_value': CONSTANT_VALUE,
+                    'constant_value_bounds': 'fixed',
+                },
                 length_per_dimension=False,  # allow the matern to use separate length scales for the two parameters
                 y_is_good=False,  # we wish to minimize y (the error)
                 backend='sklearn',  # "sklearn" or "gpax"
