@@ -71,18 +71,33 @@ MIN_ALLOWED_Y = (
     20.0  # when generating initial data, don't allow a point with better results than this
 )
 MAX_TARGET_Y = 10.0  # after running training, make sure that we reach this target
-INITIAL_DATASET_X = np.random.uniform(-2.0, 2.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
+
+
+def generate_initial_dataset() -> list[list[float]]:
+    return np.random.uniform(-2.0, 2.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
 
 def run_simulation(
     dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
 ) -> None:
+    # HYPERPARAMETERS
+    LENGTH_SCALE = 0.2
+    NOISE_LEVEL = 10e-6
+    CONSTANT_VALUE = 1.0
+
     # train model with new data
     client_state = DialWorkflowCreationParamsService(
         dataset_x=dataset_x,
         dataset_y=dataset_y,
         bounds=INITIAL_BOUNDS,
         kernel='rbf',
+        kernel_args={
+            'length_scale': LENGTH_SCALE,
+            'noise_level': NOISE_LEVEL,
+            'noise_level_bounds': 'fixed',
+            'constant_value': CONSTANT_VALUE,
+            'constant_value_bounds': 'fixed',
+        },
         y_is_good=False,  # we wish to minimize y (the error)
         backend='sklearn',  # "sklearn" or "gpax"
         seed=-1,  # Use seed = -1 for random results
@@ -124,12 +139,14 @@ def run_simulation(
     dataset_y.append(next_point_rosenbrock)
 
 
-def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float, list[float]]:
+def accuracy_benchmark(
+    strategy: str, strategy_args: object, dataset_x: list[list[float]]
+) -> tuple[int, float, list[float]]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
-      - target value achieved
-      - best guess from the input parameters
+      - target value achieved (y)
+      - best guess from the input parameters (x)
     """
 
     iterations = 1
@@ -144,7 +161,6 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
     # if dataset_y[minpos] >= MIN_ALLOWED_Y:
     # break
 
-    dataset_x = INITIAL_DATASET_X
     dataset_y = rosenbrock_bulk([RosenbrockInputs(x=pt[0], y=pt[1]) for pt in dataset_x])
     minpos = np.argmin(dataset_y)
 
@@ -204,7 +220,9 @@ def test_benchmark_rosenbrock_accuracy(
     # iterations, target = benchmark(
     # partial(accuracy_benchmark, strategy, strategy_args)
     # )
-    iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
+    iterations, target, guess = accuracy_benchmark(
+        strategy, strategy_args, generate_initial_dataset()
+    )
     print(
         'Iterations for',
         strategy,
@@ -271,7 +289,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    strategies = TEST_PARAMS[1]
+    parameters = TEST_PARAMS[1]
 
     # Run multiple iterations for statistical analysis
     NUM_RUNS = args.num_runs
@@ -281,9 +299,9 @@ if __name__ == '__main__':
 
     def _run_single(task: tuple) -> tuple:
         """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess)."""
-        strategy, strategy_args, run_index = task
+        strategy, strategy_args, run_index, dataset_x = task
         strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
+        iterations, target, guess = accuracy_benchmark(strategy, strategy_args, dataset_x)
         logger.info(
             '  [%s] Run %d: iterations=%d, target=%.4f',
             strategy_name,
@@ -294,10 +312,11 @@ if __name__ == '__main__':
         return (strategy_name, strategy, strategy_args, iterations, target, guess)
 
     # Build a flat list of (strategy, strategy_args, run_index) tasks
+    datasets = [generate_initial_dataset() for _ in range(NUM_RUNS)]
     tasks = [
-        (strategy, strategy_args, run_index)
-        for strategy, strategy_args in strategies
-        for run_index in range(NUM_RUNS)
+        (strategy, strategy_args, run_index, dataset)
+        for strategy, strategy_args in parameters
+        for run_index, dataset in enumerate(datasets)
     ]
 
     with Pool() as pool:
@@ -306,11 +325,11 @@ if __name__ == '__main__':
     # Aggregate results preserving strategy order
     strategy_order = [
         f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        for strategy, strategy_args in strategies
+        for strategy, strategy_args in parameters
     ]
     raw: dict[str, dict] = {
         name: {'strategy': s, 'strategy_args': sa, 'iterations': [], 'targets': [], 'guesses': []}
-        for name, (s, sa) in zip(strategy_order, strategies, strict=True)
+        for name, (s, sa) in zip(strategy_order, parameters, strict=True)
     }
     for strategy_name, _strategy, _strategy_args, iterations, target, guess in run_outputs:
         raw[strategy_name]['iterations'].append(iterations)
@@ -619,20 +638,7 @@ if __name__ == '__main__':
     html_content += f"""        <p><strong>Most Reliable:</strong> <code>{best_reliability_strategy}</code> with {success_rates[best_success_idx]:.1f}% success rate</p>
 """
 
-    html_content += f"""    </div>
-    <h2>Starting Points</h2>
-    <details>
-      <summary>Click to expand initial X points</summary>
-      <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto;">
-{json.dumps(INITIAL_DATASET_X, indent=2)}
-      </pre>
-    </details>
-    <details>
-      <summary>Click to expand initial Y points</summary>
-      <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto;">
-{json.dumps(rosenbrock_bulk([RosenbrockInputs(x=pt[0], y=pt[1]) for pt in INITIAL_DATASET_X]), indent=2)}
-      </pre>
-    </details>
+    html_content += """    </div>
     <h2>📊 Raw Data</h2>
     <details>
         <summary>Click to expand raw results JSON</summary>
