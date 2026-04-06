@@ -51,12 +51,26 @@ class SklearnBackend(
             length_per_dimension = (
                 data.extra_args.get('length_per_dimension') if data.extra_args else False
             )
+            # TODO check if necessary
+            # dim = data.X_train.shape[1]
+            # _params['length_scale'] = [1.0] * dim if length_per_dimension else 1.0
             _params['length_scale'] = [1.0] * data.dim_x if length_per_dimension else 1.0
 
         base_kernel_cls = _KERNELS_SKLEARN[kernel_name]
-        const_params = _filter_kwargs_for(ConstantKernel, _params)
-        white_params = _filter_kwargs_for(WhiteKernel, _params)
         base_params = _filter_kwargs_for(base_kernel_cls, _params)
+
+        # Only do hyperparameter optimization if the user asks for it
+        # TODO make the default parameters for the kernels different from the sklearn defaults, but allow the user to customize it
+        const_params = {'constant_value_bounds': 'fixed', 'constant_value': 1.0}
+        const_params.update(_filter_kwargs_for(ConstantKernel, _params))
+        white_params = {'noise_level_bounds': 'fixed', 'noise_level': 1e-6}
+        white_params.update(_filter_kwargs_for(WhiteKernel, _params))
+
+        if base_kernel_cls == DotProduct:
+            base_params = {'sigma_0': 1.0, 'sigma_0_bounds': 'fixed'}
+        else:
+            base_params = {'length_scale': 1.0, 'length_scale_bounds': 'fixed'}
+        base_params.update(_filter_kwargs_for(base_kernel_cls, _params))
 
         constant_kernel = ConstantKernel(**const_params)
         base_kernel = base_kernel_cls(**base_params)
@@ -98,7 +112,9 @@ class SklearnBackend(
 
     @staticmethod
     def predict(model, data):
-
+        # TODO verify correct approach
+        # Get dimension from the trained model to ensure consistency
+        # dim = model.X_train_.shape[1]
         dim = data.dim_x
 
         derivative_type = data.extra_args.get('derivative_type', 0) if data.extra_args else 0
