@@ -97,6 +97,7 @@ class ActiveLearningOrchestrator:
                 kernel='rbf',
                 kernel_args={
                     'length_scale': LENGTH_SCALE,
+                    'length_scale_bounds': 'fixed',
                     'noise_level': NOISE_LEVEL,
                     'noise_level_bounds': 'fixed',
                     'constant_value': CONSTANT_VALUE,
