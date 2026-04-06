@@ -63,7 +63,7 @@ INITIAL_MESHGRIDS = np.meshgrid(
     *[np.linspace(dim_bounds[0], dim_bounds[1], MESHGRID_SIZE) for dim_bounds in INITIAL_BOUNDS],
     indexing='ij',
 )
-INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS])
+INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS]).tolist()
 
 NUM_ITERATIONS = 35
 
@@ -88,6 +88,7 @@ class ActiveLearningOrchestrator:
                 dataset_x=INITIAL_DATASET_X,
                 dataset_y=self.dataset_y,
                 bounds=INITIAL_BOUNDS,
+                dim_x=NUM_DIMS,  # Explicitly set the dimension based on the bounds
                 kernel='rbf',
                 length_per_dimension=False,  # allow the matern to use separate length scales for the two parameters
                 y_is_good=False,  # we wish to minimize y (the error)
@@ -159,7 +160,8 @@ class ActiveLearningOrchestrator:
             print(operation, file=sys.stderr)
             print(payload, file=sys.stderr)
             print(file=sys.stderr)
-            raise Exception  # noqa: TRY002 (break INTERSECT loop)
+            msg = f'Error in operation {operation}: payload = {payload}'
+            raise Exception(msg)  # noqa: TRY002 (break INTERSECT loop)
         if operation == 'Rosenbrock.rosenbrock':
             # this operation gets called periodically
             self.dataset_y.append(payload)
@@ -175,7 +177,8 @@ class ActiveLearningOrchestrator:
                     end='\n',
                     flush=True,
                 )
-                raise Exception  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
+                msg = 'Client simulation completed successfully.'
+                raise Exception(msg)  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
             return self.assemble_message(
                 'update_workflow_with_data', next_x=self.dataset_x[-1], next_y=payload
             )
@@ -191,14 +194,16 @@ class ActiveLearningOrchestrator:
         if (
             operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape((MESHGRID_SIZE,) * NUM_DIMS)
+            data = payload['data']
+            self.mean_grid = np.array(data[0]).reshape((MESHGRID_SIZE,) * NUM_DIMS)
             return self.assemble_message('get_next_point')
 
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
-            self.graph(payload)
-            self.dataset_x.append(payload)
-            coord_str = ', '.join([f'{coord:.2f}' for coord in payload])
+            next_point = payload['data']
+            self.graph(next_point)
+            self.dataset_x.append(next_point)
+            coord_str = ', '.join([f'{coord:.2f}' for coord in next_point])
             print(f'Running simulation at ({coord_str}): ', end='', flush=True)
             return self.assemble_rosenbrock_message('rosenbrock')
 

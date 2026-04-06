@@ -94,6 +94,10 @@ class ActiveLearningOrchestrator:
     def __call__(
         self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
+        print(
+            f'Received message from {_source} with operation {operation} and payload {payload}',
+            file=sys.stderr,
+        )
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
             print(operation, file=sys.stderr)
@@ -183,11 +187,15 @@ class ActiveLearningOrchestrator:
 
     def handle_surrogate_values(self, payload):
         if self.at_grids:
-            self.variance_grid = np.array(payload[1]).reshape((self.meshgrid_size,) * self.num_dims)
-            self.mean_grid = np.array(payload[0]).reshape((self.meshgrid_size,) * self.num_dims)
+            self.variance_grid = np.array(payload['data'][1]).reshape(
+                (self.meshgrid_size,) * self.num_dims
+            )
+            self.mean_grid = np.array(payload['data'][0]).reshape(
+                (self.meshgrid_size,) * self.num_dims
+            )
         else:
-            self.variance_test = np.array(payload[1])
-            self.mean_test = np.array(payload[0])
+            self.variance_test = np.array(payload['data'][1])
+            self.mean_test = np.array(payload['data'][0])
             print(f'Test Mean: {self.mean_test}, Variance: {self.variance_test}')
 
         # end of active learning loop after max_iter
@@ -195,7 +203,7 @@ class ActiveLearningOrchestrator:
             raise IntersectCallbackEnd
 
     def handle_next_points(self, payload):
-        self.x_next = payload
+        self.x_next = payload['data']
         coord_str = ', '.join([f'{coord:.2f}' for coord in self.x_next])
         print(f'Running simulation at ({coord_str}): ', end='', flush=True)
 
