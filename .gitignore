@@ -12,6 +12,8 @@
 
 # testing reports
 reports/
+# any generated custom HTML files
+*.html
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

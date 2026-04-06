@@ -125,6 +125,7 @@ ignore = [
     'ARG',    # allow unused parameters in tests
     'D',      # ignore documentation in tests
     'FA100',  # tests frequently use runtime typing annotations
+    'T201',   # allow print statements in tests
 ]
 
 [tool.mypy]
