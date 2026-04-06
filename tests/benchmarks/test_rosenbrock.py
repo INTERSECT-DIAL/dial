@@ -64,13 +64,13 @@ INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHG
 
 # test parameters
 INITIAL_NUM_POINTS = 9
-MAX_ITERATIONS = 10  # only allow a maximum of this many iterations in tests
+MAX_ITERATIONS = 200  # only allow a maximum of this many iterations in tests
 
 # try to use the same values across parametrized tests
 MIN_ALLOWED_Y = (
     20.0  # when generating initial data, don't allow a point with better results than this
 )
-MAX_TARGET_Y = 10.0  # after running training, make sure that we reach this target
+MAX_TARGET_Y = .1  # after running training, make sure that we reach this target
 
 
 def generate_initial_dataset() -> list[list[float]]:
@@ -81,8 +81,8 @@ def run_simulation(
     dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
 ) -> None:
     # HYPERPARAMETERS
-    LENGTH_SCALE = 0.2
-    NOISE_LEVEL = 10e-6
+    LENGTH_SCALE = [0.2, 0.1]
+    NOISE_LEVEL = 1.e-6
     CONSTANT_VALUE = 1.0
 
     # train model with new data
@@ -149,7 +149,7 @@ def accuracy_benchmark(
       - best guess from the input parameters (x)
     """
 
-    iterations = 1
+    iterations = 0
     target = float('inf')
 
     # initialize data, making sure the data we generate is not already optimal
@@ -167,7 +167,7 @@ def accuracy_benchmark(
     # run simulations until we reach an acceptable target range
     # TODO: find a different example to test local minima nearby? while still using a global optimizer
     # TODO check BoTorch examples (https://botorch.org/docs/tutorials/turbo_1/#optimize-the-20-dimensional-ackley-function)
-    while iterations <= MAX_ITERATIONS:
+    while iterations < MAX_ITERATIONS:
         try:
             run_simulation(dataset_x, dataset_y, strategy, strategy_args)
         except Exception as e:
@@ -182,6 +182,7 @@ def accuracy_benchmark(
         # if iterations >= MAX_ITERATIONS:
         # target = float('inf')
         # iterations = 1 << 63
+        print(iterations, target, guess)
 
     return (iterations, target, guess)
 
