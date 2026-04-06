@@ -13,6 +13,7 @@ import pytest
 # from pytest_benchmark.fixture import BenchmarkFixture
 from dial_dataclass import (
     DialInputSingleOtherStrategy,
+    DialInputPredictions,
 )
 from dial_service import (
     core as dial_core,
@@ -20,6 +21,7 @@ from dial_service import (
 from dial_service.serverside_data import (
     ServersideInputBase,
     ServersideInputSingle,
+    ServersideInputPrediction,
 )
 from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
 
@@ -36,7 +38,6 @@ high_f_data_name = '../fixtures/adaptive_strain_manufacturing_high_fidelity.csv'
 def normalize_data(in_data):
     m_data = (in_data.max() + in_data.min()) * 0.5
     d_data = (in_data.max() - in_data.min()) * 0.5
-    print(m_data, d_data)
     return (in_data - m_data) / d_data
 
 wall_st_index = 0
@@ -120,11 +121,11 @@ MESHGRID_SIZE = nrows
 INITIAL_MESHGRIDS = (x1_norm, x2_norm)
 INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS])
 
-INITIAL_PREDICTIONS = Sim_hi_e33_norm.reshape(-1, 1)
+INITIAL_PREDICTIONS = Real_e33_norm.reshape(-1, 1)
 
 ###############
 
-NOISE_LEVEL = 1e-2
+NOISE_LEVEL = 1.e-2
 
 from scipy.interpolate import LinearNDInterpolator
 truth_interp = LinearNDInterpolator(INITIAL_POINTS_TO_PREDICT, INITIAL_PREDICTIONS)
@@ -147,9 +148,9 @@ class StrainMap:
 
         y_true = truth_interp(np.asarray(x1), np.asarray(x2))
 
-        print("Evaluated truth model", np.hstack((x, y_true)))
+        #print("Evaluated truth model", np.hstack((x, y_true)))
 
-        y_noise = y_true + np.random.normal(size=y_true.shape)
+        y_noise = y_true + self.noise_level * np.random.normal(size=y_true.shape)
         return y_noise
 
 # build a strain map from the selected truth values
@@ -160,18 +161,18 @@ truth_strain_map = StrainMap(truth_interp=truth_interp,
 
 # test parameters
 INITIAL_NUM_POINTS = 9
-MAX_ITERATIONS = 10  # only allow a maximum of this many iterations in tests
+MAX_ITERATIONS = 150  # only allow a maximum of this many iterations in tests
 
 INITIAL_DATASET_X = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
-MAX_TARGET_Y = -100.
+TARGET_RMSE = .2
 
 def run_simulation(
     dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
-) -> None:
+) -> tuple[np.ndarray, np.ndarray]:
 
     # important "Hyper-parameters"
-    length_scale = 0.2
+    length_scale = .2
     noise_level = NOISE_LEVEL
     constant_value = 1.
 
@@ -193,11 +194,11 @@ def run_simulation(
         seed=-1,  # Use seed = -1 for random results
         dim_x=2,
     )
+
     data = ServersideInputBase(client_state)
     model = dial_core.train_model(data)
 
-    # get_surrogate_values
-    """
+    # use get_surrogate_values to predict mean and standard deviation on the inital points grid
     data = ServersideInputPrediction(
         client_state,
         DialInputPredictions(
@@ -205,9 +206,12 @@ def run_simulation(
             points_to_predict=INITIAL_POINTS_TO_PREDICT,
         )
     )
-    surrogate_results = dial_core.get_surrogate_values(data, model)
-    mean_grid = np.array(surrogate_results).reshape((MESHGRID_SIZE,) * NUM_DIMS)
-    """
+    surrogate_mean, surrogate_std, _ = dial_core.get_surrogate_values(data, model)
+    mean_grid = np.array(surrogate_mean).reshape((-1, 1))
+
+    # subtract the true values and save mean absolute error and standard deviation
+    err_grid = np.abs(mean_grid - INITIAL_PREDICTIONS).reshape((MESHGRID_SIZE,) * NUM_DIMS)
+    std_grid = np.array(surrogate_std).reshape((MESHGRID_SIZE,) * NUM_DIMS)
 
     # get_next_point
     data = ServersideInputSingle(
@@ -222,65 +226,91 @@ def run_simulation(
         ),
     )
     next_point = dial_core.get_next_point(data, model)
+
     dataset_x.append(next_point)
 
     # compute at next point
     next_point_y = truth_strain_map.strain_map(next_point).reshape(-1).tolist()
     dataset_y.append(next_point_y[0])
 
+    return err_grid, std_grid
 
-def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float, list[float]]:
+
+def graph(err_grid, dataset_x, strategy):
+    plt.clf()
+    data = np.array(err_grid)
+    plt.contourf(
+        INITIAL_MESHGRIDS[0],
+        INITIAL_MESHGRIDS[1],
+        data,
+        levels=np.logspace(-2, 0, 10),
+        norm='log',
+        extend='both',
+    )
+    cbar = plt.colorbar()
+    cbar.set_ticks(np.logspace(-2, 0, 7))
+    cbar.set_label('Simulation Result')
+    plt.xlabel('Simulation Parameter #1')
+    plt.ylabel('Simulation Parameter #2')
+    # add black dots for data points and a red marker for the recommendation:
+    X_train = np.array(dataset_x)
+    plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='o')
+    plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='black', marker='o')
+
+    plt.savefig(f'graph_{strategy}.png')
+
+
+def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
       - target value achieved
-      - best guess from the input parameters
     """
 
-    iterations = 1
-    target = float('inf')
+    iterations = 0
+    total_rmse = float('inf')
 
     initial_dataset_x = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
-    dataset_x = INITIAL_DATASET_X
+    dataset_x = initial_dataset_x
     dataset_y = truth_strain_map.strain_map(dataset_x).reshape(-1).tolist()
-    minpos = np.argmin(dataset_y)
 
     # run simulations until we reach an acceptable target range
-    while iterations <= MAX_ITERATIONS:
+    while iterations < MAX_ITERATIONS:
         try:
-            run_simulation(dataset_x, dataset_y, strategy, strategy_args)
+            err_grid, std_grid = run_simulation(dataset_x, dataset_y, strategy, strategy_args)
         except Exception as e:
             logger.exception('Error during simulation')
             raise AssertionError from e
-        minpos = np.argmin(dataset_y)
-        target = dataset_y[minpos]
-        guess = dataset_x[minpos]
-        if target <= MAX_TARGET_Y:
+
+        # guess has no meaning here, take the last acquired datapoint
+        guess = dataset_x[-1]
+
+        # compute the RMSE on the grid and the average
+        mse = err_grid**2 + std_grid**2
+        total_rmse = np.sqrt(np.mean(mse))
+        print(total_rmse)
+
+        #graph(np.sqrt(mse), dataset_x, strategy)
+
+        if total_rmse <= TARGET_RMSE:
             break
         iterations += 1
-        # if iterations >= MAX_ITERATIONS:
-        # target = float('inf')
-        # iterations = 1 << 63
 
-    return (iterations, target, guess)
+    return iterations, total_rmse, guess
 
 
 TEST_PARAMS = (
     ('strategy', 'strategy_args'),
     [
         (
-            'upper_confidence_bound',
-            {'exploit': 0., 'explore': 1.},
+            'uncertainty',
+            {}
         ),
         (
-            'uncertainty',
-            None,
+            'random',
+            {},
         ),
-        # (
-        #'random',
-        # None,
-        # ),
     ],
 )
 
@@ -309,7 +339,7 @@ def test_benchmark_strainmap_accuracy(
     )
     print(
         'Maximum early terminus value',
-        MAX_TARGET_Y,
+        TARGET_RMSE,
         ' with ',
         MAX_ITERATIONS,
         ' maximum iterations.',
@@ -396,7 +426,7 @@ if __name__ == '__main__':
             'std_iterations': np.std(iterations_list),
             'avg_target': np.mean(targets_list),
             'std_target': np.std(targets_list),
-            'success_rate': sum(1 for t in targets_list if t <= MAX_TARGET_Y) / NUM_RUNS * 100,
+            'success_rate': sum(1 for t in targets_list if t <= TARGET_RMSE) / NUM_RUNS * 100,
         }
 
     # Generate plots
@@ -455,7 +485,7 @@ if __name__ == '__main__':
         [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
     )
     ax2.axhline(
-        y=MAX_TARGET_Y, color='r', linestyle='--', label=f'Target Threshold ({MAX_TARGET_Y})'
+        y=TARGET_RMSE, color='r', linestyle='--', label=f'Target Threshold ({TARGET_RMSE})'
     )
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
@@ -478,7 +508,7 @@ if __name__ == '__main__':
     bars3 = ax3.bar(range(len(strategy_names)), success_rates, alpha=0.7, color='green')
     ax3.set_xlabel('Strategy')
     ax3.set_ylabel('Success Rate (%)')
-    ax3.set_title(f'Success Rate (Target ≤ {MAX_TARGET_Y})')
+    ax3.set_title(f'Success Rate (Target ≤ {TARGET_RMSE})')
     ax3.set_xticks(range(len(strategy_names)))
     ax3.set_xticklabels(
         [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
@@ -608,17 +638,15 @@ if __name__ == '__main__':
         <p><strong>Generated:</strong> {datetime.datetime.now(tz=datetime.timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p><strong>Number of Runs per Strategy:</strong> {NUM_RUNS}</p>
         <p><strong>Maximum Iterations:</strong> {MAX_ITERATIONS}</p>
-        <p><strong>Target Threshold:</strong> {MAX_TARGET_Y}</p>
+        <p><strong>Target Threshold:</strong> {TARGET_RMSE}</p>
         <p><strong>Initial Bounds:</strong> {INITIAL_BOUNDS}</p>
         <p><strong>Initial Points:</strong> {INITIAL_NUM_POINTS}</p>
     </div>
 
     <div class="summary">
         <h3>🎯 Test Objective</h3>
-        <p>This benchmark evaluates different acquisition strategies for Bayesian optimization on the classic Strainmap function.
-        The goal is to minimize the function value (error) within {MAX_ITERATIONS} iterations, starting from {INITIAL_NUM_POINTS} initial points.</p>
-        <p>The Strainmap function is defined as: <code>f(x,y) = (a-x)² + b(y-x²)²</code> with a=1.0, b=100.0</p>
-        <p>The global minimum is at (1.0, 1.0) with f(1,1) = 0</p>
+        <p>This benchmark evaluates different acquisition strategies for Bayesian optimization on a strain mapping experiment dataset.
+        The goal is to minimize the RMSE (error) within {MAX_ITERATIONS} iterations, starting from {INITIAL_NUM_POINTS} initial points.</p>
     </div>
 
     <h2>📈 Benchmark Results</h2>
