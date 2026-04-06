@@ -16,7 +16,7 @@ def random_in_bounds(bounds: list[list[float]], rng: np.random.RandomState):
 
 
 def uncertainty_sampling(_mean, stddev, _data):
-    return -stddev
+    return stddev
 
 
 def upper_confidence_bound(mean, stddev, data):
