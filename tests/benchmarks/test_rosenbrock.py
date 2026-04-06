@@ -179,7 +179,7 @@ TEST_PARAMS = (
         ),
         (
             'upper_confidence_bound',
-            {'exploit': 1, 'explore': 1},
+            {'exploit': 0.5, 'explore': 0.5},
         ),
         (
             'uncertainty',
@@ -234,6 +234,7 @@ if __name__ == '__main__':
     import argparse
     import datetime
     import json
+    from multiprocessing import Pool
     from pathlib import Path
 
     logger = logging.getLogger(f'{__name__}_runner')
@@ -274,37 +275,58 @@ if __name__ == '__main__':
 
     # Run multiple iterations for statistical analysis
     NUM_RUNS = args.num_runs
-    logger.info('Running benchmarks with %d iterations per strategy...', NUM_RUNS)
+    logger.info(
+        'Running benchmarks with %d iterations per strategy using multiprocessing...', NUM_RUNS
+    )
+
+    def _run_single(task: tuple) -> tuple:
+        """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess)."""
+        strategy, strategy_args, run_index = task
+        strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
+        iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
+        logger.info(
+            '  [%s] Run %d: iterations=%d, target=%.4f',
+            strategy_name,
+            run_index + 1,
+            iterations,
+            target,
+        )
+        return (strategy_name, strategy, strategy_args, iterations, target, guess)
+
+    # Build a flat list of (strategy, strategy_args, run_index) tasks
+    tasks = [
+        (strategy, strategy_args, run_index)
+        for strategy, strategy_args in strategies
+        for run_index in range(NUM_RUNS)
+    ]
+
+    with Pool() as pool:
+        run_outputs = pool.map(_run_single, tasks)
+
+    # Aggregate results preserving strategy order
+    strategy_order = [
+        f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
+        for strategy, strategy_args in strategies
+    ]
+    raw: dict[str, dict] = {
+        name: {'strategy': s, 'strategy_args': sa, 'iterations': [], 'targets': [], 'guesses': []}
+        for name, (s, sa) in zip(strategy_order, strategies, strict=True)
+    }
+    for strategy_name, _strategy, _strategy_args, iterations, target, guess in run_outputs:
+        raw[strategy_name]['iterations'].append(iterations)
+        raw[strategy_name]['targets'].append(target)
+        raw[strategy_name]['guesses'].append(guess)
 
     results = {}
-    for strategy, strategy_args in strategies:
-        strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        logger.info('\nBenchmarking: %s', strategy_name)
-
-        iterations_list = []
-        targets_list = []
-        guesses_list = []
-
-        for run in range(NUM_RUNS):
-            iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
-            iterations_list.append(iterations)
-            targets_list.append(target)
-            guesses_list.append(guess)
-            logger.info(
-                '  Run %d/%d: iterations=%d, target=%.4f', run + 1, NUM_RUNS, iterations, target
-            )
-
+    for strategy_name in strategy_order:
+        r = raw[strategy_name]
         results[strategy_name] = {
-            'strategy': strategy,
-            'strategy_args': strategy_args,
-            'iterations': iterations_list,
-            'targets': targets_list,
-            'guesses': guesses_list,
-            'avg_iterations': np.mean(iterations_list),
-            'std_iterations': np.std(iterations_list),
-            'avg_target': np.mean(targets_list),
-            'std_target': np.std(targets_list),
-            'success_rate': sum(1 for t in targets_list if t <= MAX_TARGET_Y) / NUM_RUNS * 100,
+            **r,
+            'avg_iterations': np.mean(r['iterations']),
+            'std_iterations': np.std(r['iterations']),
+            'avg_target': np.mean(r['targets']),
+            'std_target': np.std(r['targets']),
+            'success_rate': sum(1 for t in r['targets'] if t <= MAX_TARGET_Y) / NUM_RUNS * 100,
         }
 
     # Generate plots
@@ -597,8 +619,20 @@ if __name__ == '__main__':
     html_content += f"""        <p><strong>Most Reliable:</strong> <code>{best_reliability_strategy}</code> with {success_rates[best_success_idx]:.1f}% success rate</p>
 """
 
-    html_content += """    </div>
-
+    html_content += f"""    </div>
+    <h2>Starting Points</h2>
+    <details>
+      <summary>Click to expand initial X points</summary>
+      <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto;">
+{json.dumps(INITIAL_DATASET_X, indent=2)}
+      </pre>
+    </details>
+    <details>
+      <summary>Click to expand initial Y points</summary>
+      <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto;">
+{json.dumps(rosenbrock_bulk([RosenbrockInputs(x=pt[0], y=pt[1]) for pt in INITIAL_DATASET_X]), indent=2)}
+      </pre>
+    </details>
     <h2>📊 Raw Data</h2>
     <details>
         <summary>Click to expand raw results JSON</summary>
