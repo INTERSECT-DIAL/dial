@@ -19,18 +19,24 @@ dependencies = [
     "pymongo>=4.12.1",                   # TODO - this is only needed for dial_service, dial_dataclass can use a simple fixture for ObjectID representation which allows it to skip this dependency
 ]
 
-[tool.pdm.dev-dependencies]
-lint = [
+[dependency-groups]
+dev = [
     "pre-commit>=3.3.1",
     "mypy>=1.10.0",
     "ruff==0.9.4",
+    "pytest>=7.3.2",
+    "pytest-cov>=4.1.0",
+    "httpretty>=1.1.4",
+    "statsmodels>=0.14.4",
 ]
-test = ["pytest>=7.3.2", "pytest-cov>=4.1.0", "httpretty>=1.1.4"]
 
-[tool.pdm.scripts]
+[tool.hatch.build.targets.wheel]
+packages = ["src/dial_dataclass", "src/dial_service"]
+
+#[tool.pdm.scripts]
 # add --cov-fail-under=<NUMBER> when ready to require a minimum coverage amount
-test-all = "pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
-test-unit = "pytest tests/unit/"
+#test-all = "pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
+#test-unit = "pytest tests/unit/"
 
 [tool.ruff]
 line-length = 100
@@ -127,11 +133,11 @@ ignore_missing_imports = true       # don't require typing for library stubs if 
 disallow_untyped_decorators = false # this is needed for library decorator compatibility, i.e. "retrying"
 plugins = ["pydantic.mypy"]
 
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+#[build-system]
+#requires = ["setuptools", "setuptools-scm"]
+#build-backend = "setuptools.build_meta"
 
-[dependency-groups]
-dev = [
-    "statsmodels>=0.14.4",
-]
+# TODO - consider swapping to scikit-build-core backend if we need C/C++ extensions
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

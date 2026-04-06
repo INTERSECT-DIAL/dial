@@ -1,44 +1,44 @@
-ARG REPO=
-# common environment variables
-FROM ${REPO}python:3.12-slim AS environment
+# see https://docs.astral.sh/uv/guides/integration/docker/#optimizations and https://www.joshkasuboski.com/posts/distroless-python-uv/
 
-# set to non-empty string to skip dev dependencies
-ARG PRODUCTION=
-ENV PDM_VERSION=2.19.3 \
-  PDM_HOME=/usr/local \
-  PDM_CHECK_UPDATE=false \
-  PIP_NO_CACHE_DIR=off \
-  PIP_DISABLE_PIP_VERSION_CHECK=on \
-  PRODUCTION=${PRODUCTION:-}
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:debian-slim AS builder
 
-# intermediate PDM build stage
-FROM environment AS builder
+ARG PYTHON_VERSION=3.12
+# set to "0" to include dev dependencies, "1" to exclude them (default: "1")
+ARG UV_NO_DEV="1"
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/python
+ENV UV_PYTHON_PREFERENCE=only-managed
+ENV UV_NO_DEV=${UV_NO_DEV}
+
+RUN uv python install ${PYTHON_VERSION}
 
 WORKDIR /app
-RUN apt update \
-  && apt-get install --no-install-recommends -y \
-    curl \
-    make \
-  && rm -rf /var/lib/apt/lists/* \
-  && curl -sSL https://raw.githubusercontent.com/pdm-project/pdm/main/install-pdm.py | python -
 
-# add minimal files needed for package install
-COPY pyproject.toml README.md pdm.lock ./
+# Install (required) dependencies
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --no-editable
+
+# Sync the project
 COPY src src
-RUN if [ -n "${PRODUCTION}" ]; then pdm sync --no-editable --prod; else pdm sync --no-editable --dev; fi
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=README.md,target=README.md \
+    uv sync --locked --no-editable
 
-# main execution environment
-FROM environment AS runtime
+FROM --platform=$BUILDPLATFORM gcr.io/distroless/cc:nonroot AS runner
+
+COPY --from=builder --chown=app:app /python /python
 
 WORKDIR /app
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --chown=app:app scripts scripts
 
-COPY --from=builder /app/.venv /app/.venv
-COPY scripts scripts
 ENV PATH="/app/.venv/bin:$PATH"
 
 # override CMD at container runtime if you want to execute the client, make sure that "client" group is present
 CMD ["python", "scripts/launch_service.py"]
-
-# add additional files for testing
-FROM runtime AS test
-COPY tests tests
