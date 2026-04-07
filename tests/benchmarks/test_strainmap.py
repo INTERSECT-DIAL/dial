@@ -1,5 +1,5 @@
 """
-Benchmark which is meant to test core DIAL functionality (without the INTERSECT or MONGO pieces) for the Rosenbrock optimization problem.
+Benchmark which is meant to test core DIAL functionality (without the INTERSECT or MONGO pieces) for the Strain-Mapping benchmark problem.
 """
 
 import logging
@@ -7,11 +7,13 @@ import sys
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 import pytest
 
 # from pytest_benchmark.fixture import BenchmarkFixture
 from dial_dataclass import (
     DialInputSingleOtherStrategy,
+    DialInputPredictions,
 )
 from dial_service import (
     core as dial_core,
@@ -19,6 +21,7 @@ from dial_service import (
 from dial_service.serverside_data import (
     ServersideInputBase,
     ServersideInputSingle,
+    ServersideInputPrediction,
 )
 from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
 
@@ -28,87 +31,206 @@ MOCK_WORKFLOW_ID = '6984e6a6ef6e6290dabced91'
 """fake ObjectID for testing purposes, we do not actually interact with a DB in these tests."""
 
 
-@dataclass
-class RosenbrockInputs:
-    """Inputs necessary for the Rosenbrock function."""
+###############
+low_f_data_name = '../fixtures/adaptive_strain_manufacturing_low_fidelity.csv'
+high_f_data_name = '../fixtures/adaptive_strain_manufacturing_high_fidelity.csv'
 
-    x: float
-    y: float
-    a: float = 1.0
-    """Defaults to 1.0 if not set by user."""
-    b: float = 100.0
-    """Defaults to 100.0 if not set by user."""
+def normalize_data(in_data):
+    m_data = (in_data.max() + in_data.min()) * 0.5
+    d_data = (in_data.max() - in_data.min()) * 0.5
+    return (in_data - m_data) / d_data
+
+wall_st_index = 0
+wall_st_end = 676
+x_col_index = 0 # z follow next
+e_col_index = 2 # e11, e22 and e33
+nrows = int(26)  #Rows in sim strain map of the wall
+ncols = int(26)  #Cols in sim strain map of the wall
+data = pd.read_csv(low_f_data_name)
+
+Y, Z, E11, E22, E33, R11, R22, R33 = np.array([data.values[:,x_col_index],
+                                               data.values[:,x_col_index+1],
+                                               data.values[:,e_col_index],
+                                               data.values[:,e_col_index+1],
+                                               data.values[:,e_col_index+2],
+                                               data.values[:,e_col_index+3],
+                                               data.values[:,e_col_index+4],
+                                               data.values[:,e_col_index+5]])
+
+x1 = Y.astype(np.float32).reshape(nrows,ncols)
+x2 = Z.astype(np.float32).reshape(nrows,ncols)
+
+x1_norm = normalize_data(x1)
+x2_norm = normalize_data(x2)
+
+Sim_e11 = np.array(E11).astype(np.float32).reshape(nrows,ncols)
+Real_e11 = np.array(R11).astype(np.float32).reshape(nrows,ncols)
+
+Sim_e22 = np.array(E22).astype(np.float32).reshape(nrows,ncols)
+Real_e22 = np.array(R22).astype(np.float32).reshape(nrows,ncols)
+
+Sim_e33 = np.array(E33).astype(np.float32).reshape(nrows,ncols)
+Real_e33 = np.array(R33).astype(np.float32).reshape(nrows,ncols)
+
+# Normalize data
+Sim_e11_norm = normalize_data(Sim_e11)
+Real_e11_norm = normalize_data(Real_e11)
+
+Sim_e22_norm = normalize_data(Sim_e22)
+Real_e22_norm = normalize_data(Real_e22)
+
+Sim_e33_norm = normalize_data(Sim_e33)
+Real_e33_norm = normalize_data(Real_e33)
 
 
-def rosenbrock(r: RosenbrockInputs) -> float:
-    """
-    Represents simulation error (vs experimental data) as a function of 2 simulation parameters.
-    """
-    return (r.a - r.x) ** 2 + r.b * (r.y - r.x**2) ** 2
+data = pd.read_csv(high_f_data_name)
 
+Y, Z, E11, E22, E33, R11, R22, R33 = np.array([data.values[:,x_col_index],
+                                               data.values[:,x_col_index+1],
+                                               data.values[:,e_col_index],
+                                               data.values[:,e_col_index+1],
+                                               data.values[:,e_col_index+2],
+                                               data.values[:,e_col_index+3],
+                                               data.values[:,e_col_index+4],
+                                               data.values[:,e_col_index+5]])
 
-def rosenbrock_bulk(inputs: list[RosenbrockInputs]) -> list[float]:
-    return [rosenbrock(i) for i in inputs]
+Sim_hi_e11 = np.array(E11).astype(np.float32).reshape(nrows,ncols)
+Sim_hi_e22 = np.array(E22).astype(np.float32).reshape(nrows,ncols)
+Sim_hi_e33 = np.array(E33).astype(np.float32).reshape(nrows,ncols)
 
+# Transpose the high-fidelity simulation data
+# TODO, figure out why this is transposed
+Sim_hi_e11 = Sim_hi_e11.T
+Sim_hi_e22 = Sim_hi_e22.T
+Sim_hi_e33 = Sim_hi_e33.T
+
+# Normalize data
+Sim_hi_e11_norm = normalize_data(Sim_hi_e11)
+Sim_hi_e22_norm = normalize_data(Sim_hi_e22)
+Sim_hi_e33_norm = normalize_data(Sim_hi_e33)
+
+###############
+
+## Select data for ground truth
 
 # default inputs
-INITIAL_BOUNDS = [[-2.0, 2.0], [-2.0, 2.0]]
+INITIAL_BOUNDS = [[-1.0, 1.0], [-1.0, 1.0]]
 NUM_DIMS = len(INITIAL_BOUNDS)
 
-MESHGRID_SIZE = 101
-INITIAL_MESHGRIDS = np.meshgrid(
-    *[np.linspace(dim_bounds[0], dim_bounds[1], MESHGRID_SIZE) for dim_bounds in INITIAL_BOUNDS],
-    indexing='ij',
-)
+MESHGRID_SIZE = nrows
+INITIAL_MESHGRIDS = (x1_norm, x2_norm)
 INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS])
+
+INITIAL_PREDICTIONS = Real_e33_norm.reshape(-1, 1)
+
+###############
+
+NOISE_LEVEL = 1.e-2
+
+from scipy.interpolate import LinearNDInterpolator
+truth_interp = LinearNDInterpolator(INITIAL_POINTS_TO_PREDICT, INITIAL_PREDICTIONS)
+
+@dataclass
+class StrainMap:
+    """Strain Map function."""
+
+    noise_level: float
+
+    truth_interp: LinearNDInterpolator
+    """Strain interpolator that is used as 'ground_truth'"""
+
+    def strain_map(self, x) -> float:
+        """
+        Represents a measured strain as a function of two simulation parameters.
+        """
+        x = np.asarray(x).reshape((-1, 2))
+        x1, x2 = x[:, 0], x[:, 1]
+
+        y_true = truth_interp(np.asarray(x1), np.asarray(x2))
+
+        #print("Evaluated truth model", np.hstack((x, y_true)))
+
+        y_noise = y_true + self.noise_level * np.random.normal(size=y_true.shape)
+        return y_noise
+
+# build a strain map from the selected truth values
+truth_strain_map = StrainMap(truth_interp=truth_interp,
+                             noise_level=NOISE_LEVEL)
+
+###############
 
 # test parameters
 INITIAL_NUM_POINTS = 9
-MAX_ITERATIONS = 200  # only allow a maximum of this many iterations in tests
+MAX_ITERATIONS = 150  # only allow a maximum of this many iterations in tests
 
-# try to use the same values across parametrized tests
-MIN_ALLOWED_Y = (
-    20.0  # when generating initial data, don't allow a point with better results than this
-)
-MAX_TARGET_Y = .1  # after running training, make sure that we reach this target
+INITIAL_DATASET_X = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
-
-def generate_initial_dataset() -> list[list[float]]:
-    return np.random.uniform(-2.0, 2.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
-
+TARGET_RMSE = .2
 
 def run_simulation(
     dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
-) -> None:
-    # HYPERPARAMETERS
-    LENGTH_SCALE = [0.2, 0.1]
-    NOISE_LEVEL = 1.e-6
-    CONSTANT_VALUE = 1.0
+) -> tuple[np.ndarray, np.ndarray]:
 
-    # train model with new data
-    client_state = DialWorkflowCreationParamsService(
-        dataset_x=dataset_x,
-        dataset_y=dataset_y,
-        bounds=INITIAL_BOUNDS,
-        kernel='rbf',
-        kernel_args={
-            'length_scale': LENGTH_SCALE,
-            'length_scale_bounds': 'fixed',
-            'noise_level': NOISE_LEVEL,
-            'noise_level_bounds': 'fixed',
-            'constant_value': CONSTANT_VALUE,
-            'constant_value_bounds': 'fixed',
-        },
-        y_is_good=False,  # we wish to minimize y (the error)
-        backend='sklearn',  # "sklearn" or "gpax"
-        seed=-1,  # Use seed = -1 for random results
-        dim_x=2,
-    )
+    # important "Hyper-parameters"
+    length_scale = .2
+    noise_level = NOISE_LEVEL
+    constant_value = 1.
+
+    # modify a local copy of strategy_args
+    strategy_args = strategy_args.copy()
+    backend = strategy_args.pop('backend', 'sklearn')
+
+    if backend == 'sable':
+        # train model with new data
+        kernel_args = {
+            'x_range': [-1.0, 1.0],
+            'sigma_range': [1e-2, 1.],
+            'gamma': 0.1,
+        }
+        backend_args = {
+            'n_features': 5000,
+            'alpha': constant_value * 0.05,
+            'p': 1.25,
+            'n_iter_irls': 100,
+            'noise_level': noise_level,
+        }
+        
+        client_state = DialWorkflowCreationParamsService(
+            dataset_x=dataset_x,
+            dataset_y=dataset_y,
+            bounds=INITIAL_BOUNDS,
+            kernel='rbf',
+            kernel_args=kernel_args,
+            y_is_good=False,
+            backend=backend,
+            backend_args=backend_args,
+            seed=-1,
+            dim_x=2,
+        )
+    else:
+        # train model with new data
+        client_state = DialWorkflowCreationParamsService(
+            dataset_x=dataset_x,
+            dataset_y=dataset_y,
+            bounds=INITIAL_BOUNDS,
+            kernel='rbf',
+            kernel_args = {'length_scale': length_scale,
+                           'length_scale_bounds': 'fixed',
+                           'noise_level': noise_level,
+                           'noise_level_bounds': 'fixed',
+                           'constant_value': constant_value,
+                           'constant_value_bounds': 'fixed',
+                           },
+            y_is_good=False,  # we wish to minimize y (the error)
+            backend=backend,  # "sklearn" or "gpax"
+            seed=-1,  # Use seed = -1 for random results
+            dim_x=2,
+        )
+
     data = ServersideInputBase(client_state)
     model = dial_core.train_model(data)
 
-    # get_surrogate_values
-    """
+    # use get_surrogate_values to predict mean and standard deviation on the inital points grid
     data = ServersideInputPrediction(
         client_state,
         DialInputPredictions(
@@ -116,9 +238,12 @@ def run_simulation(
             points_to_predict=INITIAL_POINTS_TO_PREDICT,
         )
     )
-    surrogate_results = dial_core.get_surrogate_values(data, model)
-    mean_grid = np.array(surrogate_results).reshape((MESHGRID_SIZE,) * NUM_DIMS)
-    """
+    surrogate_mean, surrogate_std, _ = dial_core.get_surrogate_values(data, model)
+    mean_grid = np.array(surrogate_mean).reshape((-1, 1))
+
+    # subtract the true values and save mean absolute error and standard deviation
+    err_grid = np.abs(mean_grid - INITIAL_PREDICTIONS).reshape((MESHGRID_SIZE,) * NUM_DIMS)
+    std_grid = np.array(surrogate_std).reshape((MESHGRID_SIZE,) * NUM_DIMS)
 
     # get_next_point
     data = ServersideInputSingle(
@@ -133,86 +258,101 @@ def run_simulation(
         ),
     )
     next_point = dial_core.get_next_point(data, model)
+
     dataset_x.append(next_point)
 
-    # compute rosenbrock at next point
-    next_point_rosenbrock = rosenbrock(RosenbrockInputs(x=next_point[0], y=next_point[1]))
-    dataset_y.append(next_point_rosenbrock)
+    # compute at next point
+    next_point_y = truth_strain_map.strain_map(next_point).reshape(-1).tolist()
+    dataset_y.append(next_point_y[0])
+
+    return err_grid, std_grid
 
 
-def accuracy_benchmark(
-    strategy: str, strategy_args: object, dataset_x: list[list[float]]
-) -> tuple[int, float, list[float]]:
+def graph(err_grid, dataset_x, strategy):
+    plt.clf()
+    data = np.array(err_grid)
+    plt.contourf(
+        INITIAL_MESHGRIDS[0],
+        INITIAL_MESHGRIDS[1],
+        data,
+        levels=np.logspace(-2, 0, 10),
+        norm='log',
+        extend='both',
+    )
+    cbar = plt.colorbar()
+    cbar.set_ticks(np.logspace(-2, 0, 7))
+    cbar.set_label('RMSE')
+    plt.xlabel('Simulation Parameter #1')
+    plt.ylabel('Simulation Parameter #2')
+    # add black dots for data points and a red marker for the recommendation:
+    X_train = np.array(dataset_x)
+    plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='o')
+    plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='black', marker='o')
+
+    plt.savefig(f'graph_{strategy}.png')
+
+
+def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
-      - target value achieved (y)
-      - best guess from the input parameters (x)
+      - target value achieved
     """
 
     iterations = 0
-    target = float('inf')
+    total_rmse = float('inf')
 
-    # initialize data, making sure the data we generate is not already optimal
-    # TODO maybe throw out this check to force good points
-    # while True:
-    # dataset_x = np.random.uniform(-2.0, 2.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
-    # dataset_y = rosenbrock_bulk([RosenbrockInputs(x=pt[0], y=pt[1]) for pt in dataset_x])
-    # minpos = np.argmin(dataset_y)
-    # if dataset_y[minpos] >= MIN_ALLOWED_Y:
-    # break
+    initial_dataset_x = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
-    dataset_y = rosenbrock_bulk([RosenbrockInputs(x=pt[0], y=pt[1]) for pt in dataset_x])
-    minpos = np.argmin(dataset_y)
+    dataset_x = initial_dataset_x
+    dataset_y = truth_strain_map.strain_map(dataset_x).reshape(-1).tolist()
 
     # run simulations until we reach an acceptable target range
-    # TODO: find a different example to test local minima nearby? while still using a global optimizer
-    # TODO check BoTorch examples (https://botorch.org/docs/tutorials/turbo_1/#optimize-the-20-dimensional-ackley-function)
     while iterations < MAX_ITERATIONS:
         try:
-            run_simulation(dataset_x, dataset_y, strategy, strategy_args)
+            err_grid, std_grid = run_simulation(dataset_x, dataset_y, strategy, strategy_args)
         except Exception as e:
             logger.exception('Error during simulation')
             raise AssertionError from e
-        minpos = np.argmin(dataset_y)
-        target = dataset_y[minpos]
-        guess = dataset_x[minpos]
-        if target <= MAX_TARGET_Y:
+
+        # guess has no meaning here, take the last acquired datapoint
+        guess = dataset_x[-1]
+
+        # compute the RMSE on the grid and the average
+        mse = err_grid**2 + std_grid**2
+        total_rmse = np.sqrt(np.mean(mse))
+        print(iterations, total_rmse)
+
+        graph(np.sqrt(mse), dataset_x, f"{strategy}_{strategy_args.get('backend', 'sklearn')}")
+
+        if total_rmse <= TARGET_RMSE:
             break
         iterations += 1
-        # if iterations >= MAX_ITERATIONS:
-        # target = float('inf')
-        # iterations = 1 << 63
-        print(iterations, target, guess)
 
-    return (iterations, target, guess)
+    return iterations, total_rmse, guess
 
 
 TEST_PARAMS = (
     ('strategy', 'strategy_args'),
     [
         (
-            'expected_improvement',
-            None,
-        ),
-        (
-            'upper_confidence_bound',
-            {'exploit': 0.5, 'explore': 0.5},
+            'uncertainty',
+            {}
         ),
         (
             'uncertainty',
-            None,
+            {'backend': 'sable'}
         ),
-        # (
-        #'random',
-        # None,
-        # ),
+        (
+            'random',
+            {},
+        ),
     ],
 )
 
 
 @pytest.mark.parametrize(*TEST_PARAMS)
-def test_benchmark_rosenbrock_accuracy(
+def test_benchmark_strainmap_accuracy(
     # benchmark: BenchmarkFixture,
     strategy: str,
     strategy_args,
@@ -222,9 +362,7 @@ def test_benchmark_rosenbrock_accuracy(
     # iterations, target = benchmark(
     # partial(accuracy_benchmark, strategy, strategy_args)
     # )
-    iterations, target, guess = accuracy_benchmark(
-        strategy, strategy_args, generate_initial_dataset()
-    )
+    iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
     print(
         'Iterations for',
         strategy,
@@ -237,7 +375,7 @@ def test_benchmark_rosenbrock_accuracy(
     )
     print(
         'Maximum early terminus value',
-        MAX_TARGET_Y,
+        TARGET_RMSE,
         ' with ',
         MAX_ITERATIONS,
         ' maximum iterations.',
@@ -254,7 +392,6 @@ if __name__ == '__main__':
     import argparse
     import datetime
     import json
-    from multiprocessing import Pool
     from pathlib import Path
 
     logger = logging.getLogger(f'{__name__}_runner')
@@ -281,7 +418,7 @@ if __name__ == '__main__':
             raise argparse.ArgumentTypeError(msg)
         return val
 
-    parser = argparse.ArgumentParser(description='Generate the Rosenbrock HTML benchmark pages.')
+    parser = argparse.ArgumentParser(description='Generate the Strainmap HTML benchmark pages.')
     parser.add_argument(
         '--num-runs',
         '-n',
@@ -291,63 +428,41 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    parameters = TEST_PARAMS[1]
+    strategies = TEST_PARAMS[1]
 
     # Run multiple iterations for statistical analysis
     NUM_RUNS = args.num_runs
-    logger.info(
-        'Running benchmarks with %d iterations per strategy using multiprocessing...', NUM_RUNS
-    )
-
-    def _run_single(task: tuple) -> tuple:
-        """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess)."""
-        strategy, strategy_args, run_index, dataset_x = task
-        strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        iterations, target, guess = accuracy_benchmark(strategy, strategy_args, dataset_x)
-        logger.info(
-            '  [%s] Run %d: iterations=%d, target=%.4f',
-            strategy_name,
-            run_index + 1,
-            iterations,
-            target,
-        )
-        return (strategy_name, strategy, strategy_args, iterations, target, guess)
-
-    # Use the same dataset for each parameter we have
-    datasets = [generate_initial_dataset() for _ in range(NUM_RUNS)]
-    tasks = [
-        (strategy, strategy_args, run_index, dataset)
-        for strategy, strategy_args in parameters
-        for run_index, dataset in enumerate(datasets)
-    ]
-
-    with Pool() as pool:
-        run_outputs = pool.map(_run_single, tasks)
-
-    # Aggregate results preserving strategy order
-    strategy_order = [
-        f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        for strategy, strategy_args in parameters
-    ]
-    raw: dict[str, dict] = {
-        name: {'strategy': s, 'strategy_args': sa, 'iterations': [], 'targets': [], 'guesses': []}
-        for name, (s, sa) in zip(strategy_order, parameters, strict=True)
-    }
-    for strategy_name, _strategy, _strategy_args, iterations, target, guess in run_outputs:
-        raw[strategy_name]['iterations'].append(iterations)
-        raw[strategy_name]['targets'].append(target)
-        raw[strategy_name]['guesses'].append(guess)
+    logger.info('Running benchmarks with %d iterations per strategy...', NUM_RUNS)
 
     results = {}
-    for strategy_name in strategy_order:
-        r = raw[strategy_name]
+    for strategy, strategy_args in strategies:
+        strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
+        logger.info('\nBenchmarking: %s', strategy_name)
+
+        iterations_list = []
+        targets_list = []
+        guesses_list = []
+
+        for run in range(NUM_RUNS):
+            iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
+            iterations_list.append(iterations)
+            targets_list.append(target)
+            guesses_list.append(guess)
+            logger.info(
+                '  Run %d/%d: iterations=%d, target=%.4f', run + 1, NUM_RUNS, iterations, target
+            )
+
         results[strategy_name] = {
-            **r,
-            'avg_iterations': np.mean(r['iterations']),
-            'std_iterations': np.std(r['iterations']),
-            'avg_target': np.mean(r['targets']),
-            'std_target': np.std(r['targets']),
-            'success_rate': sum(1 for t in r['targets'] if t <= MAX_TARGET_Y) / NUM_RUNS * 100,
+            'strategy': strategy,
+            'strategy_args': strategy_args,
+            'iterations': iterations_list,
+            'targets': targets_list,
+            'guesses': guesses_list,
+            'avg_iterations': np.mean(iterations_list),
+            'std_iterations': np.std(iterations_list),
+            'avg_target': np.mean(targets_list),
+            'std_target': np.std(targets_list),
+            'success_rate': sum(1 for t in targets_list if t <= TARGET_RMSE) / NUM_RUNS * 100,
         }
 
     # Generate plots
@@ -355,7 +470,7 @@ if __name__ == '__main__':
     output_dir.mkdir(parents=True, exist_ok=True)
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('Rosenbrock Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
+    fig.suptitle('Strainmap Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
 
     # Plot 1: Average iterations to convergence
     ax1 = axes[0, 0]
@@ -406,7 +521,7 @@ if __name__ == '__main__':
         [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
     )
     ax2.axhline(
-        y=MAX_TARGET_Y, color='r', linestyle='--', label=f'Target Threshold ({MAX_TARGET_Y})'
+        y=TARGET_RMSE, color='r', linestyle='--', label=f'Target Threshold ({TARGET_RMSE})'
     )
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
@@ -429,7 +544,7 @@ if __name__ == '__main__':
     bars3 = ax3.bar(range(len(strategy_names)), success_rates, alpha=0.7, color='green')
     ax3.set_xlabel('Strategy')
     ax3.set_ylabel('Success Rate (%)')
-    ax3.set_title(f'Success Rate (Target ≤ {MAX_TARGET_Y})')
+    ax3.set_title(f'Success Rate (Target ≤ {TARGET_RMSE})')
     ax3.set_xticks(range(len(strategy_names)))
     ax3.set_xticklabels(
         [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
@@ -464,7 +579,7 @@ if __name__ == '__main__':
     ax4.grid(axis='y', alpha=0.3)
 
     plt.tight_layout()
-    plot_path = output_dir / 'rosenbrock_benchmark.png'
+    plot_path = output_dir / 'strainmap_benchmark.png'
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     logger.info('✓ Plot saved to %s', plot_path)
     plt.close()
@@ -475,7 +590,7 @@ if __name__ == '__main__':
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rosenbrock Optimization Benchmark Report</title>
+    <title>Strainmap Optimization Benchmark Report</title>
     <style>
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -553,30 +668,28 @@ if __name__ == '__main__':
     </style>
 </head>
 <body>
-    <h1>📊 Rosenbrock Optimization Benchmark Report</h1>
+    <h1>📊 Strainmap Optimization Benchmark Report</h1>
 
     <div class="metadata">
         <p><strong>Generated:</strong> {datetime.datetime.now(tz=datetime.timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p><strong>Number of Runs per Strategy:</strong> {NUM_RUNS}</p>
         <p><strong>Maximum Iterations:</strong> {MAX_ITERATIONS}</p>
-        <p><strong>Target Threshold:</strong> {MAX_TARGET_Y}</p>
+        <p><strong>Target Threshold:</strong> {TARGET_RMSE}</p>
         <p><strong>Initial Bounds:</strong> {INITIAL_BOUNDS}</p>
         <p><strong>Initial Points:</strong> {INITIAL_NUM_POINTS}</p>
     </div>
 
     <div class="summary">
         <h3>🎯 Test Objective</h3>
-        <p>This benchmark evaluates different acquisition strategies for Bayesian optimization on the classic Rosenbrock function.
-        The goal is to minimize the function value (error) within {MAX_ITERATIONS} iterations, starting from {INITIAL_NUM_POINTS} initial points.</p>
-        <p>The Rosenbrock function is defined as: <code>f(x,y) = (a-x)² + b(y-x²)²</code> with a=1.0, b=100.0</p>
-        <p>The global minimum is at (1.0, 1.0) with f(1,1) = 0</p>
+        <p>This benchmark evaluates different acquisition strategies for Bayesian optimization on a strain mapping experiment dataset.
+        The goal is to minimize the RMSE (error) within {MAX_ITERATIONS} iterations, starting from {INITIAL_NUM_POINTS} initial points.</p>
     </div>
 
     <h2>📈 Benchmark Results</h2>
 
     <div class="plot">
         <h3>Performance Comparison</h3>
-        <img src="rosenbrock_benchmark.png" alt="Benchmark comparison plots">
+        <img src="strainmap_benchmark.png" alt="Benchmark comparison plots">
     </div>
 
     <h2>📋 Detailed Statistics</h2>
@@ -641,6 +754,7 @@ if __name__ == '__main__':
 """
 
     html_content += """    </div>
+
     <h2>📊 Raw Data</h2>
     <details>
         <summary>Click to expand raw results JSON</summary>
@@ -671,19 +785,19 @@ if __name__ == '__main__':
     </details>
 
     <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; color: #7f8c8d; text-align: center;">
-        <p>Generated by test_rosenbrock.py benchmark suite</p>
+        <p>Generated by test_strainmap.py benchmark suite</p>
     </footer>
 </body>
 </html>
 """
 
     # Save HTML report
-    html_path = output_dir / 'rosenbrock_benchmark.html'
+    html_path = output_dir / 'strainmap_benchmark.html'
     html_path.write_text(html_content)
     logger.info('✓ HTML report saved to %s', html_path)
 
     # Save JSON data
-    json_path = output_dir / 'rosenbrock_benchmark.json'
+    json_path = output_dir / 'strainmap_benchmark.json'
     json_path.write_text(json.dumps(json_results, indent=2))
     logger.info('✓ JSON data saved to %s', json_path)
 
