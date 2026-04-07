@@ -524,7 +524,6 @@ dependencies = [
     { name = "gpax", version = "0.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "gpax", version = "0.1.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "intersect-sdk", extra = ["amqp"] },
-    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pymongo" },
     { name = "sable" },
@@ -537,6 +536,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpretty" },
+    { name = "matplotlib" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -549,7 +549,6 @@ dev = [
 requires-dist = [
     { name = "gpax", specifier = ">=0.1.8" },
     { name = "intersect-sdk", extras = ["amqp"], specifier = ">=0.8.3,<0.9.0" },
-    { name = "matplotlib", specifier = ">=3.8.2,<4.0.0" },
     { name = "numpy", specifier = ">=1.26.3,<2.0.0" },
     { name = "pymongo", specifier = ">=4.12.1" },
     { name = "sable", git = "https://code.ornl.gov/sable/sable.git" },
@@ -560,6 +559,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpretty", specifier = ">=1.1.4" },
+    { name = "matplotlib", specifier = ">=3.8.2,<4.0.0" },
     { name = "mypy", specifier = ">=1.10.0" },
     { name = "pre-commit", specifier = ">=3.3.1" },
     { name = "pytest", specifier = ">=7.3.2" },
