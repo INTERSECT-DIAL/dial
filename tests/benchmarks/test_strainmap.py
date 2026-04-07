@@ -176,24 +176,56 @@ def run_simulation(
     noise_level = NOISE_LEVEL
     constant_value = 1.
 
-    # train model with new data
-    client_state = DialWorkflowCreationParamsService(
-        dataset_x=dataset_x,
-        dataset_y=dataset_y,
-        bounds=INITIAL_BOUNDS,
-        kernel='rbf',
-        kernel_args = {'length_scale': length_scale,
-                       'length_scale_bounds': 'fixed',
-                       'noise_level': noise_level,
-                       'noise_level_bounds': 'fixed',
-                       'constant_value': constant_value,
-                       'constant_value_bounds': 'fixed',
-                       },
-        y_is_good=False,  # we wish to minimize y (the error)
-        backend='sklearn',  # "sklearn" or "gpax"
-        seed=-1,  # Use seed = -1 for random results
-        dim_x=2,
-    )
+    # modify a local copy of strategy_args
+    strategy_args = strategy_args.copy()
+    backend = strategy_args.pop('backend', 'sklearn')
+
+    if backend == 'sable':
+        # train model with new data
+        kernel_args = {
+            'x_range': [-1.0, 1.0],
+            'sigma_range': [1e-2, 1.],
+            'gamma': 0.1,
+        }
+        backend_args = {
+            'n_features': 5000,
+            'alpha': constant_value * 0.05,
+            'p': 1.25,
+            'n_iter_irls': 100,
+            'noise_level': noise_level,
+        }
+        
+        client_state = DialWorkflowCreationParamsService(
+            dataset_x=dataset_x,
+            dataset_y=dataset_y,
+            bounds=INITIAL_BOUNDS,
+            kernel='rbf',
+            kernel_args=kernel_args,
+            y_is_good=False,
+            backend=backend,
+            backend_args=backend_args,
+            seed=-1,
+            dim_x=2,
+        )
+    else:
+        # train model with new data
+        client_state = DialWorkflowCreationParamsService(
+            dataset_x=dataset_x,
+            dataset_y=dataset_y,
+            bounds=INITIAL_BOUNDS,
+            kernel='rbf',
+            kernel_args = {'length_scale': length_scale,
+                           'length_scale_bounds': 'fixed',
+                           'noise_level': noise_level,
+                           'noise_level_bounds': 'fixed',
+                           'constant_value': constant_value,
+                           'constant_value_bounds': 'fixed',
+                           },
+            y_is_good=False,  # we wish to minimize y (the error)
+            backend=backend,  # "sklearn" or "gpax"
+            seed=-1,  # Use seed = -1 for random results
+            dim_x=2,
+        )
 
     data = ServersideInputBase(client_state)
     model = dial_core.train_model(data)
@@ -249,7 +281,7 @@ def graph(err_grid, dataset_x, strategy):
     )
     cbar = plt.colorbar()
     cbar.set_ticks(np.logspace(-2, 0, 7))
-    cbar.set_label('Simulation Result')
+    cbar.set_label('RMSE')
     plt.xlabel('Simulation Parameter #1')
     plt.ylabel('Simulation Parameter #2')
     # add black dots for data points and a red marker for the recommendation:
@@ -289,9 +321,9 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
         # compute the RMSE on the grid and the average
         mse = err_grid**2 + std_grid**2
         total_rmse = np.sqrt(np.mean(mse))
-        print(total_rmse)
+        print(iterations, total_rmse)
 
-        #graph(np.sqrt(mse), dataset_x, strategy)
+        graph(np.sqrt(mse), dataset_x, f"{strategy}_{strategy_args.get('backend', 'sklearn')}")
 
         if total_rmse <= TARGET_RMSE:
             break
@@ -306,6 +338,10 @@ TEST_PARAMS = (
         (
             'uncertainty',
             {}
+        ),
+        (
+            'uncertainty',
+            {'backend': 'sable'}
         ),
         (
             'random',
