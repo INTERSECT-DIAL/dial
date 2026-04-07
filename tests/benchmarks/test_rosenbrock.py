@@ -93,6 +93,7 @@ def run_simulation(
         kernel='rbf',
         kernel_args={
             'length_scale': LENGTH_SCALE,
+            'length_scale_bounds': 'fixed',
             'noise_level': NOISE_LEVEL,
             'noise_level_bounds': 'fixed',
             'constant_value': CONSTANT_VALUE,
@@ -311,7 +312,7 @@ if __name__ == '__main__':
         )
         return (strategy_name, strategy, strategy_args, iterations, target, guess)
 
-    # Build a flat list of (strategy, strategy_args, run_index) tasks
+    # Use the same dataset for each parameter we have
     datasets = [generate_initial_dataset() for _ in range(NUM_RUNS)]
     tasks = [
         (strategy, strategy_args, run_index, dataset)
