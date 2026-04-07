@@ -31,10 +31,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def sinusoidal_growth(x: np.ndarray) -> np.ndarray:
-    result = x + np.sin(6 * x)
-    logger.debug(result)
-    return result
+def sigmoid_transition(
+    x,
+    low=-1.0,
+    high=1.0,
+    x0=0.0,
+    width=0.01,
+    slope=1.0,
+):
+    """
+    Controlled sigmoid transition model.
+    """
+    x_arr = np.asarray(x, float)
+    gate = 1.0 / (1.0 + np.exp(-(x_arr - x0) / width))
+    value = low + (high - low) * gate
+    if slope != 0.0:
+        value = value - slope * np.maximum(x_arr - x0, 0.0) * gate
+    return value
+
+
+def truth_model(x, noise_level, rng):
+
+    y = sigmoid_transition(x)
+    y = y + noise_level * rng.normal(size=y.shape)
+    y_err = noise_level * np.ones(y.shape)
+
+    return y, y_err
 
 
 class IntersectCallbackError(Exception):
@@ -52,52 +74,56 @@ class IntersectCallbackEnd(Exception):  # noqa: N818
 
 class ActiveLearningOrchestrator:
     def __init__(self, service_destination: str):
-        self.bounds = np.array([[-2, 2]])
+        self.bounds = np.array([[-1.0, 1.0]])
         self.num_dims = len(self.bounds)
+        self.seed = 5
+        self.noise_level = 1e-4
+        self.rng = np.random.default_rng(self.seed)
 
-        self.x_raw = np.array([[1], [2.0]])
-        self.x_test = np.array([[-1], [0.5]])
-        self.y_raw = sinusoidal_growth(self.x_raw)
-
-        self.meshgrid_size = 100
+        self.x_raw = np.linspace(-1.0, 1.0, 5).reshape(-1, 1)
+        self.x_test = np.array([[-0.051], [0.051]])
+        self.meshgrid_size = 1000
         self.grid_points = [
             np.linspace(dim_bounds[0], dim_bounds[1], self.meshgrid_size)
             for dim_bounds in self.bounds
         ]
         self.meshgrids = np.meshgrid(*self.grid_points, indexing='ij')
         self.x_grid = np.hstack([mg.reshape(-1, 1) for mg in self.meshgrids])
+        # Mirror the demo's RNG sequence before generating the noisy initial observations.
+        truth_model(self.x_grid[:, 0], 0.0, self.rng)
+        self.y_raw, _ = truth_model(self.x_raw[:, 0], self.noise_level, self.rng)
 
-        # Active learning variables
         self.dataset_x = self.x_raw.reshape(-1, 1).tolist()
         self.dataset_y = self.y_raw.reshape(-1).tolist()
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
         self.kernel = 'rbf'
-        self.kernel_args = {'length_scale': 0.12, 'length_scale_bounds': (0.1, 1.0)}
-        self.backend = 'sklearn'
-        self.backend_args = None
+        self.kernel_args = {'x_range': [0.0, 1.0], 'sigma_range': [2.5e-3, 0.5], 'gamma': 0.1}
+        self.backend = 'sable'
+        self.backend_args = {
+            'n_features': 5000,
+            'alpha': 0.05,
+            'p': 1.25,
+            'n_iter_irls': 100,
+            'noise_level': self.noise_level,
+        }
         self.strategy = 'upper_confidence_bound'
-        self.strategy_args = {'exploit': 0.4, 'explore': 1}
+        self.strategy_args = {'exploit': 0.0, 'explore': 1.0}
         self.niter = 0
-        self.max_iter = 20
+        self.max_iter = 30
         self.at_grids = True
-        self.variance_grid = None
+        self.stddev_grid = None
         self.mean_grid = None
-        self.variance_test = None
+        self.stddev_test = None
         self.mean_test = None
         self.x_next = None
 
-        # Intersect variables
         self.workflow_id = None
         self.service_destination = service_destination
 
     def __call__(
         self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
     ) -> IntersectClientCallback:
-        print(
-            f'Received message from {_source} with operation {operation} and payload {payload}',
-            file=sys.stderr,
-        )
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
             print(operation, file=sys.stderr)
@@ -108,7 +134,6 @@ class ActiveLearningOrchestrator:
             self.workflow_id = payload
             return self.callback_message('dial.get_surrogate_values')
 
-        # ----------------- Active learning loop -----------------
         if operation == 'dial.get_surrogate_values':
             self.handle_surrogate_values(payload)
 
@@ -136,27 +161,26 @@ class ActiveLearningOrchestrator:
             next_payload = DialWorkflowCreationParamsClient(
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
-                dim_x=1,
-                bounds=self.bounds,
+                bounds=self.bounds.tolist(),
                 kernel=self.kernel,
                 kernel_args=self.kernel_args,
                 backend=self.backend,
                 backend_args=self.backend_args,
-                extra_args={'length_per_dimension': True},
-                preprocess_standardize=True,
+                preprocess_standardize=False,
                 y_is_good=True,
-                seed=20,
+                seed=self.seed,
+                dim_x=self.num_dims,
             )
 
         elif operation == 'dial.get_surrogate_values':
             if self.at_grids:
-                _points_to_predict = self.x_grid
+                points_to_predict = self.x_grid
             else:
-                _points_to_predict = np.array(self.test_points).reshape(-1, self.num_dims)
+                points_to_predict = np.array(self.test_points).reshape(-1, self.num_dims)
 
             next_payload = DialInputPredictions(
                 workflow_id=self.workflow_id,
-                points_to_predict=_points_to_predict,
+                points_to_predict=points_to_predict,
             )
 
         elif operation == 'dial.get_next_point':
@@ -165,6 +189,9 @@ class ActiveLearningOrchestrator:
                 strategy=self.strategy,
                 strategy_args=self.strategy_args,
                 bounds=self.bounds.tolist(),
+                # To acquire data only on a grid, comment in the following
+                # discrete_measurements=True,
+                # discrete_measurement_grid_size=[50],
             )
 
         elif operation == 'dial.update_workflow_with_data':
@@ -176,12 +203,14 @@ class ActiveLearningOrchestrator:
 
         else:
             err_msg = f'Unknown operation received: {operation}'
-            raise Exception(err_msg)  # noqa: TRY002 (INTERSECT interaction mechanism)
+            raise Exception(err_msg)  # noqa: TRY002
 
         return IntersectClientCallback(
             messages_to_send=[
                 IntersectDirectMessageParams(
-                    destination=self.service_destination, operation=operation, payload=next_payload
+                    destination=self.service_destination,
+                    operation=operation,
+                    payload=next_payload,
                 )
             ]
         )
@@ -189,16 +218,13 @@ class ActiveLearningOrchestrator:
     def handle_surrogate_values(self, payload):
         response_data = payload['data']
         if self.at_grids:
-            self.variance_grid = np.array(response_data[1]).reshape(
-                (self.meshgrid_size,) * self.num_dims
-            )
+            self.stddev_grid = np.array(response_data[1]).reshape((self.meshgrid_size,) * self.num_dims)
             self.mean_grid = np.array(response_data[0]).reshape((self.meshgrid_size,) * self.num_dims)
         else:
-            self.variance_test = np.array(response_data[1])
+            self.stddev_test = np.array(response_data[1])
             self.mean_test = np.array(response_data[0])
-            print(f'Test Mean: {self.mean_test}, Variance: {self.variance_test}')
+            print(f'Values at testing points {self.x_test.reshape(-1)}: Mean: {self.mean_test}, Stddev: {self.stddev_test}')
 
-        # end of active learning loop after max_iter
         if self.niter > self.max_iter:
             raise IntersectCallbackEnd
 
@@ -207,28 +233,30 @@ class ActiveLearningOrchestrator:
         coord_str = ', '.join([f'{coord:.2f}' for coord in self.x_next])
         print(f'Running simulation at ({coord_str}): ', end='', flush=True)
 
-        y = sinusoidal_growth(*self.x_next)
-        print(f'{y:.3f}')
-        self.dataset_x.append(self.x_next)
-        self.dataset_y.append(y)
+        y_next, _ = truth_model(np.asarray(self.x_next, dtype=float), self.noise_level, self.rng)
+        y_scalar = float(np.asarray(y_next).reshape(-1)[0])
+        print(f'{y_scalar:.3f}')
 
-        optpos = np.argmax(self.dataset_y)
-        y_opt = self.dataset_y[optpos]
-        optimal_coords = self.dataset_x[optpos]
-        coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
-        print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
+        self.dataset_x.append(self.x_next)
+        self.dataset_y.append(y_scalar)
+
+        # In this example we are running pure exploration, no optimization:
+        # optpos = np.argmax(self.dataset_y)
+        # y_opt = self.dataset_y[optpos]
+        # optimal_coords = self.dataset_x[optpos]
+        # coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
+        # print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
 
     def graph(self):
         plt.clf()
 
         fig, axs = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
-        # First subplot: Mean and variance with training data
-        axs[0].plot(self.x_grid, self.mean_grid, label='Mean Prediction')
+        axs[0].plot(self.x_grid[:, 0], self.mean_grid, label='Mean Prediction')
         axs[0].fill_between(
             self.x_grid[:, 0],
-            self.mean_grid + 2 * self.variance_grid,
-            self.mean_grid - 2 * self.variance_grid,
+            self.mean_grid + 2 * self.stddev_grid,
+            self.mean_grid - 2 * self.stddev_grid,
             alpha=0.5,
             label='Confidence Interval',
         )
@@ -245,34 +273,27 @@ class ActiveLearningOrchestrator:
         axs[0].legend()
         axs[0].grid(True)
 
-        # Second subplot: Acquisition function
-        if self.strategy_args is not None:
-            if self.mean_grid is not None and self.variance_grid is not None:
-                exploit = self.strategy_args.get('exploit', 0.0)
-                explore = self.strategy_args.get('explore', 1.0)
-                acquisition_values = exploit * self.mean_grid + explore * np.sqrt(
-                    self.variance_grid
-                )
-            else:
-                acquisition_values = np.zeros_like(self.x_grid)
+        acquisition_values = np.zeros_like(self.x_grid[:, 0])
+        if self.mean_grid is not None and self.stddev_grid is not None:
+            exploit = self.strategy_args.get('exploit', 0.0)
+            explore = self.strategy_args.get('explore', 1.0)
+            acquisition_values = exploit * self.mean_grid + explore * self.stddev_grid
 
-            axs[1].plot(self.x_grid, acquisition_values)
-            if self.x_next is not None:
-                axs[1].axvline(
-                    x=self.x_next[0], color='red', linestyle='--', label='Next Point (x_next)'
-                )
-            axs[1].set_xlabel('Features, x')
-            axs[1].set_ylabel('Acquisition Value')
-            axs[1].legend()
-            axs[1].grid(True)
+        axs[1].plot(self.x_grid[:, 0], acquisition_values)
+        if self.x_next is not None:
+            axs[1].axvline(x=self.x_next[0], color='red', linestyle='--', label='Next Point')
+        axs[1].set_xlabel('Features, x')
+        axs[1].set_ylabel('Acquisition Value')
+        axs[1].legend()
+        axs[1].grid(True)
 
         plt.tight_layout()
-        plt.savefig('graph.png')
+        plt.savefig('graph_sable.png')
         plt.close(fig)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Automated client')
+    parser = argparse.ArgumentParser(description='Automated SABLE client')
     parser.add_argument(
         '--config',
         type=Path,
