@@ -548,7 +548,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "gpax", specifier = ">=0.1.8" },
-    { name = "intersect-sdk", specifier = ">=0.9.0" },
+    { name = "intersect-sdk", specifier = ">=0.9.0,<0.10.0" },
     { name = "numpy", specifier = ">=1.26.3,<2.0.0" },
     { name = "pymongo", specifier = ">=4.12.1" },
     { name = "sable", git = "https://code.ornl.gov/sable/sable.git" },
