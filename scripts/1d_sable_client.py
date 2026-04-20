@@ -9,7 +9,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from intersect_sdk import (
-    INTERSECT_JSON_VALUE,
+    INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
     IntersectClient,
     IntersectClientCallback,
@@ -51,7 +51,6 @@ def sigmoid_transition(
 
 
 def truth_model(x, noise_level, rng):
-
     y = sigmoid_transition(x)
     y = y + noise_level * rng.normal(size=y.shape)
     y_err = noise_level * np.ones(y.shape)
@@ -122,7 +121,7 @@ class ActiveLearningOrchestrator:
         self.service_destination = service_destination
 
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
+        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
     ) -> IntersectClientCallback:
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
@@ -218,12 +217,18 @@ class ActiveLearningOrchestrator:
     def handle_surrogate_values(self, payload):
         response_data = payload['data']
         if self.at_grids:
-            self.stddev_grid = np.array(response_data[1]).reshape((self.meshgrid_size,) * self.num_dims)
-            self.mean_grid = np.array(response_data[0]).reshape((self.meshgrid_size,) * self.num_dims)
+            self.stddev_grid = np.array(response_data[1]).reshape(
+                (self.meshgrid_size,) * self.num_dims
+            )
+            self.mean_grid = np.array(response_data[0]).reshape(
+                (self.meshgrid_size,) * self.num_dims
+            )
         else:
             self.stddev_test = np.array(response_data[1])
             self.mean_test = np.array(response_data[0])
-            print(f'Values at testing points {self.x_test.reshape(-1)}: Mean: {self.mean_test}, Stddev: {self.stddev_test}')
+            print(
+                f'Values at testing points {self.x_test.reshape(-1)}: Mean: {self.mean_test}, Stddev: {self.stddev_test}'
+            )
 
         if self.niter > self.max_iter:
             raise IntersectCallbackEnd

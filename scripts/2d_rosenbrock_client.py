@@ -10,7 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from intersect_sdk import (
-    INTERSECT_JSON_VALUE,
+    INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
     IntersectClient,
     IntersectClientCallback,
@@ -138,6 +138,7 @@ class ActiveLearningOrchestrator:
         )
 
     def assemble_rosenbrock_message(self, operation: str) -> IntersectClientCallback:
+        print('assembling rosenbrock message', operation)
         if operation == 'rosenbrock':
             last_x = self.dataset_x[-1]
             payload = {
@@ -166,7 +167,7 @@ class ActiveLearningOrchestrator:
         _source: str,
         operation: str,
         has_error: bool,
-        payload: INTERSECT_JSON_VALUE,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
         if has_error:
             print('============ERROR==============', file=sys.stderr)

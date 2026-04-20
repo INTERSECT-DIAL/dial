@@ -9,7 +9,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from intersect_sdk import (
-    INTERSECT_JSON_VALUE,
+    INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
     IntersectClient,
     IntersectClientCallback,
@@ -92,7 +92,7 @@ class ActiveLearningOrchestrator:
         self.service_destination = service_destination
 
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
+        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
     ) -> IntersectClientCallback:
         print(
             f'Received message from {_source} with operation {operation} and payload {payload}',
@@ -192,7 +192,9 @@ class ActiveLearningOrchestrator:
             self.variance_grid = np.array(response_data[1]).reshape(
                 (self.meshgrid_size,) * self.num_dims
             )
-            self.mean_grid = np.array(response_data[0]).reshape((self.meshgrid_size,) * self.num_dims)
+            self.mean_grid = np.array(response_data[0]).reshape(
+                (self.meshgrid_size,) * self.num_dims
+            )
         else:
             self.variance_test = np.array(response_data[1])
             self.mean_test = np.array(response_data[0])
