@@ -30,6 +30,10 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
 
     @staticmethod
     @abstractmethod
+    def initialize_model(data: ServersideInputBase) -> _MODEL: ...
+
+    @staticmethod
+    @abstractmethod
     def predict(model: _MODEL, data: ServersideInputPrediction) -> _PREDICT: ...
 
     @staticmethod
@@ -39,6 +43,10 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
     @staticmethod
     @abstractmethod
     def sample(module, model: _MODEL, data: ServersideInputBase): ...
+
+    @staticmethod
+    @abstractmethod
+    def samples(module, model: _MODEL, data: ServersideInputBase): ...
 
 
 def get_backend_module(backend: str) -> AbstractBackend:
