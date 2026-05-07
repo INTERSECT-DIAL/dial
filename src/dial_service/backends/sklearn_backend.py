@@ -76,7 +76,9 @@ class SklearnBackend(
         base_kernel = base_kernel_cls(**base_params)
         white_kernel = WhiteKernel(**white_params)
 
-        return constant_kernel * base_kernel + white_kernel
+        kernel = constant_kernel * base_kernel + white_kernel
+
+        return kernel
 
     @staticmethod
     def train_model(data):

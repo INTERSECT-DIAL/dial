@@ -188,13 +188,12 @@ def run_simulation(
             'gamma': 0.1,
         }
         backend_args = {
-            'n_features': 5000,
-            'alpha': constant_value * 0.05,
+            'n_features': 50000,
+            'alpha': constant_value * 0.001,
             'p': 1.25,
             'n_iter_irls': 100,
             'noise_level': noise_level,
         }
-        
         client_state = DialWorkflowCreationParamsService(
             dataset_x=dataset_x,
             dataset_y=dataset_y,
@@ -216,7 +215,7 @@ def run_simulation(
             kernel='rbf',
             kernel_args = {'length_scale': length_scale,
                            'length_scale_bounds': 'fixed',
-                           'noise_level': noise_level,
+                           'noise_level': noise_level**2,
                            'noise_level_bounds': 'fixed',
                            'constant_value': constant_value,
                            'constant_value_bounds': 'fixed',
@@ -268,16 +267,17 @@ def run_simulation(
     return err_grid, std_grid
 
 
-def graph(err_grid, dataset_x, strategy):
+def graph(rmse_grid, dataset_x, strategy):
     plt.clf()
-    data = np.array(err_grid)
+    data = np.array(rmse_grid)
     plt.contourf(
         INITIAL_MESHGRIDS[0],
         INITIAL_MESHGRIDS[1],
         data,
-        levels=np.logspace(-2, 0, 10),
+        levels=np.logspace(-2, 0, 20),
         norm='log',
         extend='both',
+        alpha=0.7,
     )
     cbar = plt.colorbar()
     cbar.set_ticks(np.logspace(-2, 0, 7))
@@ -290,6 +290,7 @@ def graph(err_grid, dataset_x, strategy):
     plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='black', marker='o')
 
     plt.savefig(f'graph_{strategy}.png')
+    plt.close()
 
 
 def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float]:
@@ -319,7 +320,7 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
         guess = dataset_x[-1]
 
         # compute the RMSE on the grid and the average
-        mse = err_grid**2 + std_grid**2
+        mse = err_grid**2 + 1. * std_grid**2
         total_rmse = np.sqrt(np.mean(mse))
         print(iterations, total_rmse)
 
