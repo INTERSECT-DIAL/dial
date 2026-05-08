@@ -12,6 +12,11 @@ ENV UV_PYTHON_INSTALL_DIR=/python
 ENV UV_PYTHON_PREFERENCE=only-managed
 ENV UV_NO_DEV=${UV_NO_DEV}
 
+# TODO - remove git once we install Sable from PyPI
+RUN apt install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN uv python install ${PYTHON_VERSION}
 
 WORKDIR /app
