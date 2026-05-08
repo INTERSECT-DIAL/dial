@@ -16,6 +16,7 @@ ENV UV_NO_DEV=${UV_NO_DEV}
 RUN apt update -y
 RUN apt install -y --no-install-recommends \
     git \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 RUN uv python install ${PYTHON_VERSION}
