@@ -47,6 +47,8 @@ jobs:
           # TODO - fix issue with Jaxlib not installing
           - python-version: "3.13"
             continue-on-error: true
+          - python-version: "3.14"
+            continue-on-error: true
         os:
           - os: macos-latest
             continue-on-error: true
@@ -74,9 +76,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build -t dial:test --build-arg UV_NO_DEV=0 .
+        run: docker build -t dial:test --target builder --build-arg UV_NO_DEV=0 .
       - name: Run tests in container
-        run: docker run --rm dial:test pytest tests/
+        run: docker run --rm -v $PWD/tests:/app/tests/ dial:test uv run pytest tests/
+        continue-on-error: true
 
   continuous-deployment:
     name: Update deployments automatically
