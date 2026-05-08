@@ -167,7 +167,7 @@ class StrainMap:
         # print("Evaluated truth model", np.hstack((x, y_true)))
 
         y_noise = y_true + self.noise_level * np.random.normal(size=y_true.shape)
-        return y_noise  # noqa: RET504
+        return y_noise
 
 
 # build a strain map from the selected truth values

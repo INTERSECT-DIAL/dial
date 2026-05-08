@@ -121,6 +121,7 @@ ignore = [
     'N803',    # do not require snake_casing function/method arguments
     'N806',    # allow uppercase in function names
     'N812',    # allow lowercase imports to be aliased to non-lowercase names
+    'RET504',  # allow "unnecessary assignment to variable" before return statements
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
