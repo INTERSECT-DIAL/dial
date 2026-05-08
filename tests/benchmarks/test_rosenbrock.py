@@ -70,7 +70,7 @@ MAX_ITERATIONS = 200  # only allow a maximum of this many iterations in tests
 MIN_ALLOWED_Y = (
     20.0  # when generating initial data, don't allow a point with better results than this
 )
-MAX_TARGET_Y = .1  # after running training, make sure that we reach this target
+MAX_TARGET_Y = 0.1  # after running training, make sure that we reach this target
 
 
 def generate_initial_dataset() -> list[list[float]]:
@@ -82,7 +82,7 @@ def run_simulation(
 ) -> None:
     # HYPERPARAMETERS
     LENGTH_SCALE = [0.2, 0.1]
-    NOISE_LEVEL = 1.e-6
+    NOISE_LEVEL = 1.0e-6
     CONSTANT_VALUE = 1.0
 
     # train model with new data
@@ -142,16 +142,18 @@ def run_simulation(
 
 def accuracy_benchmark(
     strategy: str, strategy_args: object, dataset_x: list[list[float]]
-) -> tuple[int, float, list[float]]:
+) -> tuple[int, float, list[float], list[float]]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
       - target value achieved (y)
       - best guess from the input parameters (x)
+      - best_history: list of best-y value after each iteration
     """
 
     iterations = 0
     target = float('inf')
+    best_history: list[float] = []
 
     # initialize data, making sure the data we generate is not already optimal
     # TODO maybe throw out this check to force good points
@@ -177,6 +179,7 @@ def accuracy_benchmark(
         minpos = np.argmin(dataset_y)
         target = dataset_y[minpos]
         guess = dataset_x[minpos]
+        best_history.append(target)
         if target <= MAX_TARGET_Y:
             break
         iterations += 1
@@ -185,7 +188,7 @@ def accuracy_benchmark(
         # iterations = 1 << 63
         print(iterations, target, guess)
 
-    return (iterations, target, guess)
+    return (iterations, target, guess, best_history)
 
 
 TEST_PARAMS = (
@@ -222,7 +225,7 @@ def test_benchmark_rosenbrock_accuracy(
     # iterations, target = benchmark(
     # partial(accuracy_benchmark, strategy, strategy_args)
     # )
-    iterations, target, guess = accuracy_benchmark(
+    iterations, target, guess, _history = accuracy_benchmark(
         strategy, strategy_args, generate_initial_dataset()
     )
     print(
@@ -261,6 +264,7 @@ if __name__ == '__main__':
 
     try:
         import matplotlib as mpl
+        import matplotlib.axes as mpaxes
         import matplotlib.pyplot as plt
 
         mpl.use('Agg')  # Use non-interactive backend
@@ -300,10 +304,10 @@ if __name__ == '__main__':
     )
 
     def _run_single(task: tuple) -> tuple:
-        """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess)."""
+        """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess, history)."""
         strategy, strategy_args, run_index, dataset_x = task
         strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        iterations, target, guess = accuracy_benchmark(strategy, strategy_args, dataset_x)
+        iterations, target, guess, history = accuracy_benchmark(strategy, strategy_args, dataset_x)
         logger.info(
             '  [%s] Run %d: iterations=%d, target=%.4f',
             strategy_name,
@@ -311,7 +315,7 @@ if __name__ == '__main__':
             iterations,
             target,
         )
-        return (strategy_name, strategy, strategy_args, iterations, target, guess)
+        return (strategy_name, strategy, strategy_args, iterations, target, guess, history)
 
     # Use the same dataset for each parameter we have
     datasets = [generate_initial_dataset() for _ in range(NUM_RUNS)]
@@ -330,17 +334,29 @@ if __name__ == '__main__':
         for strategy, strategy_args in parameters
     ]
     raw: dict[str, dict] = {
-        name: {'strategy': s, 'strategy_args': sa, 'iterations': [], 'targets': [], 'guesses': []}
+        name: {
+            'strategy': s,
+            'strategy_args': sa,
+            'iterations': [],
+            'targets': [],
+            'guesses': [],
+            'histories': [],
+        }
         for name, (s, sa) in zip(strategy_order, parameters, strict=True)
     }
-    for strategy_name, _strategy, _strategy_args, iterations, target, guess in run_outputs:
+    for strategy_name, _strategy, _strategy_args, iterations, target, guess, history in run_outputs:
         raw[strategy_name]['iterations'].append(iterations)
         raw[strategy_name]['targets'].append(target)
         raw[strategy_name]['guesses'].append(guess)
+        raw[strategy_name]['histories'].append(history)
 
     results = {}
     for strategy_name in strategy_order:
         r = raw[strategy_name]
+        # Pad shorter histories (early-termination runs) to the length of the longest run
+        # by repeating the final best value — the optimum is already found.
+        max_len = max(len(h) for h in r['histories'])
+        padded_histories = [h + [h[-1]] * (max_len - len(h)) for h in r['histories']]
         results[strategy_name] = {
             **r,
             'avg_iterations': np.mean(r['iterations']),
@@ -348,13 +364,35 @@ if __name__ == '__main__':
             'avg_target': np.mean(r['targets']),
             'std_target': np.std(r['targets']),
             'success_rate': sum(1 for t in r['targets'] if t <= MAX_TARGET_Y) / NUM_RUNS * 100,
+            'padded_histories': padded_histories,
+        }
+
+    # Prepare JSON-serializable results
+    json_results = {}
+    for strategy_name, result in results.items():
+        json_results[strategy_name] = {
+            'strategy': result['strategy'],
+            'strategy_args': result['strategy_args'],
+            'iterations': result['iterations'],
+            'targets': result['targets'],
+            'guesses': [[float(x) for x in guess] for guess in result['guesses']],
+            'statistics': {
+                'avg_iterations': float(result['avg_iterations']),
+                'std_iterations': float(result['std_iterations']),
+                'avg_target': float(result['avg_target']),
+                'std_target': float(result['std_target']),
+                'success_rate': float(result['success_rate']),
+            },
         }
 
     # Generate plots
-    output_dir = Path('reports/benchmarks')
+    output_dir = Path(__file__).absolute().parents[2] / 'reports' / 'benchmarks' / 'rosenbrock'
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # tuple[mpfigure.Figure, np.ndarray[mpaxes.Axes]]
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes: np.ndarray[mpaxes.Axes, np.dtype[np.int64]] = axes  # noqa: PLW0127
+    print(type(fig), '---', type(axes), '---', type(axes[0, 0]))
     fig.suptitle('Rosenbrock Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
 
     # Plot 1: Average iterations to convergence
@@ -425,7 +463,9 @@ if __name__ == '__main__':
 
     # Plot 3: Success rate
     ax3 = axes[1, 0]
-    success_rates = [results[s]['success_rate'] for s in strategy_names]
+    json_result_keys = list(json_results.keys())
+    success_rates = [json_results[s]['statistics']['success_rate'] for s in json_result_keys]
+    # success_rates = [results[s]['statistics']['success_rate'] for s in strategy_names]
     bars3 = ax3.bar(range(len(strategy_names)), success_rates, alpha=0.7, color='green')
     ax3.set_xlabel('Strategy')
     ax3.set_ylabel('Success Rate (%)')
@@ -453,7 +493,9 @@ if __name__ == '__main__':
     ax4 = axes[1, 1]
     iterations_data = [results[s]['iterations'] for s in strategy_names]
     bp = ax4.boxplot(
-        iterations_data, labels=[s.replace(' ', '\n') for s in strategy_names], patch_artist=True
+        iterations_data,
+        tick_labels=[s.replace(' ', '\n') for s in strategy_names],
+        patch_artist=True,
     )
     for patch in bp['boxes']:
         patch.set_facecolor('lightblue')
@@ -468,6 +510,38 @@ if __name__ == '__main__':
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     logger.info('✓ Plot saved to %s', plot_path)
     plt.close()
+
+    # Convergence plot: best-y vs. iteration, mean ± std across runs, one line per strategy
+    fig_conv, ax_conv = plt.subplots(figsize=(10, 6))
+    ax_conv.set_title('Convergence: Best Value Found vs. Iteration', fontsize=14, fontweight='bold')
+    ax_conv.set_xlabel('Iteration')
+    ax_conv.set_ylabel('Best Target Value (log scale)')
+    ax_conv.set_yscale('log')
+    ax_conv.axhline(
+        y=MAX_TARGET_Y,
+        color='red',
+        linestyle='--',
+        linewidth=1.2,
+        label=f'Target threshold ({MAX_TARGET_Y})',
+    )
+
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    for color, strategy_name in zip(colors, strategy_names, strict=False):
+        ph = np.array(results[strategy_name]['padded_histories'], dtype=float)
+        iters = np.arange(1, ph.shape[1] + 1)
+        mean_h = ph.mean(axis=0)
+        std_h = ph.std(axis=0)
+        ax_conv.plot(iters, mean_h, label=strategy_name, color=color, linewidth=2)
+        # ax_conv.fill_between(iters, np.maximum(mean_h - std_h, 1e-12), mean_h + std_h,
+        # alpha=0.2, color=color)
+
+    ax_conv.legend(loc='lower right')
+    ax_conv.grid(True, which='both', alpha=0.3)
+    plt.tight_layout()
+    conv_plot_path = output_dir / 'rosenbrock_convergence.png'
+    fig_conv.savefig(conv_plot_path, dpi=150, bbox_inches='tight')
+    logger.info('✓ Convergence plot saved to %s', conv_plot_path)
+    plt.close(fig_conv)
 
     # Generate HTML report
     html_content = f"""<!DOCTYPE html>
@@ -575,6 +649,11 @@ if __name__ == '__main__':
     <h2>📈 Benchmark Results</h2>
 
     <div class="plot">
+        <h3>Convergence</h3>
+        <img src="rosenbrock_convergence.png" alt="Convergence plot: best value vs iteration">
+    </div>
+
+    <div class="plot">
         <h3>Performance Comparison</h3>
         <img src="rosenbrock_benchmark.png" alt="Benchmark comparison plots">
     </div>
@@ -646,24 +725,6 @@ if __name__ == '__main__':
         <summary>Click to expand raw results JSON</summary>
         <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto;">
 """
-
-    # Prepare JSON-serializable results
-    json_results = {}
-    for strategy_name, result in results.items():
-        json_results[strategy_name] = {
-            'strategy': result['strategy'],
-            'strategy_args': result['strategy_args'],
-            'iterations': result['iterations'],
-            'targets': result['targets'],
-            'guesses': [[float(x) for x in guess] for guess in result['guesses']],
-            'statistics': {
-                'avg_iterations': float(result['avg_iterations']),
-                'std_iterations': float(result['std_iterations']),
-                'avg_target': float(result['avg_target']),
-                'std_target': float(result['std_target']),
-                'success_rate': float(result['success_rate']),
-            },
-        }
 
     html_content += json.dumps(json_results, indent=2)
     html_content += """
