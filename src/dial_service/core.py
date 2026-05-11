@@ -67,7 +67,7 @@ def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[floa
     module = get_backend_module(backend)
     output_points = module.samples(module, model, data)
 
-    return output_points  # noqa: RET504
+    return output_points
 
 
 # pure functional implementation of message, without MongoDB calls

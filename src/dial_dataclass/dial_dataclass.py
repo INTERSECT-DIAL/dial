@@ -6,7 +6,7 @@ from .pydantic_helpers import ValidatedObjectId
 
 PositiveIntType = Annotated[int, Field(ge=0)]
 
-_POSSIBLE_BACKENDS = ('sklearn', 'gpax')
+_POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'sable')
 
 BackendType = Literal[_POSSIBLE_BACKENDS]
 
@@ -55,11 +55,7 @@ class _DialWorkflowCreationParams(BaseModel):
             description='Specific RNG seed - use -1 to use system default',
         ),
     ]
-    dim_x: Annotated[
-        int,
-        Field(
-            default=1
-    )]
+    dim_x: Annotated[int, Field(default=1)]
 
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)
@@ -224,7 +220,7 @@ class DialInputMultipleOtherStrategy(BaseModel):
         'upper_confidence_bound',
         'upper_confidence_bound_nomad',
         'polymer_acl_sampler',
-        'hypercube'
+        'hypercube',
     ]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[

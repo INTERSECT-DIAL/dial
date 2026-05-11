@@ -10,7 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from intersect_sdk import (
-    INTERSECT_JSON_VALUE,
+    INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
     IntersectClient,
     IntersectClientCallback,
@@ -171,7 +171,7 @@ class ActiveLearningOrchestrator:
     # The callback function.  This is called whenever the server responds to our message.
     # This could instead be implemented by defining a callback method (and passing it later), but here we chose to directly make the object callable.
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_JSON_VALUE
+        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
     ) -> IntersectClientCallback:
         if _has_error:
             print('============ERROR==============', file=sys.stderr)

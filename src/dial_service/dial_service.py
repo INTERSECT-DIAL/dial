@@ -1,8 +1,14 @@
 import logging
 import pickle
+import traceback
 from typing import Any
 
-from intersect_sdk import IntersectBaseCapabilityImplementation, intersect_message, intersect_status
+from intersect_sdk import (
+    IntersectBaseCapabilityImplementation,
+    IntersectCapabilityError,
+    intersect_message,
+    intersect_status,
+)
 
 from dial_dataclass import (
     DialDataResponse1D,
@@ -59,7 +65,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             workflow_id = None
         if not workflow_id:
             msg = "Couldn't initialize workflow"
-            raise Exception(msg)  # noqa: TRY002 (Expected, we don't need to provide a detailed error message at this point)
+            raise IntersectCapabilityError(msg)
         return workflow_id
 
     @intersect_message()
@@ -72,7 +78,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             db_result = None
         if not db_result:
             msg = f"Couldn't get workflow data with id {uuid}"
-            raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO the former should realistically be a Pydantic ValidationError that can propogate to the client)
+            raise IntersectCapabilityError(msg)
         return DialWorkflowCreationParamsService(**db_result)
 
     @intersect_message()
@@ -89,7 +95,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             db_get_result = None
         if not db_get_result:
             msg = f'Could not get workflow with id {update_params.workflow_id}'
-            raise Exception(msg)  # noqa: TRY002 (workflow does not exist)
+            raise IntersectCapabilityError(msg)
 
         try:
             pretrain_result = DialWorkflowCreationParamsService(**db_get_result)
@@ -103,7 +109,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             and len(pretrain_result.dataset_x[0]) != len(update_params.next_x)
         ):
             msg = f'Length mismatch in update function for workflow ID {update_params.workflow_id}'
-            raise Exception(msg)  # noqa: TRY002 (data structure mismatch)
+            raise IntersectCapabilityError(msg)
 
         try:
             pretrain_result.dataset_x.append(update_params.next_x)
@@ -127,7 +133,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             db_update_result = None
         if not db_update_result:
             msg = f"Couldn't update workflow with new data for workflow {update_params.workflow_id}"
-            raise Exception(msg)  # noqa: TRY002 (workflow does not exist OR the length of the x value didn't match the rest) - TODO this should realistically be a Pydantic ValidationError that can propogate to the client) a Pydantic ValidationError that can propogate to the client)
+            raise IntersectCapabilityError(msg)
 
         return update_params.workflow_id
 
@@ -144,7 +150,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             db_get_result = None
         if not db_get_result:
             exc = f'Could not get workflow with id {update_params.workflow_id}'
-            raise Exception(exc)  # noqa: TRY002
+            raise IntersectCapabilityError(exc)
 
         try:
             pretrain = DialWorkflowCreationParamsService(**db_get_result)
@@ -155,7 +161,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             pretrain = None
         if not pretrain:
             exc = f'Workflow validation failed for {update_params.workflow_id}'
-            raise Exception(exc)  # noqa: TRY002
+            raise IntersectCapabilityError(exc)
 
         # shape check
         expected_dim = (
@@ -164,7 +170,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         for row in update_params.next_x_list:
             if len(row) != expected_dim:
                 exc = 'Length mismatch in update function'
-                raise Exception(exc)  # noqa: TRY002
+                raise IntersectCapabilityError(exc)
 
         try:
             pretrain.dataset_x.extend(update_params.next_x_list)
@@ -189,7 +195,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             db_update_result = None
         if not db_update_result:
             exc = f"Couldn't update workflow with new batch data for {update_params.workflow_id}"
-            raise Exception(exc)  # noqa: TRY002
+            raise IntersectCapabilityError(exc)
 
         return update_params.workflow_id
 
@@ -215,7 +221,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             workflow_state = None
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
-            raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
+            raise IntersectCapabilityError(msg)
 
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
@@ -236,8 +242,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             logger.exception(
                 'get_next_point exception (primary logic) for %s', client_data.workflow_id
             )
-            msg = f'get_next_point exception (primary logic) for {client_data.workflow_id}'
-            raise Exception(msg) from err  # noqa: TRY002 (for INTERSECT)
+            raise IntersectCapabilityError(traceback.format_exc()) from err
 
     @intersect_message
     def get_next_points(self, client_data: DialInputMultiple) -> DialDataResponse2D:
@@ -259,7 +264,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             workflow_state = None
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
-            raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
+            raise IntersectCapabilityError(msg)
 
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
@@ -280,8 +285,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             logger.exception(
                 'get_next_pointS exception (primary logic) for %s', client_data.workflow_id
             )
-            msg = f'get_next_pointS exception (primary logic) for {client_data.workflow_id}'
-            raise Exception(msg) from err  # noqa: TRY002 (for INTERSECT)
+            raise IntersectCapabilityError(traceback.format_exc()) from err
 
     @intersect_message
     def get_surrogate_values(self, client_data: DialInputPredictions) -> DialDataResponse2D:
@@ -302,7 +306,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             workflow_state = None
         if not workflow_state:
             msg = f'No workflow with id {client_data.workflow_id} exists'
-            raise Exception(msg)  # noqa: TRY002 (workflow does not exist - TODO this should realistically be a Pydantic ValidationError that can propogate to the client)
+            raise IntersectCapabilityError(msg)
 
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
@@ -323,8 +327,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             logger.exception(
                 'get_surrogate_values exception (primary logic) for %s', client_data.workflow_id
             )
-            msg = f'get_surrogate_values exception (primary logic) for {client_data.workflow_id}'
-            raise Exception(msg) from err  # noqa: TRY002 (for INTERSECT)
+            raise IntersectCapabilityError(traceback.format_exc()) from err
 
     @intersect_status()
     def status(self) -> str:

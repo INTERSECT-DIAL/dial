@@ -1,7 +1,14 @@
 [project]
 name = "dial"
-version = "0.1.1"
-authors = [{ name = "Stephen DeWitt", email = "dewittsj@ornl.gov"}, { name = "Lance Drane", email = "dranelt@ornl.gov" }, { name = "David Joy", email = "davidjoy022@gmail.com" }, { name = "Jacob Sweet", email = "jsweet@gatech.edu" }]
+version = "0.1.0"
+authors = [
+    { name = "Stephen DeWitt", email = "dewittsj@ornl.gov"},
+    { name = "Lance Drane", email = "dranelt@ornl.gov" },
+    { name = "David Joy", email = "davidjoy022@gmail.com" },
+    { name = "Jacob Sweet", email = "jsweet@gatech.edu" },
+    { name = "Ankit Shrivastava", email = "shrivastavaa@ornl.gov" },
+    { name = "Konstantin Pieper", email = "pieperk@ornl.gov" }
+]
 description = "Dial (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -10,28 +17,43 @@ license = {text = "BSD-3-Clause"}
 classifiers = ["Programming Language :: Python :: 3"]
 # TODO move some dependencies into optional dependencies
 dependencies = [
-    "intersect_sdk[amqp]>=0.8.3",
-    #"intersect_sdk[amqp]>=0.8.3,<0.9.0",
-    "matplotlib>=3.8.2,<4.0.0",          # TODO - this is only required if using gpax or running the client, consider making an optional dependency group
+    "intersect_sdk>=0.9.0,<0.10.0",
     "numpy>=1.26.3,<2.0.0",
     "scikit-learn>=1.4.0,<2.0.0",        # TODO consider making an optional dependency group
     "scipy>=1.12.0,<2.0.0",
     "gpax>=0.1.8",                       # TODO consider making an optional dependency group
     "pymongo>=4.12.1",                   # TODO - this is only needed for dial_service, dial_dataclass can use a simple fixture for ObjectID representation which allows it to skip this dependency
+    "sable @ git+https://code.ornl.gov/sable/sable.git",  # TODO this references the internal repo, transition to public version
 ]
 
-[tool.pdm.dev-dependencies]
-lint = [
+[dependency-groups]
+dev = [
     "pre-commit>=3.3.1",
     "mypy>=1.10.0",
     "ruff==0.9.4",
+    "pytest>=7.3.2",
+    "pytest-cov>=4.1.0",
+    "httpretty>=1.1.4",
+    "statsmodels>=0.14.4",
+    "matplotlib>=3.8.2,<4.0.0",
 ]
-test = ["pytest>=7.3.2", "pytest-cov>=4.1.0", "httpretty>=1.1.4"]
 
-[tool.pdm.scripts]
+# TODO - consider swapping to scikit-build-core backend if we need C/C++ extensions
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dial_dataclass", "src/dial_service"]
+
+[tool.hatch.metadata]
+# TODO - remove when Sable is published to PyPI
+allow-direct-references = true
+
+#[tool.pdm.scripts]
 # add --cov-fail-under=<NUMBER> when ready to require a minimum coverage amount
-test-all = "pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
-test-unit = "pytest tests/unit/"
+#test-all = "pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
+#test-unit = "pytest tests/unit/"
 
 [tool.ruff]
 line-length = 100
@@ -99,6 +121,7 @@ ignore = [
     'N803',    # do not require snake_casing function/method arguments
     'N806',    # allow uppercase in function names
     'N812',    # allow lowercase imports to be aliased to non-lowercase names
+    'RET504',  # allow "unnecessary assignment to variable" before return statements
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
@@ -120,6 +143,7 @@ ignore = [
     'ARG',    # allow unused parameters in tests
     'D',      # ignore documentation in tests
     'FA100',  # tests frequently use runtime typing annotations
+    'T201',   # allow print statements in tests
 ]
 
 [tool.mypy]
@@ -127,12 +151,3 @@ ignore = [
 ignore_missing_imports = true       # don't require typing for library stubs if they don't exist
 disallow_untyped_decorators = false # this is needed for library decorator compatibility, i.e. "retrying"
 plugins = ["pydantic.mypy"]
-
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
-
-[dependency-groups]
-dev = [
-    "statsmodels>=0.14.4",
-]

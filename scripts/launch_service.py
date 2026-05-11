@@ -11,9 +11,6 @@ from intersect_sdk import (
     default_intersect_lifecycle_loop,
 )
 
-from dial_service import DialCapabilityImplementation
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 """
@@ -40,6 +37,11 @@ if __name__ == '__main__':
         hierarchy=from_config_file['intersect-hierarchy'],
         **from_config_file['intersect'],
     )
+
+    logging.basicConfig(level=logging.INFO)
+
+    # IMPORTANT: import this after logging configuration
+    from dial_service import DialCapabilityImplementation
 
     capability = DialCapabilityImplementation(from_config_file['dial']['mongo'])
 
