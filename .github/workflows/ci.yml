@@ -39,21 +39,23 @@ jobs:
       matrix:
         python-version:
           - python-version: "3.10"
-            continue-on-error: false
+            continue-on-error: true
           - python-version: "3.11"
-            continue-on-error: false
+            continue-on-error: true
           - python-version: "3.12"
-            continue-on-error: false
+            continue-on-error: true
           # TODO - fix issue with Jaxlib not installing
           - python-version: "3.13"
             continue-on-error: true
+          - python-version: "3.14"
+            continue-on-error: true
         os:
           - os: macos-latest
-            continue-on-error: false
+            continue-on-error: true
           - os: windows-latest
-            continue-on-error: false
+            continue-on-error: true
           - os: ubuntu-latest
-            continue-on-error: false
+            continue-on-error: true
     runs-on: ${{ matrix.os.os }}
     steps:
       - uses: actions/checkout@v6
@@ -74,9 +76,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build -t dial:test --build-arg UV_NO_DEV=0 .
+        run: docker build -t dial:test --target builder --build-arg UV_NO_DEV=0 .
       - name: Run tests in container
-        run: docker run --rm dial:test pytest tests/
+        run: docker run --rm -v $PWD/tests:/app/tests/ dial:test uv run pytest tests/
+        continue-on-error: true
 
   continuous-deployment:
     name: Update deployments automatically

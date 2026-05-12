@@ -5,23 +5,25 @@ Benchmark which is meant to test core DIAL functionality (without the INTERSECT 
 import logging
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.interpolate import LinearNDInterpolator
 
 # from pytest_benchmark.fixture import BenchmarkFixture
 from dial_dataclass import (
-    DialInputSingleOtherStrategy,
     DialInputPredictions,
+    DialInputSingleOtherStrategy,
 )
 from dial_service import (
     core as dial_core,
 )
 from dial_service.serverside_data import (
     ServersideInputBase,
-    ServersideInputSingle,
     ServersideInputPrediction,
+    ServersideInputSingle,
 )
 from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
 
@@ -32,45 +34,55 @@ MOCK_WORKFLOW_ID = '6984e6a6ef6e6290dabced91'
 
 
 ###############
-low_f_data_name = '../fixtures/adaptive_strain_manufacturing_low_fidelity.csv'
-high_f_data_name = '../fixtures/adaptive_strain_manufacturing_high_fidelity.csv'
+low_f_data_name = (
+    Path(__file__).parents[1] / 'fixtures' / 'adaptive_strain_manufacturing_low_fidelity.csv'
+)
+high_f_data_name = (
+    Path(__file__).parents[1] / 'fixtures' / 'adaptive_strain_manufacturing_high_fidelity.csv'
+)
+
 
 def normalize_data(in_data):
     m_data = (in_data.max() + in_data.min()) * 0.5
     d_data = (in_data.max() - in_data.min()) * 0.5
     return (in_data - m_data) / d_data
 
+
 wall_st_index = 0
 wall_st_end = 676
-x_col_index = 0 # z follow next
-e_col_index = 2 # e11, e22 and e33
-nrows = int(26)  #Rows in sim strain map of the wall
-ncols = int(26)  #Cols in sim strain map of the wall
+x_col_index = 0  # z follow next
+e_col_index = 2  # e11, e22 and e33
+nrows = 26  # Rows in sim strain map of the wall
+ncols = 26  # Cols in sim strain map of the wall
 data = pd.read_csv(low_f_data_name)
 
-Y, Z, E11, E22, E33, R11, R22, R33 = np.array([data.values[:,x_col_index],
-                                               data.values[:,x_col_index+1],
-                                               data.values[:,e_col_index],
-                                               data.values[:,e_col_index+1],
-                                               data.values[:,e_col_index+2],
-                                               data.values[:,e_col_index+3],
-                                               data.values[:,e_col_index+4],
-                                               data.values[:,e_col_index+5]])
+Y, Z, E11, E22, E33, R11, R22, R33 = np.array(
+    [
+        data.values[:, x_col_index],
+        data.values[:, x_col_index + 1],
+        data.values[:, e_col_index],
+        data.values[:, e_col_index + 1],
+        data.values[:, e_col_index + 2],
+        data.values[:, e_col_index + 3],
+        data.values[:, e_col_index + 4],
+        data.values[:, e_col_index + 5],
+    ]
+)
 
-x1 = Y.astype(np.float32).reshape(nrows,ncols)
-x2 = Z.astype(np.float32).reshape(nrows,ncols)
+x1 = Y.astype(np.float32).reshape(nrows, ncols)
+x2 = Z.astype(np.float32).reshape(nrows, ncols)
 
 x1_norm = normalize_data(x1)
 x2_norm = normalize_data(x2)
 
-Sim_e11 = np.array(E11).astype(np.float32).reshape(nrows,ncols)
-Real_e11 = np.array(R11).astype(np.float32).reshape(nrows,ncols)
+Sim_e11 = np.array(E11).astype(np.float32).reshape(nrows, ncols)
+Real_e11 = np.array(R11).astype(np.float32).reshape(nrows, ncols)
 
-Sim_e22 = np.array(E22).astype(np.float32).reshape(nrows,ncols)
-Real_e22 = np.array(R22).astype(np.float32).reshape(nrows,ncols)
+Sim_e22 = np.array(E22).astype(np.float32).reshape(nrows, ncols)
+Real_e22 = np.array(R22).astype(np.float32).reshape(nrows, ncols)
 
-Sim_e33 = np.array(E33).astype(np.float32).reshape(nrows,ncols)
-Real_e33 = np.array(R33).astype(np.float32).reshape(nrows,ncols)
+Sim_e33 = np.array(E33).astype(np.float32).reshape(nrows, ncols)
+Real_e33 = np.array(R33).astype(np.float32).reshape(nrows, ncols)
 
 # Normalize data
 Sim_e11_norm = normalize_data(Sim_e11)
@@ -85,18 +97,22 @@ Real_e33_norm = normalize_data(Real_e33)
 
 data = pd.read_csv(high_f_data_name)
 
-Y, Z, E11, E22, E33, R11, R22, R33 = np.array([data.values[:,x_col_index],
-                                               data.values[:,x_col_index+1],
-                                               data.values[:,e_col_index],
-                                               data.values[:,e_col_index+1],
-                                               data.values[:,e_col_index+2],
-                                               data.values[:,e_col_index+3],
-                                               data.values[:,e_col_index+4],
-                                               data.values[:,e_col_index+5]])
+Y, Z, E11, E22, E33, R11, R22, R33 = np.array(
+    [
+        data.values[:, x_col_index],
+        data.values[:, x_col_index + 1],
+        data.values[:, e_col_index],
+        data.values[:, e_col_index + 1],
+        data.values[:, e_col_index + 2],
+        data.values[:, e_col_index + 3],
+        data.values[:, e_col_index + 4],
+        data.values[:, e_col_index + 5],
+    ]
+)
 
-Sim_hi_e11 = np.array(E11).astype(np.float32).reshape(nrows,ncols)
-Sim_hi_e22 = np.array(E22).astype(np.float32).reshape(nrows,ncols)
-Sim_hi_e33 = np.array(E33).astype(np.float32).reshape(nrows,ncols)
+Sim_hi_e11 = np.array(E11).astype(np.float32).reshape(nrows, ncols)
+Sim_hi_e22 = np.array(E22).astype(np.float32).reshape(nrows, ncols)
+Sim_hi_e33 = np.array(E33).astype(np.float32).reshape(nrows, ncols)
 
 # Transpose the high-fidelity simulation data
 # TODO, figure out why this is transposed
@@ -125,10 +141,10 @@ INITIAL_PREDICTIONS = Real_e33_norm.reshape(-1, 1)
 
 ###############
 
-NOISE_LEVEL = 1.e-2
+NOISE_LEVEL = 1.0e-2
 
-from scipy.interpolate import LinearNDInterpolator
 truth_interp = LinearNDInterpolator(INITIAL_POINTS_TO_PREDICT, INITIAL_PREDICTIONS)
+
 
 @dataclass
 class StrainMap:
@@ -148,14 +164,14 @@ class StrainMap:
 
         y_true = truth_interp(np.asarray(x1), np.asarray(x2))
 
-        #print("Evaluated truth model", np.hstack((x, y_true)))
+        # print("Evaluated truth model", np.hstack((x, y_true)))
 
         y_noise = y_true + self.noise_level * np.random.normal(size=y_true.shape)
         return y_noise
 
+
 # build a strain map from the selected truth values
-truth_strain_map = StrainMap(truth_interp=truth_interp,
-                             noise_level=NOISE_LEVEL)
+truth_strain_map = StrainMap(truth_interp=truth_interp, noise_level=NOISE_LEVEL)
 
 ###############
 
@@ -165,16 +181,16 @@ MAX_ITERATIONS = 150  # only allow a maximum of this many iterations in tests
 
 INITIAL_DATASET_X = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
-TARGET_RMSE = .2
+TARGET_RMSE = 0.2
+
 
 def run_simulation(
     dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
 ) -> tuple[np.ndarray, np.ndarray]:
-
     # important "Hyper-parameters"
-    length_scale = .2
+    length_scale = 0.2
     noise_level = NOISE_LEVEL
-    constant_value = 1.
+    constant_value = 1.0
 
     # modify a local copy of strategy_args
     strategy_args = strategy_args.copy()
@@ -184,7 +200,7 @@ def run_simulation(
         # train model with new data
         kernel_args = {
             'x_range': [-1.0, 1.0],
-            'sigma_range': [1e-2, 1.],
+            'sigma_range': [1e-2, 1.0],
             'gamma': 0.1,
         }
         backend_args = {
@@ -194,6 +210,7 @@ def run_simulation(
             'n_iter_irls': 100,
             'noise_level': noise_level,
         }
+
         client_state = DialWorkflowCreationParamsService(
             dataset_x=dataset_x,
             dataset_y=dataset_y,
@@ -213,13 +230,14 @@ def run_simulation(
             dataset_y=dataset_y,
             bounds=INITIAL_BOUNDS,
             kernel='rbf',
-            kernel_args = {'length_scale': length_scale,
-                           'length_scale_bounds': 'fixed',
-                           'noise_level': noise_level**2,
-                           'noise_level_bounds': 'fixed',
-                           'constant_value': constant_value,
-                           'constant_value_bounds': 'fixed',
-                           },
+            kernel_args={
+                'length_scale': length_scale,
+                'length_scale_bounds': 'fixed',
+                'noise_level': noise_level**2,
+                'noise_level_bounds': 'fixed',
+                'constant_value': constant_value,
+                'constant_value_bounds': 'fixed',
+            },
             y_is_good=False,  # we wish to minimize y (the error)
             backend=backend,  # "sklearn" or "gpax"
             seed=-1,  # Use seed = -1 for random results
@@ -235,7 +253,7 @@ def run_simulation(
         DialInputPredictions(
             workflow_id=MOCK_WORKFLOW_ID,
             points_to_predict=INITIAL_POINTS_TO_PREDICT,
-        )
+        ),
     )
     surrogate_mean, surrogate_std, _ = dial_core.get_surrogate_values(data, model)
     mean_grid = np.array(surrogate_mean).reshape((-1, 1))
@@ -324,7 +342,7 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
         total_rmse = np.sqrt(np.mean(mse))
         print(iterations, total_rmse)
 
-        graph(np.sqrt(mse), dataset_x, f"{strategy}_{strategy_args.get('backend', 'sklearn')}")
+        graph(np.sqrt(mse), dataset_x, f'{strategy}_{strategy_args.get("backend", "sklearn")}')
 
         if total_rmse <= TARGET_RMSE:
             break
@@ -336,14 +354,8 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
 TEST_PARAMS = (
     ('strategy', 'strategy_args'),
     [
-        (
-            'uncertainty',
-            {}
-        ),
-        (
-            'uncertainty',
-            {'backend': 'sable'}
-        ),
+        ('uncertainty', {}),
+        ('uncertainty', {'backend': 'sable'}),
         (
             'random',
             {},
@@ -521,9 +533,7 @@ if __name__ == '__main__':
     ax2.set_xticklabels(
         [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
     )
-    ax2.axhline(
-        y=TARGET_RMSE, color='r', linestyle='--', label=f'Target Threshold ({TARGET_RMSE})'
-    )
+    ax2.axhline(y=TARGET_RMSE, color='r', linestyle='--', label=f'Target Threshold ({TARGET_RMSE})')
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
 
