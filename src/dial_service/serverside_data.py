@@ -14,6 +14,14 @@ from .service_specific_dataclasses import DialWorkflowCreationParamsService
 # this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
     def __init__(self, data: DialWorkflowCreationParamsService):
+        self.dim_x = data.dim_x
+
+        if self.dim_x is None:
+            if len(data.dataset_x) > 0:
+                self.dim_x = len(data.dataset_x[0])
+            else:
+                raise ValueError('dim_x not set, and no dataset_x provided. Can not deduce dim_x.')
+
         self.X_raw = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
@@ -28,7 +36,6 @@ class ServersideInputBase:
         self.backend_args = data.backend_args
         self.kernel_args = data.kernel_args
         self.extra_args = data.extra_args
-        self.dim_x = data.dim_x
 
     @cached_property
     def stddev(self) -> float:

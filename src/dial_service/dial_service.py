@@ -87,7 +87,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
     ) -> ValidatedObjectId:
         """Updates the DB with the provided params. Success of operation is based off whether or not the INTERSECT response is an error."""
 
-        # TODO - all exceptions should realistically provide error information to the client. INTERSECT-SDK v0.9 will introduce a specific exception we can throw which will allow us to do this.
+        # TODO - all exceptions should realistically provide error information to the client.
+        # INTERSECT-SDK v0.9 will introduce a specific exception we can throw which will allow us to do this.
         try:
             db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id)
         except Exception:

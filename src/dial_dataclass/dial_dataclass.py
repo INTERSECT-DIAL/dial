@@ -1,6 +1,11 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from .pydantic_helpers import ValidatedObjectId
 
@@ -11,10 +16,39 @@ _POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'sable')
 BackendType = Literal[_POSSIBLE_BACKENDS]
 
 
+def validate_dims_and_length(data, x_name, y_name, dim_x=None):
+    """validate the lengths of datasets"""
+
+    #print(data)
+
+    dataset_x = data[x_name]
+    dataset_y = data[y_name]
+
+    len_x = len(dataset_x)
+    len_y = len(dataset_y)
+
+    if len_y != len_x:
+        msg = (f'Unequal number of points in {x_name} {len_x=}'
+               f' and {y_name} {len_y=}.')
+        raise ValueError(msg)
+
+    if dim_x is None and len_x == 0:
+        msg = ('Can not infer dim_x from empty dataset.'
+               'Set dim_x to the correct dimension.')
+        raise ValueError(msg)
+
+    if dim_x is not None and len_x > 0 and len(dataset_x[0]) != dim_x:
+        msg = (f'Vectors in {x_name} must be of length {dim_x=}.'
+               'Set dim_x to the correct dimension.')
+        raise ValueError(msg)
+
+
 class _DialWorkflowCreationParams(BaseModel):
     """This comprises the information needed to create a DIAL workflow.
 
-    This is a base class which should not be directly imported, clients should use "DialWorkflowCreationParamsClient" (in this file) and services should use "DialWorkflowCreationParamsService" (exported from the service)
+    This is a base class which should not be directly imported, clients should use
+    "DialWorkflowCreationParamsClient" (in this file) and services should use
+    "DialWorkflowCreationParamsService" (exported from the service)
     """
 
     dataset_x: Annotated[
@@ -29,14 +63,17 @@ class _DialWorkflowCreationParams(BaseModel):
     dataset_y: Annotated[
         list[float],
         Field(
-            description='The output values of the training data. Length should equal dataset_x',
+            description=('The output values of the training data.'
+                         ' Length should equal dataset_x'),
         ),
     ]
     y_is_good: Annotated[
         bool,
         Field(
             default=True,  # <-- Set default here
-            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+            description=('If true, treat higher y values as better'
+                         ' (e.g. y represents yield or profit).'
+                         ' If false, opposite (e.g. y represents error or waste)'),
         ),
     ]
     kernel: Literal['rbf', 'matern', 'linear']
@@ -55,7 +92,12 @@ class _DialWorkflowCreationParams(BaseModel):
             description='Specific RNG seed - use -1 to use system default',
         ),
     ]
-    dim_x: Annotated[int, Field(default=1)]
+    dim_x: Annotated[int | None, Field(
+        default=None,
+        description=('Provide the dimension of x explicitly,'
+                     ' e.g. if the initial dataset is empty.'
+                     ' If None, it will be inferred from dataset_x if possible.'),
+    )]
 
     preprocess_log: bool = Field(default=False)
     preprocess_standardize: bool = Field(default=False)
@@ -93,6 +135,12 @@ class _DialWorkflowCreationParams(BaseModel):
             row.sort()
         return bounds
 
+    @model_validator(mode='after')
+    def validate_dims_and_length(self, values):
+        validate_dims_and_length(vars(self),
+                                 'dataset_x', 'dataset_y', dim_x=self.dim_x)
+        return self
+
 
 # this class is specific to clients; they have no way of knowing which backends the Service supports, so we allow all of them
 class DialWorkflowCreationParamsClient(_DialWorkflowCreationParams):
@@ -102,6 +150,7 @@ class DialWorkflowCreationParamsClient(_DialWorkflowCreationParams):
 
 
 class DialWorkflowDatasetUpdate(BaseModel):
+    """This class is used to send a single update to the dataset."""
     workflow_id: ValidatedObjectId
     next_x: list[float] = Field(
         description='The next collection of X values you want to append to your overall data',
@@ -125,6 +174,7 @@ class DialWorkflowDatasetUpdate(BaseModel):
 
 
 class DialWorkflowDatasetUpdates(BaseModel):
+    """This class is used to send multiple updates to the dataset."""
     workflow_id: ValidatedObjectId
     next_x_list: list[list[float]] = Field(min_length=1)
     next_y_list: list[float] = Field(min_length=1)
@@ -132,6 +182,11 @@ class DialWorkflowDatasetUpdates(BaseModel):
     backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
 
+    @model_validator(mode='after')
+    def validate_dims_and_length(self, values):
+        validate_dims_and_length(vars(self),
+                                 'next_x_list', 'next_y_list')
+        return self
 
 class DialInputSingleConfidenceBound(BaseModel):
     workflow_id: ValidatedObjectId
@@ -212,6 +267,7 @@ DialInputSingle = Annotated[
 
 
 class DialInputMultipleOtherStrategy(BaseModel):
+    """TODO: document this"""
     workflow_id: ValidatedObjectId
     points: PositiveIntType
     strategy: Literal[
@@ -264,6 +320,7 @@ class DialInputPredictions(BaseModel):
     """This is the input dataclass for Dial for requesting a surrogate evaluation at a given number of points."""
 
     workflow_id: ValidatedObjectId
+
     points_to_predict: list[list[float]]
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
