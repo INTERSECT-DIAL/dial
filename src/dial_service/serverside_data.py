@@ -38,7 +38,17 @@ class ServersideInputBase:
         self.extra_args = data.extra_args
 
     @cached_property
-    def stddev(self) -> float:
+    def X_train(self) -> np.ndarray:
+        """
+        Return X scaled to [0, 1] per dimension based on self.bounds.
+
+        dataset_x: list[list[float]], shape (N, D)
+        bounds: list[[low, high], ...], shape (D, 2)
+        """
+        return self._scale_X(self.X_raw)
+
+    @cached_property
+    def Y_stddev(self) -> float:
         return np.std(self.Y_train)
 
     @cached_property
@@ -72,15 +82,6 @@ class ServersideInputBase:
 
         return (X - lows) / span
 
-    @cached_property
-    def X_train(self) -> np.ndarray:
-        """
-        Return X scaled to [0, 1] per dimension based on self.bounds.
-
-        dataset_x: list[list[float]], shape (N, D)
-        bounds: list[[low, high], ...], shape (D, 2)
-        """
-        return self._scale_X(self.X_raw)
 
     # undoes the preprocessing.
     def inverse_transform(self, data: np.ndarray, is_stddev: bool = False):
