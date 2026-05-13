@@ -46,7 +46,8 @@ class GpaxBackend(AbstractBackend[gpax.viGP, str, tuple[jnp.ndarray, jnp.ndarray
         # mean, y_var = model.predict(rng_key_predict, data.x_predict)
         # TODO check why model.predict().reshape() fails
         mean, y_var = model.predict(rng_key_predict, x.reshape(1, -1))
-        return mean[0], data.stddev * y_var[0]
+        # TODO: why do we scale the variance by stddev, but not mean?
+        return mean[0], data.Y_stddev * y_var[0]
 
     @staticmethod
     def get_kernel(data):
