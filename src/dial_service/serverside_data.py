@@ -15,13 +15,9 @@ from .service_specific_dataclasses import DialWorkflowCreationParamsService
 class ServersideInputBase:
     def __init__(self, data: DialWorkflowCreationParamsService):
         self.dim_x = data.dim_x
-
-        if self.dim_x is None:
-            if len(data.dataset_x) > 0:
-                self.dim_x = len(data.dataset_x[0])
-            else:
-                raise ValueError('dim_x not set, and no dataset_x provided. Can not deduce dim_x.')
-
+        self.dim_y = data.dim_y
+        self.labels_x = data.labels_x
+        self.labels_y = data.labels_y
         self.X_raw = np.array(data.dataset_x)
         self.Y_raw = np.array(data.dataset_y)
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:

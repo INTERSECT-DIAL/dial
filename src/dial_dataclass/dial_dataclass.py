@@ -5,6 +5,7 @@ from pydantic import (
     Field,
     field_validator,
     model_validator,
+    ValidationInfo,
 )
 
 from .pydantic_helpers import ValidatedObjectId
@@ -20,7 +21,7 @@ def _validate_dataset_lengths(dataset: list[any]) -> bool:
     """validate the lengths of dataset entries"""
     if len(dataset) > 1:
         data = dataset[0]
-        if data is list:
+        if isinstance(data, list):
             target_length = len(dataset[0])
             for row in dataset[1:]:
                 if len(row) != target_length:
@@ -31,7 +32,7 @@ def _validate_dataset_lengths(dataset: list[any]) -> bool:
 def _validate_dims_and_length(data: dict,
                               x_name: str,
                               y_name: str) -> tuple[int, int]:
-    """validate the lengths of datasets"""
+    """validate the lengths of datasets, and compte dim_x and dim_y"""
 
     print(data)
 
@@ -70,10 +71,29 @@ def _validate_dims_and_length(data: dict,
     return dim_x, dim_y
 
 
-def _validate_labels(data: dict,
-                     x_name: str,
-                     y_name: str) -> tuple[str, str]:
-    """validate the lengths of datasets"""
+def _validate_labels(cls) -> tuple[str, str]:
+    """validate the lengths of labels"""
+    labels_x, labels_y = cls.labels_x, cls.labels_y
+    dim_x, dim_y = cls.dim_x, cls.dim_y
+
+    def compute_labels(dim, labels):
+        if isinstance(labels, list):
+            if dim is not None and dim != len(labels):
+                msg = f'Labels {labels} ar not consistent with data dimension {dim=}'
+                raise ValueError(msg)
+        else:
+            if dim > 1:
+                # give each parameter a unique label by appending a number
+                labels = [f'{labels}_{i+1}' for i in range(dim)]
+            else:
+                labels = [labels]
+        return labels
+
+    labels_x = compute_labels(dim_x, labels_x)
+    labels_y = compute_labels(dim_y, labels_y)
+
+    return labels_x, labels_y
+
 
 class _DialWorkflowCreationParams(BaseModel):
     """This comprises the information needed to create a DIAL workflow.
@@ -104,23 +124,23 @@ class _DialWorkflowCreationParams(BaseModel):
                          ' Length should equal dataset_x'),
         ),
     ]
-    x_labels: Annotated[
+    labels_x: Annotated[
         str | list[str],
         Field(default='x',
               description='Labels for input variables x.')
     ]
-    y_labels: Annotated[
+    labels_y: Annotated[
         str | list[str],
         Field(default='y',
               description='Labels for output variables y.')
     ]
-    dim_x: Annotated[int | None, Field(
+    dim_x: Annotated[PositiveIntType | None, Field(
         default=None,
         description=('Provide the dimension of entries in dataset_x explicitly,'
                      ' e.g. if the initial dataset is empty.'
                      ' If None, it will be inferred from dataset_x if possible.'),
     )]
-    dim_y: Annotated[int | None, Field(
+    dim_y: Annotated[PositiveIntType | None, Field(
         default=1,
         description=('Provide the dimension of entries in dataset_y explicitly,'
                      ' e.g. if the initial dataset is empty.'
@@ -140,7 +160,7 @@ class _DialWorkflowCreationParams(BaseModel):
     kernel: Literal['rbf', 'matern', 'linear']
     bounds: list[
         Annotated[
-            Annotated[list[float], Field(min_length=2, max_length=2)],
+            list[float],
             Field(min_length=2, max_length=2),
         ]
     ]
@@ -172,26 +192,33 @@ class _DialWorkflowCreationParams(BaseModel):
 
     @field_validator('dataset_x', 'dataset_y')
     @classmethod
-    def ensure_consistent_dataset_x_lengths(cls, dataset, ctx):
+    def ensure_consistent_dataset_lengths(cls, dataset, info: ValidationInfo):
         is_valid = _validate_dataset_lengths(dataset)
         if not is_valid:
-            msg = f'Unequal vector lengths in {ctx.field_name}'
+            msg = f'Unequal vector lengths in {info.field_name}'
             raise ValueError(msg)
         return dataset
 
+    @model_validator(mode='after')
+    def validate_dims_and_length(self, values):
+        # compute the dimensions and validate consistency
+        self.dim_x, self.dim_y = _validate_dims_and_length(vars(self),
+                                                           'dataset_x', 'dataset_y')
+        # compute or validate labels
+        self.labels_x, self.labels_y = _validate_labels(self)
+        return self
+
     # order rows as [low, high] - do NOT error out here, we can efficiently handle normalization
-    @field_validator('bounds')
+    @field_validator('bounds', mode='after')
     @classmethod
-    def order_bounds(cls, bounds: list[list[float]]):
+    def order_bounds(cls, bounds: list[list[float]], info: ValidationInfo):
+        dim_x = info.data.get('dim_x')
+        if len(bounds) != dim_x:
+            msg = f'Bounds have incorrect length {len(bounds)} != {dim_x=}'
+            raise ValueError(msg)
         for row in bounds:
             row.sort()
         return bounds
-
-    @model_validator(mode='after')
-    def validate_dims_and_length(self, values):
-        _validate_dims_and_length(vars(self),
-                                  'dataset_x', 'dataset_y')
-        return self
 
 
 # this class is specific to clients; they have no way of knowing which backends the Service supports, so we allow all of them
