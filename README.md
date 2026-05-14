@@ -40,9 +40,9 @@ To run linter and automatically fix errors:
 
 ## running infrastructure locally
 
-You can use `docker compose up -d -f docker-compose-dev.yml` or to automatically spin up both a broker instance and a database instance locally.
+You can use `docker compose -f docker-compose-dev.yml up` or to automatically spin up both a broker instance and a database instance locally.
 
-If you also want to run DIAL inside the container, you can instead run `docker compose up -d`
+If you also want to run DIAL inside the container, you can instead run `docker compose up`
 
 To remove the infrastructure containers: `docker compose down -v`; leave off the `-v` flag if you would like to persist the DB data.
 
