@@ -22,13 +22,13 @@ Alternatively, both intersect-sdk and Dial may be installed with the following:
 
 ## Installing (developers)
 
-Install PDM ([link](https://pdm-project.org/en/latest/#installation)) and then run:
+Install UV ([link](https://docs.astral.sh/uv/getting-started/installation/)) and then run:
 
-`pdm install`
+`uv sync`
 
-We use PDM as a dependency manager and intend on using the dependencies listed in `pdm.lock` in a production environment.
+We use UV as a dependency manager and intend on using the dependencies listed in `uv.lock` in a production environment.
 
-We use ruff to lint/format; if using the PDM workflow, `pre-commit` will automatically fail the commit if there are linting/formatting errors.
+We use ruff to lint/format; if using the UV workflow, `pre-commit` will automatically fail the commit if there are linting/formatting errors.
 
 To format:
 
@@ -113,6 +113,6 @@ helm install dial . -n dial --create-namespace \
 
 ## Testing
 
-You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
+You will need `pytest` installed to run the tests.
 
-`pdm run test-all`
+`pytest tests/`
