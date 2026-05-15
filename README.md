@@ -24,7 +24,7 @@ Alternatively, both intersect-sdk and Dial may be installed with the following:
 
 Install UV ([link](https://docs.astral.sh/uv/getting-started/installation/)) and then run:
 
-`uv sync`
+`uv sync --all-groups --all-extras --all-packages`
 
 We use UV as a dependency manager and intend on using the dependencies listed in `uv.lock` in a production environment.
 
@@ -51,8 +51,9 @@ To remove the infrastructure containers: `docker compose down -v`; leave off the
 To run the service: `python scripts/launch_service.py`
 
 In a separate terminal, you can run one of the following clients:
-  - Automatic: `python scripts/automated_client.py`
-  - Manual: `python scripts/manual_client.py`
+
+- Automatic: `python scripts/automated_client.py`
+- Manual: `python scripts/manual_client.py`
 
 CLI arg `--config` or environment variable `DIAL_CONFIG_FILE` should be a path to a valid JSON configuration. If neither value is set, it will default to `local-conf.json` .
 
@@ -90,21 +91,25 @@ helm install dial . -n dial --create-namespace
 ```
 
 For detailed Helm chart documentation, see:
+
 - [charts/dial/README.md](charts/dial/README.md) - Comprehensive Helm documentation
 
 ### Common Helm Commands
 
 With custom INTERSECT configuration:
+
 ```bash
 helm install dial . -n dial --create-namespace -f values.yaml -f values.config.yaml
 ```
 
 With NodePort service:
+
 ```bash
 helm install dial . -n dial --create-namespace -f values.yaml -f values.nodePort.yaml
 ```
 
 With external MongoDB:
+
 ```bash
 helm install dial . -n dial --create-namespace \
   --set mongodb.enabled=false \
@@ -116,3 +121,9 @@ helm install dial . -n dial --create-namespace \
 You will need `pytest` installed to run the tests.
 
 `pytest tests/`
+
+## Building the documentation
+
+You will need to make sure the `docs` optional dependency group is installed. Then you can run `sphinx build -W --keep-going docs/ docs/_build/` .
+
+To quickly spin up the documentation web server on `http://localhost:8000` : `python -m http.server -d docs/_build/`
