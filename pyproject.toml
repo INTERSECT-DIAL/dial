@@ -18,7 +18,7 @@ classifiers = ["Programming Language :: Python :: 3"]
 # TODO move some dependencies into optional dependencies
 dependencies = [
   "intersect_sdk>=0.9.0,<0.10.0",
-  "numpy>=1.26.3,<2.0.0",
+  "numpy",
   "scikit-learn>=1.4.0,<2.0.0",                        # TODO consider making an optional dependency group
   "scipy>=1.12.0,<2.0.0",
   "gpax>=0.1.8",                                       # TODO consider making an optional dependency group
