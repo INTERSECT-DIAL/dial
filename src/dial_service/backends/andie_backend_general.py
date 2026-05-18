@@ -1,5 +1,7 @@
 """NOTE: This file should not be imported in application code except dynamically via the get_backend_module function in __init__.py ."""
 
+import inspect
+
 import numpy as np
 import scipy as sp
 from scipy.optimize import OptimizeResult
@@ -97,7 +99,7 @@ class AndieBackend(
 
     @staticmethod
     def get_parametric_model(data):
-        model_name = data.model_name.lower()
+        model_name = data.extra_args['model_name'].lower()
 
         if model_name not in _MODELS_ANDIE:
             raise ValueError(f"Unknown startegy {model_name}")
@@ -105,11 +107,35 @@ class AndieBackend(
         return _MODELS_ANDIE[model_name]
 
     @staticmethod
+    def _make_bumps_callable(model_func, param_names):
+        """Wrap a dict-style parametric model into a bumps-compatible callable.
+
+        bumps.Curve inspects the function signature to discover fit parameters.
+        Dict-style models have signature (inputs, model_params: dict), but bumps
+        requires (x, p1, p2, ...) with explicit named parameters.  This builds a
+        wrapper whose __signature__ bumps can introspect, while delegating calls
+        to the dict-based interface.
+        """
+        def wrapper(x, **kwargs):
+            return model_func(x, model_params=kwargs)
+
+        params = [
+            inspect.Parameter('x', inspect.Parameter.POSITIONAL_OR_KEYWORD),
+            *[
+                inspect.Parameter(name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                for name in param_names
+            ],
+        ]
+        wrapper.__signature__ = inspect.Signature(params)
+        return wrapper
+
+    @staticmethod
     def _Second_order_model(X_grid, Y_grid, model_to_be_optimized, guesses, priors):
-        
-        M = Curve(model_to_be_optimized, X_grid, Y_grid,
+        bumps_callable = AndieBackend._make_bumps_callable(model_to_be_optimized, list(guesses.keys()))
+
+        M = Curve(bumps_callable, X_grid, Y_grid,
             dy = np.sqrt(Y_grid/100),
-            pars = guesses)
+            **guesses)
 
         for par_name, prior_dist in priors.items():
             M.__getattribute__(par_name).dist = prior_dist
