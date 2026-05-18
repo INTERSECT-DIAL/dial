@@ -7,6 +7,7 @@ from ..serverside_data import ServersideInputBase, ServersideInputPrediction
 # tuple of module and class name
 _BACKENDS = {
     'gpax': ('dial_service.backends.gpax_backend', 'GpaxBackend'),
+    'sable': ('dial_service.backends.sable_backend', 'SABLEBackend'),
     'sklearn': ('dial_service.backends.sklearn_backend', 'SklearnBackend'),
     'andie': ('dial_service.backends.andie_backend', 'AndieBackend'),
 }
@@ -31,6 +32,10 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
 
     @staticmethod
     @abstractmethod
+    def initialize_model(data: ServersideInputBase) -> _MODEL: ...
+
+    @staticmethod
+    @abstractmethod
     def predict(model: _MODEL, data: ServersideInputPrediction) -> _PREDICT: ...
 
     @staticmethod
@@ -40,6 +45,10 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
     @staticmethod
     @abstractmethod
     def sample(module, model: _MODEL, data: ServersideInputBase): ...
+
+    @staticmethod
+    @abstractmethod
+    def samples(module, model: _MODEL, data: ServersideInputBase): ...
 
 
 def get_backend_module(backend: str) -> AbstractBackend:
