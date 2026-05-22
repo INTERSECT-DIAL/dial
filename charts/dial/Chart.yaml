@@ -1,7 +1,7 @@
 apiVersion: v2
 name: dial
 description: "DIAL (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
-version: 0.1.0
+version: 0.1.1
 dependencies:
   - name: common
     repository: https://charts.bitnami.com/bitnami
