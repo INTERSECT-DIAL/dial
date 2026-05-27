@@ -136,7 +136,7 @@ spec:
       volumes:
         - name: dial-config
           secret:
-            secretName: {{ template "common.names.fullname" . }}-config
+            secretName: {{ if .Values.dial.configFileExistingSecret }}{{ .Values.dial.configFileExistingSecret }}{{ else }}{{ template "common.names.fullname" . }}-config{{ end }}
             items:
               - key: local-conf.json
                 path: local-conf.json

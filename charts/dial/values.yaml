@@ -113,6 +113,10 @@ dial:
       }
     }
 
+  ### Provide an existing secret with key (local-conf.json)
+  ### NOTE: when this option is applied, the chart does not create the secret
+  configFileExistingSecret: ""
+
   diagnosticMode:
     enabled: false
     command:
