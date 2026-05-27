@@ -86,17 +86,28 @@ def _validate_dims_and_length(data: dict,
             raise ValueError(msg)
 
         if lenn > 0:
-            inferred_len = len(dataset[0]) if dataset[0] is list else 1
-            if dim is not None and inferred_len != dim_x:
+            print(dataset[0])
+            inferred_dim = len(dataset[0]) if isinstance(dataset[0], list) else 1
+            if dim is not None and inferred_dim != dim:
                 msg = (f'Vectors in {name} must be of length {dim=}.'
                        'Set dim to the correct dimension.')
                 raise ValueError(msg)
-            dim = inferred_len
+            dim = inferred_dim
 
         return dim
 
+    # compute dimensions and validate consistency
     dim_x = compute_dim(dim_x, dataset_x, x_name)
     dim_y = compute_dim(dim_y, dataset_y, y_name)
+
+    print(dim_x, dataset_x, x_name)
+    print(dim_y, dataset_y, y_name)
+
+    # validate bounds, if they exist
+    bounds = data.get('bounds')
+    if bounds is not None and len(bounds) != dim_x:
+        msg = f'Bounds have incorrect length {len(bounds)} != {dim_x=}'
+        raise ValueError(msg)
 
     return dim_x, dim_y
 
@@ -241,6 +252,14 @@ class _DialWorkflowCreationParams(BaseModel):
             raise ValueError(msg)
         return dataset
 
+    # order rows as [low, high] - do NOT error out here, we can efficiently handle normalization
+    @field_validator('bounds', mode='after')
+    @classmethod
+    def order_bounds(cls, bounds: list[list[float]], info: ValidationInfo):
+        for row in bounds:
+            row.sort()
+        return bounds
+
     @model_validator(mode='after')
     def validate_dims_and_length(self, values):
         # compute the dimensions and validate consistency
@@ -249,18 +268,6 @@ class _DialWorkflowCreationParams(BaseModel):
         # compute or validate labels
         self.labels_x, self.labels_y = _validate_labels(self)
         return self
-
-    # order rows as [low, high] - do NOT error out here, we can efficiently handle normalization
-    @field_validator('bounds', mode='after')
-    @classmethod
-    def order_bounds(cls, bounds: list[list[float]], info: ValidationInfo):
-        dim_x = info.data.get('dim_x')
-        if len(bounds) != dim_x:
-            msg = f'Bounds have incorrect length {len(bounds)} != {dim_x=}'
-            raise ValueError(msg)
-        for row in bounds:
-            row.sort()
-        return bounds
 
 
 # this class is specific to clients; they have no way of knowing which backends the Service supports, so we allow all of them

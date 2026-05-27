@@ -139,6 +139,7 @@ def multiple_2D(backend, strategy):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
+        dim_x=2,  # provide dim_x for empty dataset
         y_is_good=False,
         kernel='rbf',
         length_per_dimension=False,
