@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import Annotated, Literal, Optional
 
 from pydantic import (
@@ -10,11 +11,39 @@ from pydantic import (
 
 from .pydantic_helpers import ValidatedObjectId
 
-PositiveIntType = Annotated[int, Field(ge=0)]
-
 _POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'sable')
 
 BackendType = Literal[_POSSIBLE_BACKENDS]
+
+PositiveIntType = Annotated[int, Field(ge=0)]
+
+Label = Annotated[str, Field(
+    max_length=50,
+    description='Label for a dataset entry.'
+)]
+FloatOrLabel = Annotated[float | Label, Field(
+    description='A constant float, or the label of a dataset entry.',
+)]
+
+
+class Distribution(BaseModel, ABC):
+    """Base class for a statistical distribution."""
+    loc: Annotated[Label, Field(
+        description='The location (mean, or center) of the distribution',
+    )]
+    scale: Annotated[FloatOrLabel, Field(
+        description='The scale or standard deviation of the distribution',
+    )]
+
+
+class Delta(Distribution):
+    """The Delta distribution is deterministic and equal to its mean."""
+    scale: float = Field(gt=0., lt=0., default=0., frozen=True)
+
+
+class Normal(Distribution):
+    """The normal distribution is determined by loc (mean) and scale (standard deviation)."""
+
 
 
 def _validate_dataset_lengths(dataset: list[any]) -> bool:
@@ -32,12 +61,12 @@ def _validate_dataset_lengths(dataset: list[any]) -> bool:
 def _validate_dims_and_length(data: dict,
                               x_name: str,
                               y_name: str) -> tuple[int, int]:
-    """validate the lengths of datasets, and compte dim_x and dim_y"""
+    """validate the lengths of datasets, and compute dim_x and dim_y"""
 
-    print(data)
+    print('\n'.join(f"{k}: {v}" for k, v in data.items()))
 
-    dim_x = data.get("dim_x")
-    dim_y = data.get("dim_y")
+    dim_x = data.get('dim_x')
+    dim_y = data.get('dim_y')
     dataset_x = data[x_name]
     dataset_y = data[y_name]
 
@@ -55,14 +84,15 @@ def _validate_dims_and_length(data: dict,
             msg = (f'Can not infer dim from empty dataset {name}.'
                    'Set dim to the correct dimension.')
             raise ValueError(msg)
-        else:
+
+        if lenn > 0:
             inferred_len = len(dataset[0]) if dataset[0] is list else 1
             if dim is not None and inferred_len != dim_x:
                 msg = (f'Vectors in {name} must be of length {dim=}.'
                        'Set dim to the correct dimension.')
                 raise ValueError(msg)
-            else:
-                dim = inferred_len
+            dim = inferred_len
+
         return dim
 
     dim_x = compute_dim(dim_x, dataset_x, x_name)
@@ -81,12 +111,12 @@ def _validate_labels(cls) -> tuple[str, str]:
             if dim is not None and dim != len(labels):
                 msg = f'Labels {labels} ar not consistent with data dimension {dim=}'
                 raise ValueError(msg)
+        elif dim > 1:
+            # give each parameter a unique label by appending a number
+            labels = [f'{labels}_{i+1}' for i in range(dim)]
         else:
-            if dim > 1:
-                # give each parameter a unique label by appending a number
-                labels = [f'{labels}_{i+1}' for i in range(dim)]
-            else:
-                labels = [labels]
+            # normalize to single element list
+            labels = [labels]
         return labels
 
     labels_x = compute_labels(dim_x, labels_x)
@@ -125,28 +155,40 @@ class _DialWorkflowCreationParams(BaseModel):
         ),
     ]
     labels_x: Annotated[
-        str | list[str],
+        Label | list[Label],
         Field(default='x',
               description='Labels for input variables x.')
     ]
     labels_y: Annotated[
-        str | list[str],
+        Label | list[Label],
         Field(default='y',
               description='Labels for output variables y.')
     ]
-    dim_x: Annotated[PositiveIntType | None, Field(
-        default=None,
-        description=('Provide the dimension of entries in dataset_x explicitly,'
-                     ' e.g. if the initial dataset is empty.'
-                     ' If None, it will be inferred from dataset_x if possible.'),
+    dim_x: Annotated[
+        PositiveIntType | None,
+        Field(
+            default=None,
+            description=('Provide the dimension of entries in dataset_x explicitly,'
+                         ' e.g. if the initial dataset is empty.'
+                         ' If None, it will be inferred from dataset_x if possible.'),
     )]
-    dim_y: Annotated[PositiveIntType | None, Field(
-        default=1,
-        description=('Provide the dimension of entries in dataset_y explicitly,'
-                     ' e.g. if the initial dataset is empty.'
-                     ' If None, it will be inferred from dataset_y if possible.'),
+    dim_y: Annotated[
+        PositiveIntType | None,
+        Field(
+            default=1,
+            description=('Provide the dimension of entries in dataset_y explicitly,'
+                         ' e.g. if the initial dataset is empty.'
+                         ' If None, it will be inferred from dataset_y if possible.'),
     )]
-    # maximize_y: TODO, provide a language to determine which y to maximize
+    statistics_y: Annotated[
+        Distribution,
+        Field(
+            default=Delta(loc='y'),
+            description=('Provide the statistical model underlying the y data: For example:'
+                         " Delta(loc='y') means that the y data is without error,"
+                         " Normal(loc='y', scale=0.1) is a standard error with mean y and standard deviation 0.1"
+                         " Normal(loc='y', scale='yerr') takes the std.dev. from the data column yerr.")
+    )]
 
     y_is_good: Annotated[
         bool,
