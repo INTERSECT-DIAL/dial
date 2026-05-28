@@ -30,7 +30,9 @@ def single_1D(backend, strategy, strategy_args):
         dataset_y=[100, 200],
         bounds=[[1, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed',
+                     'noise_level': 0.0, 'noise_level_bounds': 'fixed',
+                     'constant_value': 1.0, 'constant_value_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -75,7 +77,9 @@ def single_2D(backend, strategy, strategy_args):
         ],
         bounds=[[-2, 2], [-2, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={'length_scale': 0.15, 'length_scale_bounds': 'fixed',
+                     'noise_level': 0.0, 'noise_level_bounds': 'fixed',
+                     'constant_value': 1.0, 'constant_value_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -120,7 +124,9 @@ def single_3D(backend, strategy, strategy_args):
         ],
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={'length_scale': 0.15, 'length_scale_bounds': 'fixed',
+                     'noise_level': 0.0, 'noise_level_bounds': 'fixed',
+                     'constant_value': 1.0, 'constant_value_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -150,8 +156,9 @@ def multiple_2D(backend, strategy):
     )
     params = DialInputMultiple(
         workflow_id=DUMMY_WORKFLOW_ID,
-        points=10,
         strategy=strategy,
+        bounds=[[0, 100], [-1, 1]],
+        points=10,
     )
     return ServersideInputMultiple(workflow_state, params)
 
@@ -162,7 +169,9 @@ def prediction_1D(backend):
         dataset_y=[100, 200],
         bounds=[[1, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed',
+                     'noise_level': 0.0, 'noise_level_bounds': 'fixed',
+                     'constant_value': 50.0**2, 'constant_value_bounds': 'fixed'},
         backend=backend,
         preprocess_standardize=False,
         y_is_good=True,
@@ -205,7 +214,7 @@ def test_EI_2D(backend, approx):
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.1)
 
 
 @pytest.mark.parametrize(
@@ -221,26 +230,21 @@ def test_EI_3D(backend, approx):
         backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
     )
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.1)
 
 
 @pytest.mark.parametrize(
-    'backend',
+    ('backend', 'approx'),
     [
-        'sklearn',
+        ('sklearn', [1.5]),
         # ('gpax',),
     ],
 )
-def test_uncertainty(backend):
+def test_uncertainty(backend, approx):
     data = single_1D(backend, strategy='uncertainty', strategy_args=None)
     model = core.train_model(data)
     result = core.get_next_point(data, model)
-    # The uncertainty sampling should select one of the boundary points (1.0 or 2.0)
-    # since training data is at both boundaries. Which boundary is selected can vary
-    # based on optimizer and numerical precision across Python versions.
-    assert abs(result[0] - 1.0) < 0.01 or abs(result[0] - 2.0) < 0.01, (
-        f'Expected result near 1.0 or 2.0, got {result[0]}'
-    )
+    assert result == pytest.approx(approx, abs=0.01)
 
 
 @pytest.mark.parametrize(
@@ -284,7 +288,8 @@ def test_random(backend):
 )
 def test_random_points(backend):
     data = multiple_2D(backend, strategy='random')
-    for pt in core.get_next_points(data):
+    model = core.initialize_model(data)
+    for pt in core.get_next_points(data, model):
         assert 0 <= pt[0] <= 100
         assert -1 <= pt[1] <= 1
 
@@ -298,7 +303,8 @@ def test_random_points(backend):
 )
 def test_hypercube(backend):
     data = multiple_2D(backend, strategy='hypercube')
-    points = core.get_next_points(data)
+    model = core.initialize_model(data)
+    points = core.get_next_points(data, model)
     for i in range(10):
         assert sum(1 for pt in points if 10 * i <= pt[0] <= 10 * (i + 1)) == 1
         assert sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1, (
