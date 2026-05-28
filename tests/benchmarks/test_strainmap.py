@@ -286,6 +286,17 @@ def run_simulation(
 
 
 def graph(err_grid, dataset_x, strategy):
+    try:
+        import matplotlib as mpl
+        import matplotlib.pyplot as plt
+
+        mpl.use('Agg')  # Use non-interactive backend
+    except ImportError:
+        logger.error(  # noqa: TRY400
+            'Error: matplotlib is required for generating plots. Install it with: pip install matplotlib'
+        )
+        return
+
     plt.clf()
     data = np.array(err_grid)
     plt.contourf(
@@ -309,7 +320,9 @@ def graph(err_grid, dataset_x, strategy):
     plt.savefig(f'graph_{strategy}.png')
 
 
-def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float]:
+def accuracy_benchmark(
+    strategy: str, strategy_args: object, max_iterations=MAX_ITERATIONS
+) -> tuple[int, float]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
@@ -325,7 +338,7 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
     dataset_y = truth_strain_map.strain_map(dataset_x).reshape(-1).tolist()
 
     # run simulations until we reach an acceptable target range
-    while iterations < MAX_ITERATIONS:
+    while iterations < max_iterations:
         try:
             err_grid, std_grid = run_simulation(dataset_x, dataset_y, strategy, strategy_args)
         except Exception as e:
@@ -350,14 +363,12 @@ def accuracy_benchmark(strategy: str, strategy_args: object) -> tuple[int, float
 
 
 TEST_PARAMS = (
-    ('strategy', 'strategy_args'),
+    ('strategy', 'strategy_args', 'max_iterations'),
     [
-        ('uncertainty', {}),
-        ('uncertainty', {'backend': 'sable'}),
-        (
-            'random',
-            {},
-        ),
+        ('uncertainty', {}, 2),
+        ('uncertainty', {'backend': 'sable'}, 2),
+        ('random', {}, 2),
+        # use low number of iterations for unit test
     ],
 )
 
@@ -366,14 +377,15 @@ TEST_PARAMS = (
 def test_benchmark_strainmap_accuracy(
     # benchmark: BenchmarkFixture,
     strategy: str,
-    strategy_args,
+    strategy_args: dict,
+    max_iterations: int,
 ) -> None:
     # NUM_RUNS = 20
     # for _ in range(NUM_RUNS):
     # iterations, target = benchmark(
     # partial(accuracy_benchmark, strategy, strategy_args)
     # )
-    iterations, target, guess = accuracy_benchmark(strategy, strategy_args)
+    iterations, target, guess = accuracy_benchmark(strategy, strategy_args, max_iterations)
     print(
         'Iterations for',
         strategy,
@@ -388,13 +400,13 @@ def test_benchmark_strainmap_accuracy(
         'Maximum early terminus value',
         TARGET_RMSE,
         ' with ',
-        MAX_ITERATIONS,
+        max_iterations,
         ' maximum iterations.',
     )
     print(
         'Accuracy benchmark for strategy:',
         strategy,
-        'reached' if iterations <= MAX_ITERATIONS else 'not reached',
+        'reached' if iterations <= max_iterations else 'not reached',
     )
 
 
