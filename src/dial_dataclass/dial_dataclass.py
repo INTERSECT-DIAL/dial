@@ -408,6 +408,7 @@ class DialInputMultipleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     points: PositiveIntType
     strategy: Literal[
+        'random',
         'uncertainty',
         'expected_improvement',
         'upper_confidence_bound',
