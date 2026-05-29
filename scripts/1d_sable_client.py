@@ -23,6 +23,7 @@ from dial_dataclass import (
     DialInputSingleOtherStrategy,
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
+    Normal,
 )
 
 mpl.use('agg')
@@ -94,6 +95,8 @@ class ActiveLearningOrchestrator:
 
         self.dataset_x = self.x_raw.reshape(-1, 1).tolist()
         self.dataset_y = self.y_raw.reshape(-1).tolist()
+        self.labels_y = ['y']
+        self.statistics_y = Normal(loc='y', scale=self.noise_level)
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
         self.kernel = 'rbf'
@@ -104,7 +107,6 @@ class ActiveLearningOrchestrator:
             'alpha': 0.05,
             'p': 1.25,
             'n_iter_irls': 100,
-            'noise_level': self.noise_level,
         }
         self.strategy = 'upper_confidence_bound'
         self.strategy_args = {'exploit': 0.0, 'explore': 1.0}
@@ -160,6 +162,8 @@ class ActiveLearningOrchestrator:
             next_payload = DialWorkflowCreationParamsClient(
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
+                labels_y=self.labels_y,
+                statistics_y=self.statistics_y,
                 bounds=self.bounds.tolist(),
                 kernel=self.kernel,
                 kernel_args=self.kernel_args,

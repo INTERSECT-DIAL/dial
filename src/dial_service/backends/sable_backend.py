@@ -3,6 +3,8 @@
 import numpy as np
 from sable import DiscretizedSurrogateModel, ScaledRBFModel
 
+from dial_dataclass import Normal
+
 from ..utilities import strategies
 from . import AbstractBackend
 
@@ -30,17 +32,25 @@ def _get_model_kwargs(data) -> dict:
 
 def _get_observation_errors(data, n_observations: int) -> np.ndarray:
     backend_args = {} if data.backend_args is None else data.backend_args
-    y_err = backend_args.get('y_err', backend_args.get('noise_level', 1e-6))
-    # TODO figure this out: We need a consistent way to configure alpha / noise_level / y_err
 
-    y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
-    if y_err_arr.size == 1:
-        y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
+    if isinstance(data.statistics_y, Normal):
+        y_err = data.Yerr_train
+        y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
+        if y_err_arr.size == 1:
+            y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
+    else:
+        # if y_err is not provided through the statistics, use the old fallback for compatibility
+        # TODO: remove if no longer needed
+        y_err = backend_args.get('y_err', backend_args.get('noise_level', 1e-6))
 
-    if data.preprocess_standardize and len(data.Y_raw) > 0:
-        scale = np.std(np.asarray(data.Y_raw, dtype=float))
-        if scale > 0:
-            y_err_arr = y_err_arr / scale
+        y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
+        if y_err_arr.size == 1:
+            y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
+
+        if data.preprocess_standardize and len(data.Y_raw) > 0:
+            scale = np.std(np.asarray(data.Y_raw, dtype=float))
+            if scale > 0:
+                y_err_arr = y_err_arr / scale
 
     return y_err_arr
 
