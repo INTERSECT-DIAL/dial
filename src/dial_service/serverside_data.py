@@ -174,10 +174,6 @@ class ServersideInputBase:
         return y, yerr
 
     @cached_property
-    def Y_stddev(self) -> float:
-        return np.std(self.Y_train)
-
-    @cached_property
     def Y_best(self) -> float:
         return self.Y_train.max() if self.y_is_good else self.Y_train.min()
 
