@@ -18,8 +18,9 @@ class ServersideInputBase:
         self.dim_y = data.dim_y
         self.labels_x = data.labels_x
         self.labels_y = data.labels_y
-        self.X_raw = np.array(data.dataset_x)
-        self.Y_raw = np.array(data.dataset_y)
+        self.dataset_x = np.array(data.dataset_x)
+        self.dataset_y = np.array(data.dataset_y).reshape((-1, self.dim_y))
+        self.statistics_y = data.statistics_y
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
         self.bounds = data.bounds
         self.y_is_good = data.y_is_good
@@ -41,26 +42,9 @@ class ServersideInputBase:
         dataset_x: list[list[float]], shape (N, D)
         bounds: list[[low, high], ...], shape (D, 2)
         """
-        return self._scale_X(self.X_raw)
+        return self.scale_X(self.dataset_x)
 
-    @cached_property
-    def Y_stddev(self) -> float:
-        return np.std(self.Y_train)
-
-    @cached_property
-    def Y_best(self) -> float:
-        return self.Y_train.max() if self.y_is_good else self.Y_train.min()
-
-    @cached_property
-    def Y_train(self) -> np.ndarray:
-        y = self.Y_raw
-        if self.preprocess_log:
-            y = np.log(y)
-        if self.preprocess_standardize:
-            y = (y - np.mean(y)) / np.std(y)
-        return y
-
-    def _scale_X(self, X: np.ndarray) -> np.ndarray:
+    def scale_X(self, X: np.ndarray) -> np.ndarray:
         """
         Scale X into [0, 1]^D using self.bounds.
         X: array of shape (N, D)
@@ -78,23 +62,124 @@ class ServersideInputBase:
 
         return (X - lows) / span
 
-    # undoes the preprocessing.
-    def inverse_transform(self, data: np.ndarray, is_stddev: bool = False):
-        if len(self.Y_raw) == 0:
-            return data
+    def _extract_y_train_from_dataset(self):
+        """
+        Find output y and error values yerr in dataset_y, and save.
+        """
+        if hasattr(self, 'y_train_raw') and hasattr(self, 'yerr_train_raw'):
+            # only compute this on first invocation
+            return
 
-        # not possible to un-log the standard deviations (-1 +- 1 in log space != .1 +- 10 in realspace)
-        if self.preprocess_log and is_stddev:
-            return np.repeat(-1, len(data))
-        if self.preprocess_standardize:
-            # the data that was used to calculate the standardization:
-            prestandardized_y = np.log(self.Y_raw) if self.preprocess_log else self.Y_raw
-            data = data * np.std(prestandardized_y)  # not the same as *= (which is in-place)
-            if not is_stddev:
-                data = data + np.mean(prestandardized_y)
+        y_label = self.statistics_y.loc
+        if not isinstance(y_label, str):
+            msg = 'statistics_y.loc must be a Label (str).'
+            raise TypeError(msg)
+
+        # Use the label from self.statistics_y.loc to find the data column with the mean y data
+        # this may trigger a ValueError, if the label does not exist, but should be handled by dataclass validation
+        pos_y = self.labels_y.index(y_label)
+        self.y_train_raw = self.dataset_y[:, pos_y]
+
+        yerr_label = self.statistics_y.scale
+        if isinstance(yerr_label, float):
+            self.yerr_train_raw = yerr_label
+        else:
+            # yerr_label is str
+            # this may trigger a ValueError, but should be handled by dataclass validation
+            pos_yerr = self.labels_y.index(yerr_label)
+            self.yerr_train_raw = self.dataset_y[:, pos_yerr]
+
+        if np.any(self.yerr_train_raw < 0):
+            idxs = np.where(np.yerr_train_raw < 0)
+            msg = f'yerr values in statistics_y.scale must be non-negative, found {np.yerr_train_raw[idxs[0]]} at {idxs[0]}.'
+            raise ValueError(msg)
+
+    @cached_property
+    def Y_train(self) -> np.ndarray:
+        """
+        Find output y and error values yerr in dataset_y, and apply transformation.
+        Return transformed y value.
+        """
+        # ensure that self.y_train_raw, self.yerr_train_raw are populated
+        self._extract_y_train_from_dataset()
+
+        y, _ = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
+
+        # return only y, to conform to interface
+        return y
+
+    @cached_property
+    def Yerr_train(self) -> any:
+        """
+        Find output y and error values in dataset y, and apply transformation.
+        Return transformed yerr value.
+        """
+        # ensure that self.y_train_raw, self.yerr_train_raw are populated
+        self._extract_y_train_from_dataset()
+
+        # recompute transformation, at some overhead (probably not worth to optimize)
+        _, yerr = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
+
+        # return only yerr, to conform to interface
+        return yerr
+
+    def _transform_Y_params(self) -> tuple[float, float]:
+        """
+        Return the appropriate mean and scaling of the raw y data for normalization
+        """
+        # ensure that self.y_train_raw, self.yerr_train_raw are populated
+        self._extract_y_train_from_dataset()
+
+        # find y_std from y_train_raw
+        y_train = self.y_train_raw
+        if len(y_train) > 0 and self.preprocess_standardize:
+            if self.preprocess_log:
+                y_train = np.log(y_train)
+            y_std = np.std(y_train)
+            y_mean = np.mean(y_train)
+        else:
+            y_std = 1.0
+            y_mean = 0.0
+
+        return y_mean, y_std
+
+    def transform_Y(self, y: np.ndarray, yerr: any) -> tuple[np.ndarray, any]:
+        """
+        Transform y and yerr according to preprocess options
+        """
         if self.preprocess_log:
-            data = np.exp(data)
-        return data
+            yerr = yerr / y
+            y = np.log(y)
+
+        if self.preprocess_standardize:
+            y_mean, y_std = self._transform_Y_params()
+            yerr = yerr / y_std
+            y = (y - y_mean) / y_std
+
+        return y, yerr
+
+    def inverse_transform_Y(self, y: np.ndarray, yerr: any) -> tuple[np.ndarray, any]:
+        """
+        Inverse transforms of y and yerr, in reverse order
+        """
+        if self.preprocess_standardize:
+            y_mean, y_std = self._transform_Y_params()
+            y = y_mean + y_std * y
+            yerr = y_std * yerr
+
+        if self.preprocess_log:
+            y = np.exp(y)
+            yerr = y * yerr
+
+        return y, yerr
+
+    @cached_property
+    def Y_stddev(self) -> float:
+        return np.std(self.Y_train)
+
+    @cached_property
+    def Y_best(self) -> float:
+        return self.Y_train.max() if self.y_is_good else self.Y_train.min()
 
 
 class ServersideInputSingle(ServersideInputBase):
@@ -119,7 +204,7 @@ class ServersideInputSingle(ServersideInputBase):
         X_raw: shape (N, D) or (D,) for a single point.
         """
         raw_vals = np.asarray(X_raw, dtype=float).reshape(-1, self.dim_x)
-        self.x_predict = self._scale_X(raw_vals)
+        self.x_predict = self.scale_X(raw_vals)
 
 
 class ServersideInputMultiple(ServersideInputBase):
@@ -148,7 +233,7 @@ class ServersideInputMultiple(ServersideInputBase):
         X_raw: shape (N, D) or (D,) for a single point.
         """
         raw_vals = np.asarray(X_raw, dtype=float).reshape(-1, self.dim_x)
-        self.x_predict = self._scale_X(raw_vals)
+        self.x_predict = self.scale_X(raw_vals)
 
 
 class ServersideInputPrediction(ServersideInputBase):
@@ -165,4 +250,4 @@ class ServersideInputPrediction(ServersideInputBase):
         X_raw: shape (N, D) or (D,) for a single point.
         """
         raw_vals = np.asarray(X_raw, dtype=float).reshape(-1, self.dim_x)
-        self.x_predict = self._scale_X(raw_vals)
+        self.x_predict = self.scale_X(raw_vals)

@@ -86,9 +86,8 @@ def get_surrogate_values(data: ServersideInputPrediction, model: Any) -> list[li
     backend = data.backend.lower()
     module = get_backend_module(backend)
     means, stddevs = module.predict(model, data)
-    means = data.inverse_transform(means)
-    # TODO: adjust inverse transform.
-    transformed_stddevs = data.inverse_transform(stddevs, is_stddev=True)
+    means, transformed_stddevs = data.inverse_transform_Y(means, stddevs)
+    # TODO: the third return argument is not needed.
     return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
 
 

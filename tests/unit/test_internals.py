@@ -369,29 +369,39 @@ def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stdde
     ('backend'),
     [
         ('sklearn'),
-        # ('gpax'),
     ],
 )
 def test_inverse_transform(backend):
     data = prediction_1D(backend)
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([-1, 0, 1])
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, 0, 1])
+
+    test_y = np.array([-1, 0, 1])
+    test_yerr = np.array([0.1, 1, 10])
+
+    def test_transform(inv_y, inv_yerr):
+        y, yerr = data.transform_Y(inv_y, inv_yerr)
+        assert y == pytest.approx(test_y)
+        assert yerr == pytest.approx(test_yerr)
+
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx(test_y)
+    assert inv_yerr == pytest.approx(test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-        [1 / E_CONSTANT, 1, E_CONSTANT]
-    )
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([1 / E_CONSTANT, 1, E_CONSTANT])
+    assert inv_yerr == pytest.approx(inv_y * test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = False
     data.preprocess_standardize = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([100, 150, 200])
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx(
-        [-50, 0, 50]
-    )  # technically improper, as uncertainties can't be negative
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([100, 150, 200])
+    assert inv_yerr == pytest.approx(50 * test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-        [100, 141.42135623730945, 200]
-    )  # TODO
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([100, 141.42135623730945, 200])
+    assert inv_yerr == pytest.approx(inv_y * 0.34657359027997243 * test_yerr)
+    test_transform(inv_y, inv_yerr)
