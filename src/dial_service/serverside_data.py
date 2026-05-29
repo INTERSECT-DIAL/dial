@@ -78,7 +78,6 @@ class ServersideInputBase:
 
         return (X - lows) / span
 
-
     # undoes the preprocessing.
     def inverse_transform(self, data: np.ndarray, is_stddev: bool = False):
         if len(self.Y_raw) == 0:
