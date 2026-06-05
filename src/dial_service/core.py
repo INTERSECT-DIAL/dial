@@ -5,6 +5,8 @@ The idea is that these functions can easily be unit-tested (or called in a Jupyt
 
 from typing import Any
 
+import numpy as np
+
 from .backends import get_backend_module
 from .logger import logger
 from .serverside_data import (
@@ -13,7 +15,11 @@ from .serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from .utilities.strategies import create_measurement_grid, hypercube, random_in_bounds
+from .utilities.strategies import (
+    create_measurement_grid,
+    hypercube,
+    random_in_bounds,
+)
 
 
 # pure functional implementation of message, without MongoDB calls
@@ -32,7 +38,9 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
     if data.strategy == 'random':
         if data.discrete_measurements:
             _measurement_grid = create_measurement_grid(data)
-            selected_point = data.numpy_rng.choice(_measurement_grid)
+            index = np.random.choice(len(_measurement_grid))
+            # selected_point = data.numpy_rng.choice(_measurement_grid)
+            selected_point = _measurement_grid[index]
             logger.debug('selected point with random strategy and discrete measurements')
             logger.debug(selected_point)
             return selected_point
