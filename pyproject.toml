@@ -1,6 +1,6 @@
 [project]
 name = "dial"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
   { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
   { name = "Lance Drane", email = "dranelt@ornl.gov" },
@@ -8,6 +8,7 @@ authors = [
   { name = "Jacob Sweet", email = "jsweet@gatech.edu" },
   { name = "Ankit Shrivastava", email = "shrivastavaa@ornl.gov" },
   { name = "Konstantin Pieper", email = "pieperk@ornl.gov" },
+  { name = "Viktor Reshniak", email = "reshniakv@ornl.gov" },
 ]
 description = "Dial (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
 readme = "README.md"
