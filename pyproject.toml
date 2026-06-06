@@ -1,6 +1,6 @@
 [project]
 name = "dial"
-version = "0.1.4"
+version = "0.1.5"
 authors = [
   { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
   { name = "Lance Drane", email = "dranelt@ornl.gov" },
