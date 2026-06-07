@@ -164,6 +164,7 @@ class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal[
         'random',
+        'hypercube',
         'uncertainty',
         'expected_improvement',
         'upper_confidence_bound',

@@ -48,7 +48,8 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
 
     if data.strategy == 'hypercube':
         if not data.discrete_measurements:
-            data.discrete_measurement_grid_size = 10
+            # use sane default
+            data.discrete_measurement_grid_size = [4] * data.dim_x
         if not hasattr(data, 'curr_index'):
             data.curr_index = 0
         _measurement_grid = create_measurement_grid(data)
