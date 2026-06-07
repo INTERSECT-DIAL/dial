@@ -1,3 +1,4 @@
+========================
 Service Deployment Guide
 ========================
 
@@ -6,14 +7,14 @@ This page is intended to help provide a reference guide for devops engineers dep
 NOTE: You will need to either `install MongoDB <https://www.mongodb.com/docs/manual/installation/>`_ or have the credentials needed to connect to another service before you are able to run the INTERSECT-DIAL Service.
 
 From source
-===========
+-----------
 
 1. Clone the repository and cd into it.
 2. Install `uv` and run `uv sync --no-dev`
 3. Run `uv run scripts/launch_service.py --config path/to/config.json`
 
 From Docker
-===========
+-----------
 
 `ghcr.io/intersect-dial/dial:latest` will get you the latest TAGGED version. These are meant to be the most stable releases. You can also replace the `latest` tag with the appropriate version tag.
 
@@ -24,12 +25,12 @@ From Docker
 For a full reference, see https://github.com/INTERSECT-DIAL/dial/pkgs/container/dial . The Dockerfile source code lives at https://github.com/INTERSECT-DIAL/dial/blob/develop/Dockerfile
 
 From the Helm Chart
-===================
+-------------------
 
 We provide a Helm chart, which can be accessed at https://intersect-dial.github.io/dial/index.yaml . To view the source code for the charts, see https://github.com/INTERSECT-DIAL/dial/tree/develop/charts
 
 Config File Reference
-=====================
+---------------------
 
 An example configuration file looks like this:
 

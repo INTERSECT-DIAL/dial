@@ -1,3 +1,4 @@
+==================
 Dataclass Overview
 ==================
 
@@ -12,7 +13,7 @@ Creating a workflow
 -------------------
 
 1. You need to call ``initialize_workflow`` with your workflow parameters to create a workflow. This will return a workflow_id, which you will need to provide in all subsequent calls.
-2. To do active learning, you can call the ``get_next_point``, ``get_next_points``, or ``get_surrogate_values`` endpoints. This only returns _suggestions_, it does not update the workflow directly.
+2. To do active learning, you can call the ``get_next_point``, ``get_next_points``, or ``get_surrogate_values`` endpoints. This only returns **suggestions**, it does not update the workflow directly.
 3. To update the workflow, you can then call the various ``update_workflow`` endpoints, which will actually update the workflow state.
 
 Active learning models are encapsulated from external view, but are only trained when calling ``initialize_workflow`` and the various ``update_workflow`` endpoints. This means that calling the active learning endpoints should generally be cheap, and you can call active learning multiple times before updating the workflow with your selected data.
