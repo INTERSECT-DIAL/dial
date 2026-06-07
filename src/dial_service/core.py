@@ -46,7 +46,7 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
             return selected_point
         return random_in_bounds(data.bounds, data.numpy_rng)
 
-    if data.strategy == 'grid':
+    if data.strategy == 'hypercube':
         if hasattr(data, 'curr_index'):
             data.curr_index += 1
         else:            
@@ -54,7 +54,7 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
         _measurement_grid = create_measurement_grid(data)
         index = data.curr_index % len(_measurement_grid)
         selected_point = _measurement_grid[index]
-        logger.debug('selected point with grid strategy')
+        logger.debug('selected point with hypercube strategy')
         logger.debug(selected_point)
         return selected_point
 
