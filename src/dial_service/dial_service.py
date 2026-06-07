@@ -1,5 +1,6 @@
 import logging
 import pickle
+import statistics
 import traceback
 from typing import Any
 
@@ -345,6 +346,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
                 bounds=validated_state.bounds,
                 workflow_id=client_data.workflow_id,
                 dataset_x_size=len(validated_state.dataset_x),
+                transformed_stddevs_avg=statistics.mean(return_data[1]),
             )
         except Exception as err:
             logger.exception(

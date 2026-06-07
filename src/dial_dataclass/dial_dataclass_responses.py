@@ -48,3 +48,5 @@ class DialSurrogateValuesResponse(BaseModel):
     """The same workflow ID that was used to get the data, to facilitate possible load balancing."""
     dataset_x_size: int
     """Current length of dataset_x"""
+    transformed_stddevs_avg: float
+    """the average of the transformed stddevs being returned"""
