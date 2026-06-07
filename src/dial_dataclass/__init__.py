@@ -12,5 +12,6 @@ from .dial_dataclass import (
 from .dial_dataclass_responses import (
     DialDataResponse1D,
     DialDataResponse2D,
+    DialSurrogateValuesResponse,
 )
 from .pydantic_helpers import ValidatedObjectId
