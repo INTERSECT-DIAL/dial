@@ -46,6 +46,18 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
             return selected_point
         return random_in_bounds(data.bounds, data.numpy_rng)
 
+    if data.strategy == 'grid':
+        if hasattr(data, 'curr_index'):
+            data.curr_index += 1
+        else:            
+            data.curr_index = 0
+        _measurement_grid = create_measurement_grid(data)
+        index = data.curr_index % len(_measurement_grid)
+        selected_point = _measurement_grid[index]
+        logger.debug('selected point with grid strategy')
+        logger.debug(selected_point)
+        return selected_point
+
     backend = data.backend.lower()
     module = get_backend_module(backend)
     selected_point = module.sample(module, model, data)
