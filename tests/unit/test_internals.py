@@ -87,7 +87,11 @@ def single_1D_discrete_grid(backend, strategy, strategy_args, discrete_measureme
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_2D(backend, strategy, strategy_args, discrete_measurement_grid_size=None):
+def single_2D(
+    backend,
+    strategy,
+    strategy_args,
+):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
@@ -134,8 +138,69 @@ def single_2D(backend, strategy, strategy_args, discrete_measurement_grid_size=N
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2]],
-        discrete_measurements=bool(discrete_measurement_grid_size),
-        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
+        seed=42,
+    )
+    return ServersideInputSingle(workflow_state, params)
+
+
+def single_2D_discrete_grid(
+    backend,
+    strategy,
+    strategy_args,
+    discrete_measurement_grid_size,
+):
+    bounds = [
+        [0, discrete_measurement_grid_size[0] - 1],
+        [0, discrete_measurement_grid_size[1] - 1],
+    ]
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[
+            [0.9317758694133622, -0.23597335497782845],
+            [-0.7569874398003542, -0.76891211613756],
+            [-0.38457336507729645, -1.1327391183311766],
+            [-0.9293590899359039, 0.25039725076881014],
+            [1.984696498789749, -1.7147926093003538],
+            [1.2001856430453541, 1.572387611848939],
+            [0.5080666898409634, -1.566722183270571],
+            [-1.871124738716507, 1.9022651997285078],
+            [-1.572941300813352, 1.0014173171150125],
+            [0.033053333077524005, 0.44682040004191537],
+        ],
+        dim_x=2,
+        dataset_y=[
+            2.08609604,
+            2.26284928,
+            2.21989834,
+            1.61634392,
+            3.50481457,
+            0.25065034,
+            2.52277171,
+            2.42139515,
+            2.34930184,
+            1.31811177,
+        ],
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.15,
+            'length_scale_bounds': 'fixed',
+            'noise_level': 0.0,
+            'noise_level_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        discrete_measurements=True,
+        discrete_measurement_grid_size=discrete_measurement_grid_size,
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
@@ -398,6 +463,34 @@ def test_random(backend):
         ('gpax'),
     ],
 )
+def test_hypercube_single_point(backend):
+    data = single_1D(backend, strategy='hypercube', strategy_args=None)
+    model = core.train_model(data)
+    output = None
+    last_point = None
+    DEFAULT_HYPERCUBE_VAL = (
+        4  # hypercube sets this parameter by default if no discrete grid provided
+    )
+    for i in range(100):
+        last_point = output
+        output = core.get_next_point(data, model)
+        assert len(output) == 1
+        output = output[0]
+        if last_point is not None:
+            if i % DEFAULT_HYPERCUBE_VAL != 0:
+                assert output > last_point
+            else:
+                assert last_point > output
+        assert 1 <= output <= 2
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
 def test_random_discrete(backend):
     data = single_1D_discrete_grid(
         backend,
@@ -423,6 +516,40 @@ def test_random_discrete(backend):
         ('gpax'),
     ],
 )
+def test_hypercube_single_point_discrete(backend):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='hypercube',
+        strategy_args=None,
+        discrete_measurement_grid_size=[60],
+    )
+    model = core.train_model(data)
+    output = None
+    last_point = None
+    for i in range(100):
+        last_point = output
+        output = core.get_next_point(data, model)
+        assert len(output) == 1
+        output = output[0]
+        if last_point is not None:
+            if i % data.discrete_measurement_grid_size[0] != 0:
+                assert output > last_point
+            else:
+                assert last_point > output
+        # assert output[0] in _measurement_grid
+        # assert output[0] == int(output[0])
+        assert 0 <= output <= 59
+        assert int(output) == output
+        assert output in np.arange(60).astype(float)
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
 def test_random_points(backend):
     data = multiple_2D(backend, strategy='random')
     model = core.initialize_model(data)
@@ -438,7 +565,7 @@ def test_random_points(backend):
         # ('gpax'),
     ],
 )
-def test_hypercube(backend):
+def test_hypercube_multiple_points(backend):
     data = multiple_2D(backend, strategy='hypercube')
     model = core.initialize_model(data)
     points = core.get_next_points(data, model)
