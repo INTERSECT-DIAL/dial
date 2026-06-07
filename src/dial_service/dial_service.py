@@ -245,6 +245,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return DialDataResponse1D(
                 data=return_data,
                 workflow_id=client_data.workflow_id,
+                dataset_x_size=len(validated_state.dataset_x),
             )
         except Exception as err:
             logger.exception(
@@ -290,6 +291,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return DialDataResponse2D(
                 data=return_data,
                 workflow_id=client_data.workflow_id,
+                dataset_x_size=len(validated_state.dataset_x),
             )
         except Exception as err:
             logger.exception(
@@ -342,6 +344,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
                 points_to_predict=client_data.points_to_predict,
                 bounds=validated_state.bounds,
                 workflow_id=client_data.workflow_id,
+                dataset_x_size=len(validated_state.dataset_x),
             )
         except Exception as err:
             logger.exception(

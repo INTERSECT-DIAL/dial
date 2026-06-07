@@ -14,6 +14,8 @@ class DialDataResponse1D(BaseModel):
     """Raw data"""
     workflow_id: ValidatedObjectId
     """The same workflow ID that was used to get the data, to facilitate possible load balancing."""
+    dataset_x_size: int
+    """Current length of dataset_x"""
 
 
 class DialDataResponse2D(BaseModel):
@@ -23,6 +25,8 @@ class DialDataResponse2D(BaseModel):
     """Raw data"""
     workflow_id: ValidatedObjectId
     """The same workflow ID that was used to get the data, to facilitate possible load balancing."""
+    dataset_x_size: int
+    """Current length of dataset_x"""
 
 
 class DialSurrogateValuesResponse(BaseModel):
@@ -42,3 +46,5 @@ class DialSurrogateValuesResponse(BaseModel):
     """Original list of points provided from the get_surrogate_values() input"""
     workflow_id: ValidatedObjectId
     """The same workflow ID that was used to get the data, to facilitate possible load balancing."""
+    dataset_x_size: int
+    """Current length of dataset_x"""
