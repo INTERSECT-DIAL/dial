@@ -50,12 +50,9 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
         if not data.discrete_measurements:
             # use sane default
             data.discrete_measurement_grid_size = [4] * data.dim_x
-        if not hasattr(data, 'curr_index'):
-            data.curr_index = 0
         _measurement_grid = create_measurement_grid(data)
-        index = data.curr_index % len(_measurement_grid)
+        index = data.point_index % len(_measurement_grid)
         selected_point = _measurement_grid[index]
-        data.curr_index += 1
         logger.debug('selected point with hypercube strategy')
         logger.debug(selected_point)
         return selected_point

@@ -1,3 +1,4 @@
+import math
 from math import e as E_CONSTANT
 
 import numpy as np
@@ -476,12 +477,14 @@ def test_hypercube_single_point(backend):
         output = core.get_next_point(data, model)
         assert len(output) == 1
         output = output[0]
+        assert output != last_point
         if last_point is not None:
             if i % DEFAULT_HYPERCUBE_VAL != 0:
                 assert output > last_point
             else:
                 assert last_point > output
         assert 1 <= output <= 2
+        data.point_index += 1
 
 
 @pytest.mark.parametrize(
@@ -531,6 +534,7 @@ def test_hypercube_single_point_discrete(backend):
         output = core.get_next_point(data, model)
         assert len(output) == 1
         output = output[0]
+        assert output != last_point
         if last_point is not None:
             if i % data.discrete_measurement_grid_size[0] != 0:
                 assert output > last_point
@@ -541,6 +545,42 @@ def test_hypercube_single_point_discrete(backend):
         assert 0 <= output <= 59
         assert int(output) == output
         assert output in np.arange(60).astype(float)
+        data.point_index += 1
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+def test_hypercube_single_point_discrete_2D(backend):
+    data = single_2D_discrete_grid(
+        backend,
+        strategy='hypercube',
+        strategy_args=None,
+        discrete_measurement_grid_size=[6, 6],
+    )
+    model = core.train_model(data)
+    output = None
+    last_point = None
+    num_points = math.prod(data.discrete_measurement_grid_size)
+    for i in range(100):
+        last_point = output
+        output = core.get_next_point(data, model)
+        assert len(output) == 2
+        assert output != last_point
+        if last_point is not None:
+            if i % num_points != 0:
+                assert output[0] > last_point[0] or output[1] > last_point[1]
+            else:
+                assert last_point[0] > output[0] or last_point[1] > output[1]
+        for o in output:
+            assert 0 <= o <= 59
+            assert int(o) == o
+            assert o in np.arange(60).astype(float)
+        data.point_index += 1
 
 
 @pytest.mark.parametrize(
