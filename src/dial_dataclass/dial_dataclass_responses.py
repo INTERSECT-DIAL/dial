@@ -12,6 +12,8 @@ class DialWorkflowFullState(DialWorkflowCreationParamsClient):
     """Full state of the workflow."""
 
     workflow_id: ValidatedObjectId
+    dataset_x_size: int
+    """Current length of dataset_x"""
 
 
 class DialDataResponse1D(BaseModel):

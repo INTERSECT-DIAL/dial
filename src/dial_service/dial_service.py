@@ -82,7 +82,11 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if not db_result:
             msg = f"Couldn't get workflow data with id {uuid}"
             raise IntersectCapabilityError(msg)
-        return DialWorkflowFullState(workflow_id=uuid, **db_result)
+        return DialWorkflowFullState(
+            workflow_id=uuid,
+            dataset_x_size=len(db_result['dataset_x']),
+            **db_result,
+        )
 
     @intersect_message()
     def update_workflow_with_data(
