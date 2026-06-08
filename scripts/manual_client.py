@@ -135,7 +135,9 @@ class ActiveLearningOrchestrator:
                 dataset_y=INITIAL_DATASET_Y,
                 bounds=BOUNDS,
                 kernel='matern',
-                length_per_dimension=True,  # allow the matern to use separate length scales for the two parameters
+                extra_args={
+                    'length_per_dimension': True
+                },  # allow the matern to use separate length scales for the two parameters
                 y_is_good=False,  # we wish to minimize y (the error)
                 backend='sklearn',  # "sklearn" or "gpax"
                 seed=-1,  # Use seed = -1 for random results

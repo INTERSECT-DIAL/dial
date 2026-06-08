@@ -103,7 +103,6 @@ class ActiveLearningOrchestrator:
                     'constant_value': CONSTANT_VALUE,
                     'constant_value_bounds': 'fixed',
                 },
-                length_per_dimension=False,  # allow the matern to use separate length scales for the two parameters
                 y_is_good=False,  # we wish to minimize y (the error)
                 backend='sklearn',  # "sklearn" or "gpax"
                 seed=-1,  # Use seed = -1 for random results

@@ -48,27 +48,26 @@ class SklearnBackend(
         if kernel_name not in _KERNELS_SKLEARN:
             msg = f'Unknown kernel {kernel_name}'
             raise ValueError(msg)
-        _params = {} if data.kernel_args is None else data.kernel_args
 
-        # TODO: test length_per_dimension and reenable
-        # if 'length_scale' not in _params:
-        #    length_per_dimension = (
-        #        data.extra_args.get('length_per_dimension') if data.extra_args else False
-        #    )
-        #    # TODO check if necessary
-        #    # dim = data.X_train.shape[1]
-        #    # _params['length_scale'] = [1.0] * dim if length_per_dimension else 1.0
-        #    _params['length_scale'] = [1.0] * data.dim_x if length_per_dimension else 1.0
+        _params = {} if data.kernel_args is None else data.kernel_args.copy()
+
+        # if length_scale is not provided, but extra_args['length_per_direction'],
+        # configure a default learnable dimension dependent length_scale
+        if 'length_scale' not in _params:
+            length_per_dimension = (
+                data.extra_args.get('length_per_dimension') if data.extra_args else False
+            )
+            _params['length_scale'] = [1.0] * data.dim_x if length_per_dimension else 1.0
+            _params['length_scale_bounds'] = (1e-05, 100000.0)
 
         base_kernel_cls = _KERNELS_SKLEARN[kernel_name]
         base_params = _filter_kwargs_for(base_kernel_cls, _params)
 
         # only do hyperparameter optimization if the user asks for it, use fixed defaults
         if base_kernel_cls == DotProduct:
-            base_params = {'sigma_0': 1.0, 'sigma_0_bounds': 'fixed'}
+            base_params = {'sigma_0': 1.0, 'sigma_0_bounds': 'fixed'} | base_params
         else:
-            base_params = {'length_scale': 1.0, 'length_scale_bounds': 'fixed'}
-        base_params.update(_filter_kwargs_for(base_kernel_cls, _params))
+            base_params = {'length_scale': 1.0, 'length_scale_bounds': 'fixed'} | base_params
         base_kernel = base_kernel_cls(**base_params)
 
         # scale the prior variance by using a ConstantKernel
@@ -96,9 +95,9 @@ class SklearnBackend(
         """Create a model with training."""
         model = SklearnBackend.initialize_model(data)
 
-        # print(f"pre-training kernel: {SklearnBackend.get_kernel(data)}")
+        # print(f'pre-training kernel: {SklearnBackend.get_kernel(data)}')
         model.fit(data.X_train, data.Y_train)
-        # print(f"obtained trained kernel: {model.kernel_}")
+        # print(f'obtained trained kernel: {model.kernel_}')
 
         return model
 

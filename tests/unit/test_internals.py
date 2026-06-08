@@ -35,8 +35,6 @@ def single_1D(backend, strategy, strategy_args):
         kernel_args={
             'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
@@ -65,8 +63,6 @@ def single_1D_discrete_grid(backend, strategy, strategy_args, discrete_measureme
         kernel_args={
             'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
@@ -119,8 +115,6 @@ def single_2D(backend, strategy, strategy_args, discrete_measurement_grid_size=N
         kernel_args={
             'length_scale': 0.15,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
@@ -173,15 +167,12 @@ def single_3D(backend, strategy, strategy_args, discrete_measurement_grid_size=N
         kernel_args={
             'length_scale': 0.15,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
@@ -203,7 +194,6 @@ def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
         dim_x=2,  # provide dim_x for empty dataset
         y_is_good=False,
         kernel='rbf',
-        length_per_dimension=False,
         bounds=[[0, 100], [-1, 1]],
         backend=backend,
         seed=42,
@@ -228,15 +218,12 @@ def prediction_1D(backend):
         kernel_args={
             'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 50.0**2,
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
         preprocess_standardize=False,
         y_is_good=True,
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputPredictions(
