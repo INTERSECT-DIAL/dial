@@ -6,7 +6,7 @@ from .pydantic_helpers import ValidatedObjectId
 
 PositiveIntType = Annotated[int, Field(ge=0)]
 
-_POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'sable')
+_POSSIBLE_BACKENDS = ('sklearn', 'gpax', 'andie', 'sable', 'andie_general')
 
 BackendType = Literal[_POSSIBLE_BACKENDS]
 
@@ -39,7 +39,7 @@ class _DialWorkflowCreationParams(BaseModel):
             description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
         ),
     ]
-    kernel: Literal['rbf', 'matern', 'linear']
+    kernel: Literal['rbf', 'matern', 'linear', None]
     bounds: list[
         Annotated[
             Annotated[list[float], Field(min_length=2, max_length=2)],
@@ -169,7 +169,7 @@ class DialInputSingleOtherStrategy(BaseModel):
         'upper_confidence_bound',
         'upper_confidence_bound_nomad',
         'polymer_acl_sampler',
-    ]
+        None]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
         bool,

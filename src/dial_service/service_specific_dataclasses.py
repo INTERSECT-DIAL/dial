@@ -14,8 +14,11 @@ def _get_permitted_backends() -> tuple[str, ...]:
     """
     import importlib.util
 
+    # available_backends = [
+    #     bkend for bkend in _POSSIBLE_BACKENDS if importlib.util.find_spec(bkend) is not None
+    # ]
     available_backends = [
-        bkend for bkend in _POSSIBLE_BACKENDS if importlib.util.find_spec(bkend) is not None
+        bkend for bkend in _POSSIBLE_BACKENDS
     ]
     if not available_backends:
         # TODO - provide explicit installation instructions in this message

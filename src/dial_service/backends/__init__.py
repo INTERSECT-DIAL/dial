@@ -9,6 +9,8 @@ _BACKENDS = {
     'gpax': ('dial_service.backends.gpax_backend', 'GpaxBackend'),
     'sable': ('dial_service.backends.sable_backend', 'SABLEBackend'),
     'sklearn': ('dial_service.backends.sklearn_backend', 'SklearnBackend'),
+    'andie': ('dial_service.backends.andie_backend', 'AndieBackend'),
+    'andie_general': ('dial_service.backends.andie_backend_general', 'AndieBackend'),
 }
 
 _MODEL = TypeVar('_MODEL')
