@@ -20,6 +20,7 @@ from dial_dataclass import (
     DialSurrogateValuesResponse,
     DialWorkflowDatasetUpdate,
     DialWorkflowDatasetUpdates,
+    DialWorkflowFullState,
 )
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
@@ -71,7 +72,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return workflow_id
 
     @intersect_message()
-    def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowCreationParamsService:
+    def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowFullState:
         """Returns the current state of the workflow associated with the id"""
         try:
             db_result = self.mongo_handler.get_workflow(uuid)
@@ -81,7 +82,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if not db_result:
             msg = f"Couldn't get workflow data with id {uuid}"
             raise IntersectCapabilityError(msg)
-        return DialWorkflowCreationParamsService(**db_result)
+        return DialWorkflowFullState(workflow_id=uuid, **db_result)
 
     @intersect_message()
     def update_workflow_with_data(
