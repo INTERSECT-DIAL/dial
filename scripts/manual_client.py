@@ -149,6 +149,7 @@ class ActiveLearningOrchestrator:
             payload = DialInputSingleOtherStrategy(
                 workflow_id=self.workflow_id,
                 strategy='expected_improvement',
+                bounds=BOUNDS,
             )
         elif operation == 'get_surrogate_values':
             payload = DialInputPredictions(
@@ -179,20 +180,28 @@ class ActiveLearningOrchestrator:
             print(payload, file=sys.stderr)
             print(file=sys.stderr)
             raise Exception  # noqa: TRY002 (break INTERSECT loop)
+
         if operation == 'dial.initialize_workflow':
             self.workflow_id: str = payload
             return self.assemble_message('get_surrogate_values')
+
         if operation == 'dial.update_workflow_with_data':
             return self.assemble_message('get_surrogate_values')
-        if (
-            operation == 'dial.get_surrogate_values'
-        ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape(XX.shape)
+
+        if operation == 'dial.get_surrogate_values':
+            # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
+            data = payload['data']
+            mean_grid = data[0]
+            self.mean_grid = np.array(mean_grid).reshape(XX.shape)
             return self.assemble_message('get_next_point')
+
         if operation == 'dial.get_next_point':
-            # if we receive an EI recommendation, record it, show the user the current graph, and ask the user for the results of their experiment:
-            self.graph(payload)
-            return self.add_data(payload)
+            # if we receive an EI recommendation, record it, show the user the current graph,
+            # and ask the user for the results of their experiment:
+            data = payload['data']
+            self.graph(data)
+            update_message = self.add_data(data)
+            return update_message
 
         err_msg = f'Unknown operation received: {operation}'
         raise Exception(err_msg)  # noqa: TRY002 (INTERSECT interaction mechanism)
