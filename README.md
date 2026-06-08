@@ -24,7 +24,10 @@ Alternatively, both intersect-sdk and Dial may be installed with the following:
 
 Install UV ([link](https://docs.astral.sh/uv/getting-started/installation/)) and then run:
 
-`uv sync --all-groups --all-extras --all-packages`
+```
+uv sync --all-groups --all-extras --all-packages
+pre-commit install
+```
 
 We use UV as a dependency manager and intend on using the dependencies listed in `uv.lock` in a production environment.
 

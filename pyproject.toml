@@ -1,6 +1,6 @@
 [project]
 name = "dial"
-version = "0.1.0"
+version = "0.1.5"
 authors = [
   { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
   { name = "Lance Drane", email = "dranelt@ornl.gov" },
@@ -8,6 +8,7 @@ authors = [
   { name = "Jacob Sweet", email = "jsweet@gatech.edu" },
   { name = "Ankit Shrivastava", email = "shrivastavaa@ornl.gov" },
   { name = "Konstantin Pieper", email = "pieperk@ornl.gov" },
+  { name = "Viktor Reshniak", email = "reshniakv@ornl.gov" },
 ]
 description = "Dial (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
 readme = "README.md"
@@ -22,7 +23,7 @@ dependencies = [
   "scikit-learn>=1.4.0,<2.0.0",                        # TODO consider making an optional dependency group
   "scipy>=1.12.0,<2.0.0",
   "gpax>=0.1.8",                                       # TODO consider making an optional dependency group
-  "numpyro<0.20.1",                 		       # depend on older numpyro for gpax (numpyro.contrib.module: random_haiku_module)
+  "numpyro<0.20.1",                                    # depend on older numpyro for gpax (numpyro.contrib.module: random_haiku_module)
   "pymongo>=4.12.1",                                   # TODO - this is only needed for dial_service, dial_dataclass can use a simple fixture for ObjectID representation which allows it to skip this dependency
   "sable @ git+https://code.ornl.gov/sable/sable.git", # TODO this references the internal repo, transition to public version
 ]

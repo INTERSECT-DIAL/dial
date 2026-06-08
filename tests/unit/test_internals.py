@@ -15,7 +15,9 @@ from dial_service.serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+from dial_service.service_specific_dataclasses import (
+    DialWorkflowCreationParamsService,
+)
 
 DUMMY_WORKFLOW_ID = str(ObjectId())
 """This is used so that we can run the tests without connecting to a backend database or skipping validation for the rest of the data."""
@@ -53,7 +55,39 @@ def single_1D(backend, strategy, strategy_args):
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_2D(backend, strategy, strategy_args):
+def single_1D_discrete_grid(backend, strategy, strategy_args, discrete_measurement_grid_size):
+    bounds = [[0, discrete_measurement_grid_size[0] - 1]]
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[[i] for i in range(discrete_measurement_grid_size[0])],
+        dataset_y=[i * 100 for i in range(discrete_measurement_grid_size[0])],
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'noise_level': 0.0,
+            'noise_level_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        seed=42,
+        discrete_measurements=True,
+        discrete_measurement_grid_size=discrete_measurement_grid_size,
+    )
+    return ServersideInputSingle(workflow_state, params)
+
+
+def single_2D(backend, strategy, strategy_args, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
@@ -100,12 +134,14 @@ def single_2D(backend, strategy, strategy_args):
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_3D(backend, strategy, strategy_args):
+def single_3D(backend, strategy, strategy_args, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [-0.3666976630219634, -0.7643946670537294, -1.1506370018439385],
@@ -153,12 +189,14 @@ def single_3D(backend, strategy, strategy_args):
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
 
-def multiple_2D(backend, strategy):
+def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
@@ -174,6 +212,8 @@ def multiple_2D(backend, strategy):
         workflow_id=DUMMY_WORKFLOW_ID,
         strategy=strategy,
         bounds=[[0, 100], [-1, 1]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
         points=10,
     )
     return ServersideInputMultiple(workflow_state, params)
@@ -200,7 +240,8 @@ def prediction_1D(backend):
         seed=42,
     )
     params = DialInputPredictions(
-        workflow_id=DUMMY_WORKFLOW_ID, points_to_predict=[[1], [1.25], [1.5], [1.75], [2]]
+        workflow_id=DUMMY_WORKFLOW_ID,
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
     )
     return ServersideInputPrediction(workflow_state, params)
 
@@ -217,10 +258,33 @@ def prediction_1D(backend):
 )
 def test_EI_1D(backend, approx):
     data = single_1D(
-        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
     )
     model = core.train_model(data)
     assert core.get_next_point(data, model) == pytest.approx([approx], abs=0.00001)
+
+
+@pytest.mark.parametrize(
+    ('backend', 'val'),
+    [
+        ('sklearn', 1.0),
+        # ('gpax', 2.0),
+    ],
+)
+def test_EI_1D_discrete(backend, val):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
+        discrete_measurement_grid_size=[60],
+    )
+    model = core.train_model(data)
+    next_point = core.get_next_point(data, model)[0]
+    assert 0 <= next_point < 60
+    assert int(next_point) == next_point
+    assert next_point in np.arange(60).astype(float)
 
 
 @pytest.mark.parametrize(
@@ -232,7 +296,9 @@ def test_EI_1D(backend, approx):
 )
 def test_EI_2D(backend, approx):
     data = single_2D(
-        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
     )
     model = core.train_model(data)
     assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.1)
@@ -248,7 +314,9 @@ def test_EI_2D(backend, approx):
 )
 def test_EI_3D(backend, approx):
     data = single_3D(
-        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
     )
     model = core.train_model(data)
     assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.1)
@@ -285,6 +353,30 @@ def test_preprocessing_standardize(backend, approx):
 
 
 @pytest.mark.parametrize(
+    ('backend', 'val'),
+    [
+        ('sklearn', [1.0]),
+        # ('gpax', [2.0]),
+    ],
+)
+def test_preprocessing_standardize_discrete(backend, val):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='expected_improvement',
+        strategy_args=None,
+        discrete_measurement_grid_size=[60],
+    )
+    data.preprocess_standardize = True
+    model = core.train_model(data)
+    # assert data.Y_best == 1
+    # assert data.Y_train == pytest.approx([-1, 1])
+    next_point = core.get_next_point(data, model)[0]
+    assert 0 <= next_point < 60
+    assert int(next_point) == next_point
+    assert next_point in np.arange(60).astype(float)
+
+
+@pytest.mark.parametrize(
     ('backend'),
     [
         ('sklearn'),
@@ -298,6 +390,31 @@ def test_random(backend):
         output = core.get_next_point(data, model)
         assert len(output) == 1
         assert 1 <= output[0] <= 2
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+def test_random_discrete(backend):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='random',
+        strategy_args=None,
+        discrete_measurement_grid_size=[60],
+    )
+    model = core.train_model(data)
+    for _ in range(100):
+        output = core.get_next_point(data, model)
+        assert len(output) == 1
+        # assert output[0] in _measurement_grid
+        # assert output[0] == int(output[0])
+        assert 0 <= output[0] <= 59
+        assert int(output[0]) == output[0]
+        assert output[0] in np.arange(60).astype(float)
 
 
 @pytest.mark.parametrize(
@@ -338,7 +455,13 @@ def test_hypercube(backend):
     [
         (
             'sklearn',
-            [99.99999999, 127.23019909, 160.26912982, 191.74589221, 199.99999999],
+            [
+                99.99999999,
+                127.23019909,
+                160.26912982,
+                191.74589221,
+                199.99999999,
+            ],
             [2.11126987e01, 2.96625069e01, 2.11126987e01],
             [21.11269870647274, 29.662506906581378, 21.112698706472752],
         ),

@@ -4,6 +4,8 @@
 ### application-specific ###
 # ignore generated plots by default
 *.png
+# but don't ignore any PNG files used on the documentation website
+!/docs/**/*.png
 
 # ignore all configuration files except for our default one
 *.json
