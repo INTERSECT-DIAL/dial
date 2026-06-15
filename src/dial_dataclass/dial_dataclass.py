@@ -29,6 +29,7 @@ FloatOrLabel = Annotated[
 class BaseDistribution(BaseModel, ABC):
     """Base class for a statistical distribution."""
 
+    name: str
     loc: Annotated[
         Label,
         Field(
@@ -46,11 +47,14 @@ class BaseDistribution(BaseModel, ABC):
 class Delta(BaseDistribution):
     """The Delta distribution is deterministic and equal to its mean/loc."""
 
+    name: str = Field(default='Delta', frozen=True)
     scale: float = Field(gt=0.0, lt=0.0, default=0.0, frozen=True)
 
 
 class Normal(BaseDistribution):
     """The normal distribution is determined by loc (mean) and scale (standard deviation)."""
+
+    name: str = Field(default='Normal', frozen=True)
 
 
 Distribution = Annotated[Delta | Normal, Field(description='Union of all supported Distributions.')]

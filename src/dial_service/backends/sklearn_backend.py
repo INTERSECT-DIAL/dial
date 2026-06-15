@@ -14,8 +14,6 @@ from sklearn.gaussian_process.kernels import (
     WhiteKernel,
 )
 
-from dial_dataclass import Normal
-
 from ..utilities import strategies
 from . import AbstractBackend
 
@@ -108,7 +106,7 @@ class SklearnBackend(
 
         # if the output statistics are a normal distribution, configure the alpha argument for sklearn
         _statistics_args = {}
-        if isinstance(data.statistics_y, Normal):
+        if data.statistics_y.name == 'Normal':
             # set alpha to the variance associated to Y_err_train
             y_variance_train = data.Yerr_train**2
             _statistics_args['alpha'] = y_variance_train
@@ -123,9 +121,9 @@ class SklearnBackend(
                 # Process alpha as a numpy array
                 _extra_args['alpha'] = np.asarray(_extra_args['alpha'])
 
-            # update alpha from statistics_args, if present
-            # TODO: should raise a warning, if already present, or if WhiteKernel is present
-            _extra_args.update(_statistics_args)
+        # update alpha from statistics_args, if present
+        # TODO: should raise a warning, if already present, or if WhiteKernel is present
+        _extra_args.update(_statistics_args)
 
         return GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=1000, **_extra_args)
 
