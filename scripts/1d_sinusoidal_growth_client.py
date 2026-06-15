@@ -23,6 +23,7 @@ from dial_dataclass import (
     DialInputSingleOtherStrategy,
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
+    Normal,
 )
 
 mpl.use('agg')
@@ -72,22 +73,36 @@ class ActiveLearningOrchestrator:
         self.dataset_y = self.y_raw.reshape(-1).tolist()
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
-        # configure kernel_hyperparameters
-        self.kernel = 'rbf'
-        self.kernel_args = {
-            'length_scale': 0.1,
-            'constant_value': 2.0,
-        }
-        self.optimize_lengthscale = False
-        if self.optimize_lengthscale:
-            self.kernel_args.update(
-                {
-                    'length_scale_bounds': (0.02, 0.2),
-                }
-            )
+        # Assume that there is some small noise in the measurements to stabilize the fit
+        self.statistics_y = Normal(loc='y', scale=1e-6)
 
         self.backend = 'sklearn'
-        self.backend_args = None
+
+        if self.backend == 'sklearn':
+            # configure kernel_hyperparameters
+            self.kernel = 'rbf'
+            self.kernel_args = {
+                'length_scale': 0.1,
+                'constant_value': 1.0,
+            }
+            self.optimize_lengthscale = False
+            if self.optimize_lengthscale:
+                self.kernel_args.update(
+                    {
+                        'length_scale_bounds': (0.02, 0.2),
+                    }
+                )
+            self.backend_args = {}
+        elif self.backend == 'sable':
+            self.kernel = 'rbf'
+            self.kernel_args = {'x_range': [-2.0, 2.0], 'sigma_range': [1.0e-3, 1.0], 'gamma': 0.1}
+            self.backend_args = {
+                'n_features': 10000,
+                'alpha': 0.0005,
+                'p': 1.25,
+                'n_iter_irls': 20,
+            }
+
         self.strategy = 'upper_confidence_bound'
         self.strategy_args = {'exploit': 0.4, 'explore': 1}
         self.niter = 0
@@ -176,6 +191,7 @@ class ActiveLearningOrchestrator:
                 strategy=self.strategy,
                 strategy_args=self.strategy_args,
                 bounds=self.bounds.tolist(),
+                y_is_good=True,
             )
 
         elif operation == 'dial.update_workflow_with_data':
@@ -278,7 +294,7 @@ class ActiveLearningOrchestrator:
             axs[1].grid(True)
 
         plt.tight_layout()
-        plt.savefig('graph.png')
+        plt.savefig('graph_sinusoidal.png')
         plt.close(fig)
 
 
