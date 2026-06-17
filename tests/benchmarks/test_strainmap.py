@@ -255,7 +255,7 @@ def run_simulation(
             points_to_predict=INITIAL_POINTS_TO_PREDICT,
         ),
     )
-    surrogate_mean, surrogate_std, _ = dial_core.get_surrogate_values(data, model)
+    surrogate_mean, surrogate_std, _, _ = dial_core.get_surrogate_values(data, model)
     mean_grid = np.array(surrogate_mean).reshape((-1, 1))
 
     # subtract the true values and save mean absolute error and standard deviation

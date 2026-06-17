@@ -187,7 +187,7 @@ class ActiveLearningOrchestrator:
         if (
             operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape(XX.shape)
+            self.mean_grid = np.array(payload['values']).reshape(XX.shape)
             return self.assemble_message('get_next_point')
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and ask the user for the results of their experiment:

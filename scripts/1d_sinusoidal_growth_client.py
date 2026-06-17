@@ -187,17 +187,16 @@ class ActiveLearningOrchestrator:
         )
 
     def handle_surrogate_values(self, payload):
-        response_data = payload['data']
+        means = payload['values']
+        transformed_stddevs = payload['transformed_stddevs']
         if self.at_grids:
-            self.variance_grid = np.array(response_data[1]).reshape(
+            self.variance_grid = np.array(transformed_stddevs).reshape(
                 (self.meshgrid_size,) * self.num_dims
             )
-            self.mean_grid = np.array(response_data[0]).reshape(
-                (self.meshgrid_size,) * self.num_dims
-            )
+            self.mean_grid = np.array(means).reshape((self.meshgrid_size,) * self.num_dims)
         else:
-            self.variance_test = np.array(response_data[1])
-            self.mean_test = np.array(response_data[0])
+            self.variance_test = np.array(transformed_stddevs)
+            self.mean_test = np.array(means)
             print(f'Test Mean: {self.mean_test}, Variance: {self.variance_test}')
 
         # end of active learning loop after max_iter

@@ -96,7 +96,9 @@ def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[floa
 
 
 # pure functional implementation of message, without MongoDB calls
-def get_surrogate_values(data: ServersideInputPrediction, model: Any) -> list[list[float]]:
+def get_surrogate_values(
+    data: ServersideInputPrediction, model: Any
+) -> tuple[list[float], list[float], list[float], float]:
     """
     Get surrogate model predictions for given input points.
 
@@ -106,14 +108,15 @@ def get_surrogate_values(data: ServersideInputPrediction, model: Any) -> list[li
         client_data (DialInputPredictions): Input data containing prediction points and model parameters.
 
     Returns:
-        list[list[float]]: A list containing means, transformed standard deviations, and raw standard deviations.
+        tuple[list[float], list[float], list[float], float]: A tuple containing means, transformed standard deviations, raw standard deviations, and a float value.
     """
     backend = data.backend.lower()
     module = get_backend_module(backend)
     means, stddevs = module.predict(model, data)
     means = data.inverse_transform(means)
     transformed_stddevs = data.inverse_transform(stddevs, is_stddev=True)
-    return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
+    average = np.sqrt(np.mean(np.asarray(transformed_stddevs) ** 2))
+    return (means.tolist(), transformed_stddevs.tolist(), stddevs.tolist(), float(average))
 
 
 def train_model(data: ServersideInputBase) -> Any:

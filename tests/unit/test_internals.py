@@ -648,7 +648,7 @@ def test_hypercube_multiple_points(backend):
 def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
     data = prediction_1D(backend)
     model = core.train_model(data)
-    means, stddevs, raw_stddevs = core.get_surrogate_values(data, model)
+    means, stddevs, raw_stddevs, _ = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
     assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)
