@@ -5,8 +5,10 @@ on:
     branches:
       - develop
       - main
+      # TODO remove this once this branch is merged into develop
+      - expanded-output
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
 
 permissions:

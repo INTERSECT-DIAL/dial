@@ -16,8 +16,10 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingle,
+    DialSurrogateValuesResponse,
     DialWorkflowDatasetUpdate,
     DialWorkflowDatasetUpdates,
+    DialWorkflowFullState,
 )
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
@@ -69,7 +71,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         return workflow_id
 
     @intersect_message()
-    def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowCreationParamsService:
+    def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowFullState:
         """Returns the current state of the workflow associated with the id"""
         try:
             db_result = self.mongo_handler.get_workflow(uuid)
@@ -79,7 +81,11 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         if not db_result:
             msg = f"Couldn't get workflow data with id {uuid}"
             raise IntersectCapabilityError(msg)
-        return DialWorkflowCreationParamsService(**db_result)
+        return DialWorkflowFullState(
+            workflow_id=uuid,
+            dataset_x_size=len(db_result['dataset_x']),
+            **db_result,
+        )
 
     @intersect_message()
     def update_workflow_with_data(
@@ -101,7 +107,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             pretrain_result = DialWorkflowCreationParamsService(**db_get_result)
         except Exception:
             logger.exception(
-                'update_workflow validation exception for %s', update_params.workflow_id
+                'update_workflow validation exception for %s',
+                update_params.workflow_id,
             )
             pretrain_result = None
         if not pretrain_result or (
@@ -146,7 +153,10 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
                 update_params.workflow_id, include_model=True
             )
         except Exception:
-            logger.exception('update_workflow_with_batch_data init %s', update_params.workflow_id)
+            logger.exception(
+                'update_workflow_with_batch_data init %s',
+                update_params.workflow_id,
+            )
             db_get_result = None
         if not db_get_result:
             exc = f'Could not get workflow with id {update_params.workflow_id}'
@@ -156,7 +166,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             pretrain = DialWorkflowCreationParamsService(**db_get_result)
         except Exception:
             logger.exception(
-                'update_workflow_with_batch_data validation %s', update_params.workflow_id
+                'update_workflow_with_batch_data validation %s',
+                update_params.workflow_id,
             )
             pretrain = None
         if not pretrain:
@@ -190,7 +201,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             )
         except Exception:
             logger.exception(
-                'update_workflow_with_batch_data training %s', update_params.workflow_id
+                'update_workflow_with_batch_data training %s',
+                update_params.workflow_id,
             )
             db_update_result = None
         if not db_update_result:
@@ -216,7 +228,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             workflow_state = self.mongo_handler.get_workflow(client_data.workflow_id)
         except Exception:
             logger.exception(
-                'get_next_point exception (state initialization) for %s', client_data.workflow_id
+                'get_next_point exception (state initialization) for %s',
+                client_data.workflow_id,
             )
             workflow_state = None
         if not workflow_state:
@@ -237,10 +250,12 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return DialDataResponse1D(
                 data=return_data,
                 workflow_id=client_data.workflow_id,
+                dataset_x_size=len(validated_state.dataset_x),
             )
         except Exception as err:
             logger.exception(
-                'get_next_point exception (primary logic) for %s', client_data.workflow_id
+                'get_next_point exception (primary logic) for %s',
+                client_data.workflow_id,
             )
             raise IntersectCapabilityError(traceback.format_exc()) from err
 
@@ -259,7 +274,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             workflow_state = self.mongo_handler.get_workflow(client_data.workflow_id)
         except Exception:
             logger.exception(
-                'get_next_pointS exception (state initialization) for %s', client_data.workflow_id
+                'get_next_pointS exception (state initialization) for %s',
+                client_data.workflow_id,
             )
             workflow_state = None
         if not workflow_state:
@@ -280,19 +296,25 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             return DialDataResponse2D(
                 data=return_data,
                 workflow_id=client_data.workflow_id,
+                dataset_x_size=len(validated_state.dataset_x),
             )
         except Exception as err:
             logger.exception(
-                'get_next_pointS exception (primary logic) for %s', client_data.workflow_id
+                'get_next_pointS exception (primary logic) for %s',
+                client_data.workflow_id,
             )
             raise IntersectCapabilityError(traceback.format_exc()) from err
 
     @intersect_message
-    def get_surrogate_values(self, client_data: DialInputPredictions) -> DialDataResponse2D:
+    def get_surrogate_values(
+        self, client_data: DialInputPredictions
+    ) -> DialSurrogateValuesResponse:
         """Trains a model then returns 3 lists based on user-supplied points:
-        -Index 0: Predicted values.  These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
-        -Index 1: Inverse-transformed uncertainties.  If inverse-transforming is not possible (due to log-preprocessing), this will be all -1
-        -Index 2: Uncertainties without inverse transformation
+        - Predicted values.  These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
+        - Inverse-transformed uncertainties.  If inverse-transforming is not possible (due to log-preprocessing), this will be all -1
+        - Uncertainties without inverse transformation
+
+        Additional metadata is also returned in the response.
         """
         try:
             workflow_state = self.mongo_handler.get_workflow(
@@ -319,13 +341,21 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             data = ServersideInputPrediction(validated_state, client_data)
 
             return_data = core.get_surrogate_values(data, model)
-            return DialDataResponse2D(
-                data=return_data,
+            return DialSurrogateValuesResponse(
+                values=return_data[0],
+                transformed_stddevs=return_data[1],
+                stddevs=return_data[2],
+                dim_x=validated_state.dim_x,
+                points_to_predict=client_data.points_to_predict,
+                bounds=validated_state.bounds,
                 workflow_id=client_data.workflow_id,
+                dataset_x_size=len(validated_state.dataset_x),
+                transformed_stddevs_avg=return_data[3],
             )
         except Exception as err:
             logger.exception(
-                'get_surrogate_values exception (primary logic) for %s', client_data.workflow_id
+                'get_surrogate_values exception (primary logic) for %s',
+                client_data.workflow_id,
             )
             raise IntersectCapabilityError(traceback.format_exc()) from err
 

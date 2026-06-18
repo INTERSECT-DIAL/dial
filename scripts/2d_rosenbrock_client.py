@@ -208,8 +208,8 @@ class ActiveLearningOrchestrator:
         if (
             operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            data = payload['data']
-            self.mean_grid = np.array(data[0]).reshape((MESHGRID_SIZE,) * NUM_DIMS)
+            means = payload['values']
+            self.mean_grid = np.array(means).reshape((MESHGRID_SIZE,) * NUM_DIMS)
             return self.assemble_message('get_next_point')
 
         if operation == 'dial.get_next_point':

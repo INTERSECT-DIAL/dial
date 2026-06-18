@@ -158,12 +158,20 @@ class DialInputSingleConfidenceBound(BaseModel):
     confidence_bound: float = Field(gt=0.5, lt=1)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
+    point_index: Annotated[
+        PositiveIntType,
+        Field(
+            default=0,
+            description='If using a strategy (i.e. "hypercube") which generates multiple points, get the specific point via the index (0-based) (default: 0)',
+        ),
+    ]
 
 
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal[
         'random',
+        'hypercube',
         'uncertainty',
         'expected_improvement',
         'upper_confidence_bound',
@@ -200,6 +208,13 @@ class DialInputSingleOtherStrategy(BaseModel):
     optimization_points: PositiveIntType = Field(default=1000)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
+    point_index: Annotated[
+        PositiveIntType,
+        Field(
+            default=0,
+            description='If using a strategy (i.e. "hypercube") which generates multiple points, get the specific point via the index (0-based) (default: 0)',
+        ),
+    ]
 
 
 DialInputSingle = Annotated[

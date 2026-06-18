@@ -46,6 +46,17 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
             return selected_point
         return random_in_bounds(data.bounds, data.numpy_rng)
 
+    if data.strategy == 'hypercube':
+        if not data.discrete_measurements:
+            # use sane default
+            data.discrete_measurement_grid_size = [4] * data.dim_x
+        _measurement_grid = create_measurement_grid(data)
+        index = data.point_index % len(_measurement_grid)
+        selected_point = _measurement_grid[index]
+        logger.debug('selected point with hypercube strategy')
+        logger.debug(selected_point)
+        return selected_point
+
     backend = data.backend.lower()
     module = get_backend_module(backend)
     selected_point = module.sample(module, model, data)
@@ -85,7 +96,9 @@ def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[floa
 
 
 # pure functional implementation of message, without MongoDB calls
-def get_surrogate_values(data: ServersideInputPrediction, model: Any) -> list[list[float]]:
+def get_surrogate_values(
+    data: ServersideInputPrediction, model: Any
+) -> tuple[list[float], list[float], list[float], float]:
     """
     Get surrogate model predictions for given input points.
 
@@ -95,14 +108,15 @@ def get_surrogate_values(data: ServersideInputPrediction, model: Any) -> list[li
         client_data (DialInputPredictions): Input data containing prediction points and model parameters.
 
     Returns:
-        list[list[float]]: A list containing means, transformed standard deviations, and raw standard deviations.
+        tuple[list[float], list[float], list[float], float]: A tuple containing means, transformed standard deviations, raw standard deviations, and a float value.
     """
     backend = data.backend.lower()
     module = get_backend_module(backend)
     means, stddevs = module.predict(model, data)
     means = data.inverse_transform(means)
     transformed_stddevs = data.inverse_transform(stddevs, is_stddev=True)
-    return [means.tolist(), transformed_stddevs.tolist(), stddevs.tolist()]
+    average = np.sqrt(np.mean(np.asarray(transformed_stddevs) ** 2))
+    return (means.tolist(), transformed_stddevs.tolist(), stddevs.tolist(), float(average))
 
 
 def train_model(data: ServersideInputBase) -> Any:

@@ -95,7 +95,11 @@ class ServersideInputBase:
 
 
 class ServersideInputSingle(ServersideInputBase):
-    def __init__(self, workflow_state: DialWorkflowCreationParamsService, params: DialInputSingle):
+    def __init__(
+        self,
+        workflow_state: DialWorkflowCreationParamsService,
+        params: DialInputSingle,
+    ):
         super().__init__(workflow_state)
         self.strategy = params.strategy
         self.strategy_args = params.strategy_args
@@ -109,6 +113,7 @@ class ServersideInputSingle(ServersideInputBase):
         )
         self.discrete_measurements = params.discrete_measurements
         self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
+        self.point_index = params.point_index
 
     def set_x_predict(self, X_raw: np.ndarray) -> None:
         """
@@ -121,7 +126,9 @@ class ServersideInputSingle(ServersideInputBase):
 
 class ServersideInputMultiple(ServersideInputBase):
     def __init__(
-        self, workflow_state: DialWorkflowCreationParamsService, params: DialInputMultiple
+        self,
+        workflow_state: DialWorkflowCreationParamsService,
+        params: DialInputMultiple,
     ):
         super().__init__(workflow_state)
         self.strategy = params.strategy
@@ -150,7 +157,9 @@ class ServersideInputMultiple(ServersideInputBase):
 
 class ServersideInputPrediction(ServersideInputBase):
     def __init__(
-        self, workflow_state: DialWorkflowCreationParamsService, params: DialInputPredictions
+        self,
+        workflow_state: DialWorkflowCreationParamsService,
+        params: DialInputPredictions,
     ):
         super().__init__(workflow_state)
         self.x_predict_raw = np.asarray(params.points_to_predict, dtype=float)
