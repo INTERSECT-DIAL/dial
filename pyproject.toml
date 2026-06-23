@@ -18,7 +18,7 @@ license = { text = "BSD-3-Clause" }
 classifiers = ["Programming Language :: Python :: 3"]
 # TODO move some dependencies into optional dependencies
 dependencies = [
-  "intersect_sdk>=0.9.0,<0.10.0",
+  "intersect_sdk>=0.9.3,<0.10.0",
   "numpy",
   "scikit-learn>=1.4.0,<2.0.0",                        # TODO consider making an optional dependency group
   "scipy>=1.12.0,<2.0.0",

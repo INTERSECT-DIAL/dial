@@ -47,17 +47,23 @@ class BaseDistribution(BaseModel, ABC):
 class Delta(BaseDistribution):
     """The Delta distribution is deterministic and equal to its mean/loc."""
 
-    name: str = Field(default='Delta', frozen=True)
-    scale: float = Field(gt=0.0, lt=0.0, default=0.0, frozen=True)
+    name: Literal['Delta'] = Field(default='Delta', frozen=True)
+    scale: float = Field(ge=0.0, le=0.0, default=0.0, frozen=True)
 
 
 class Normal(BaseDistribution):
     """The normal distribution is determined by loc (mean) and scale (standard deviation)."""
 
-    name: str = Field(default='Normal', frozen=True)
+    name: Literal['Normal'] = Field(default='Normal', frozen=True)
 
 
-Distribution = Annotated[Delta | Normal, Field(description='Union of all supported Distributions.')]
+Distribution = Annotated[
+    Delta | Normal,
+    Field(
+        description='Union of all supported Distributions.',
+        discriminator='name',
+    ),
+]
 
 
 def _validate_dataset_lengths(dataset: list[Any]) -> bool:
