@@ -1,6 +1,6 @@
 [project]
 name = "dial"
-version = "0.1.5"
+version = "0.1.6"
 authors = [
   { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
   { name = "Lance Drane", email = "dranelt@ornl.gov" },
@@ -31,7 +31,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/INTERSECT-DIAL/dial/"
 Changelog = "https://github.com/INTERSECT-DIAL/dial/blob/main/CHANGELOG.md"
-#Documentation = "https://intersect-dial.readthedocs.io/en/latest/"
+Documentation = "https://intersect-dial.readthedocs.io/en/latest/"
 Issues = "https://github.com/INTERSECT-DIAL/dial/issues"
 
 [project.optional-dependencies]

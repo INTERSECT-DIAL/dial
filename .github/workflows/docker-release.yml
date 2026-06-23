@@ -6,7 +6,7 @@ on:
       - develop
       - main
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
 
 permissions:

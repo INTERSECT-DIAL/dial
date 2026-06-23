@@ -174,7 +174,11 @@ class ActiveLearningOrchestrator:
     # The callback function.  This is called whenever the server responds to our message.
     # This could instead be implemented by defining a callback method (and passing it later), but here we chose to directly make the object callable.
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
+        self,
+        _source: str,
+        operation: str,
+        _has_error: bool,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
@@ -192,9 +196,8 @@ class ActiveLearningOrchestrator:
 
         if operation == 'dial.get_surrogate_values':
             # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            data = payload['data']
-            mean_grid = data[0]
-            self.mean_grid = np.array(mean_grid).reshape(XX.shape)
+            means = payload['values']
+            self.mean_grid = np.array(means).reshape(XX.shape)
             return self.assemble_message('get_next_point')
 
         if operation == 'dial.get_next_point':
@@ -211,7 +214,13 @@ class ActiveLearningOrchestrator:
     # makes a color graph of the predicted yields, with markers for the training data and EI-recommended point:
     def graph(self, x_EI: list[float]):
         plt.clf()
-        plt.contourf(XX, YY, self.mean_grid, levels=np.linspace(0, 12, 101), extend='both')
+        plt.contourf(
+            XX,
+            YY,
+            self.mean_grid,
+            levels=np.linspace(0, 12, 101),
+            extend='both',
+        )
         cbar = plt.colorbar()
         cbar.set_ticks(np.linspace(0, 12, 7))
         cbar.set_label('C2H4 Yield (%)')
@@ -221,12 +230,22 @@ class ActiveLearningOrchestrator:
         X_train = np.array(self.dataset_x)
         plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='o')
         plt.scatter([x_EI[0]], [x_EI[1]], color='red', marker='o')
-        plt.scatter([x_EI[0]], [x_EI[1]], color='none', edgecolors='red', marker='o', s=300)
+        plt.scatter(
+            [x_EI[0]],
+            [x_EI[1]],
+            color='none',
+            edgecolors='red',
+            marker='o',
+            s=300,
+        )
         plt.savefig('graph.png')
 
     # asks the user for a data point (an experimental result) and adds it to our dataset
     def add_data(self, x_EI: list[float]):
-        print(f'\nEI recommends running at: {x_EI[0]:.1f} ms, {x_EI[1]:.1f} K', flush=True)
+        print(
+            f'\nEI recommends running at: {x_EI[0]:.1f} ms, {x_EI[1]:.1f} K',
+            flush=True,
+        )
         print('\nEnter Experimental Data:', file=sys.stderr)
         x0 = read_float('Duration (ms):')
         x1 = read_float('Temperature (K):')

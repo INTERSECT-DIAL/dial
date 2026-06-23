@@ -95,7 +95,11 @@ class ActiveLearningOrchestrator:
             self.backend_args = {}
         elif self.backend == 'sable':
             self.kernel = 'rbf'
-            self.kernel_args = {'x_range': [-2.0, 2.0], 'sigma_range': [1.0e-3, 1.0], 'gamma': 0.1}
+            self.kernel_args = {
+                'x_range': [-2.0, 2.0],
+                'sigma_range': [1.0e-3, 1.0],
+                'gamma': 0.1,
+            }
             self.backend_args = {
                 'n_features': 10000,
                 'alpha': 0.0005,
@@ -119,7 +123,11 @@ class ActiveLearningOrchestrator:
         self.service_destination = service_destination
 
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
+        self,
+        _source: str,
+        operation: str,
+        _has_error: bool,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
         print(
             f'Received message from {_source} with operation {operation} and payload {payload}',
@@ -208,23 +216,24 @@ class ActiveLearningOrchestrator:
         return IntersectClientCallback(
             messages_to_send=[
                 IntersectDirectMessageParams(
-                    destination=self.service_destination, operation=operation, payload=next_payload
+                    destination=self.service_destination,
+                    operation=operation,
+                    payload=next_payload,
                 )
             ]
         )
 
     def handle_surrogate_values(self, payload):
-        response_data = payload['data']
+        means = payload['values']
+        transformed_stddevs = payload['transformed_stddevs']
         if self.at_grids:
-            self.stddev_grid = np.array(response_data[1]).reshape(
+            self.stddev_grid = np.array(transformed_stddevs).reshape(
                 (self.meshgrid_size,) * self.num_dims
             )
-            self.mean_grid = np.array(response_data[0]).reshape(
-                (self.meshgrid_size,) * self.num_dims
-            )
+            self.mean_grid = np.array(means).reshape((self.meshgrid_size,) * self.num_dims)
         else:
-            self.stddev_test = np.array(response_data[1])
-            self.mean_test = np.array(response_data[0])
+            self.stddev_test = np.array(transformed_stddevs)
+            self.mean_test = np.array(means)
             print(f'Test Mean: {self.mean_test}, Std.Dev.: {self.stddev_test}')
 
         # end of active learning loop after max_iter
@@ -286,7 +295,10 @@ class ActiveLearningOrchestrator:
             axs[1].plot(self.x_grid, acquisition_values)
             if self.x_next is not None:
                 axs[1].axvline(
-                    x=self.x_next[0], color='red', linestyle='--', label='Next Point (x_next)'
+                    x=self.x_next[0],
+                    color='red',
+                    linestyle='--',
+                    label='Next Point (x_next)',
                 )
             axs[1].set_xlabel('Features, x')
             axs[1].set_ylabel('Acquisition Value')

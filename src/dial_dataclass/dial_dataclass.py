@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -60,7 +60,7 @@ class Normal(BaseDistribution):
 Distribution = Annotated[Delta | Normal, Field(description='Union of all supported Distributions.')]
 
 
-def _validate_dataset_lengths(dataset: list[any]) -> bool:
+def _validate_dataset_lengths(dataset: list[Any]) -> bool:
     """validate the lengths of dataset entries"""
     if len(dataset) > 1:
         data = dataset[0]
@@ -74,8 +74,6 @@ def _validate_dataset_lengths(dataset: list[any]) -> bool:
 
 def _validate_dims_and_length(data: dict, x_name: str, y_name: str) -> tuple[int, int]:
     """validate the lengths of datasets, and compute dim_x and dim_y"""
-
-    # print('\n'.join(f'{k}: {v}' for k, v in data.items()))
 
     dim_x = data.get('dim_x')
     dim_y = data.get('dim_y')
@@ -109,9 +107,6 @@ def _validate_dims_and_length(data: dict, x_name: str, y_name: str) -> tuple[int
     # compute dimensions and validate consistency
     dim_x = compute_dim(dim_x, dataset_x, x_name)
     dim_y = compute_dim(dim_y, dataset_y, y_name)
-
-    # print(dim_x, dataset_x, x_name)
-    # print(dim_y, dataset_y, y_name)
 
     # validate bounds, if they exist
     bounds = data.get('bounds')
@@ -177,10 +172,12 @@ class _DialWorkflowCreationParams(BaseModel):
         ),
     ]
     labels_x: Annotated[
-        Label | list[Label], Field(default='x', description='Labels for input variables x.')
+        Label | list[Label],
+        Field(default='x', description='Labels for input variables x.'),
     ]
     labels_y: Annotated[
-        Label | list[Label], Field(default='y', description='Labels for output variables y.')
+        Label | list[Label],
+        Field(default='y', description='Labels for output variables y.'),
     ]
     dim_x: Annotated[
         PositiveIntType | None,
@@ -220,7 +217,7 @@ class _DialWorkflowCreationParams(BaseModel):
     y_is_good: Annotated[
         bool,
         Field(
-            default=True,  # <-- Set default here
+            default=True,
             description=(
                 'If true, treat higher y values as better'
                 ' (e.g. y represents yield or profit).'
@@ -369,12 +366,20 @@ class DialInputSingleConfidenceBound(BaseModel):
     confidence_bound: float = Field(gt=0.5, lt=1)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
+    point_index: Annotated[
+        PositiveIntType,
+        Field(
+            default=0,
+            description='If using a strategy (i.e. "hypercube") which generates multiple points, get the specific point via the index (0-based) (default: 0)',
+        ),
+    ]
 
 
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: Literal[
         'random',
+        'hypercube',
         'uncertainty',
         'expected_improvement',
         'upper_confidence_bound',
@@ -411,6 +416,13 @@ class DialInputSingleOtherStrategy(BaseModel):
     optimization_points: PositiveIntType = Field(default=1000)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
+    point_index: Annotated[
+        PositiveIntType,
+        Field(
+            default=0,
+            description='If using a strategy (i.e. "hypercube") which generates multiple points, get the specific point via the index (0-based) (default: 0)',
+        ),
+    ]
 
 
 DialInputSingle = Annotated[
