@@ -102,25 +102,25 @@ def get_surrogate_values(
     """
     Get surrogate model predictions for given input points.
 
-    Model parameter should be a pretrained model, you can usually call core.train_model with the same data parameter if you don't yet have a model.
+    Model parameter should be a pretrained model,
+    you can usually call core.train_model with the same data parameter if you don't yet have a model.
 
     Args:
         client_data (DialInputPredictions): Input data containing prediction points and model parameters.
 
     Returns:
-        tuple[list[float], list[float], list[float], float]: A tuple containing means, transformed standard deviations, raw standard deviations, and a float value.
+        tuple[list[float], list[float], float]: A tuple containing means, standard deviations,
+              standard deviations, and average standard deviation.
     """
     backend = data.backend.lower()
     module = get_backend_module(backend)
     means, stddevs = module.predict(model, data)
-    means, transformed_stddevs = data.inverse_transform_Y(means, stddevs)
-    average = np.sqrt(np.mean(np.asarray(transformed_stddevs) ** 2))
-    # TODO: the third return argument is not needed.
+    means, stddevs = data.inverse_transform_Y(means, stddevs)
+    average_stddev = np.sqrt(np.mean(np.asarray(stddevs) ** 2))
     return (
         means.tolist(),
-        transformed_stddevs.tolist(),
         stddevs.tolist(),
-        float(average),
+        float(average_stddev),
     )
 
 

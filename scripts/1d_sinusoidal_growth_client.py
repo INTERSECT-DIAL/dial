@@ -225,14 +225,12 @@ class ActiveLearningOrchestrator:
 
     def handle_surrogate_values(self, payload):
         means = payload['values']
-        transformed_stddevs = payload['transformed_stddevs']
+        stddevs = payload['stddevs']
         if self.at_grids:
-            self.stddev_grid = np.array(transformed_stddevs).reshape(
-                (self.meshgrid_size,) * self.num_dims
-            )
+            self.stddev_grid = np.array(stddevs).reshape((self.meshgrid_size,) * self.num_dims)
             self.mean_grid = np.array(means).reshape((self.meshgrid_size,) * self.num_dims)
         else:
-            self.stddev_test = np.array(transformed_stddevs)
+            self.stddev_test = np.array(stddevs)
             self.mean_test = np.array(means)
             print(f'Test Mean: {self.mean_test}, Std.Dev.: {self.stddev_test}')
 

@@ -266,7 +266,7 @@ class ActiveLearningOrchestrator:
                     marker='o',
                     s=300,
                 )
-            plt.savefig('graph.png')
+            plt.savefig('graph_rosenbrock.png')
         else:
             fig, ax = plt.subplots(figsize=(8, 6))
             message = (
