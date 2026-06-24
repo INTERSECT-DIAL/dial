@@ -364,12 +364,21 @@ class DialInputSingleConfidenceBound(BaseModel):
             Field(min_length=2, max_length=2),
         ]
     ]
+    seed: Annotated[
+        int,
+        Field(
+            default=-1,
+            ge=-1,
+            le=4294967295,
+            description='Specific RNG seed - use -1 to use system default',
+        ),
+    ]
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
     )
     """These extra arguments will be MERGED with the saved extra_args, with these arguments taking place over the saved values when applicable."""
     optimization_points: PositiveIntType = Field(default=1000)
-    confidence_bound: float = Field(gt=0.5, lt=1)
+    confidence_bound: float = Field(gt=0.5, lt=1.0)
     discrete_measurements: bool = Field(default=False)
     discrete_measurement_grid_size: list[PositiveIntType] = Field(default=[20, 20])
     point_index: Annotated[

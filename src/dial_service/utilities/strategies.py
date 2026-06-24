@@ -16,10 +16,14 @@ def random_in_bounds(bounds: list[list[float]], rng: np.random.RandomState):
 
 
 def uncertainty_sampling(_mean, stddev, _data):
+    """Measure of uncertainty (stddev) for maximization"""
     return stddev
 
 
 def upper_confidence_bound(mean, stddev, data):
+    """Upper confidence bound for maximization
+    If y_is_good = False, multiply mean by -1.
+    """
     _params = data.strategy_args
     y_is_good = data.y_is_good
     _direction = 1 if y_is_good else -1
@@ -31,6 +35,10 @@ def upper_confidence_bound(mean, stddev, data):
 
 
 def upper_confidence_bound_nomad(mean, stddev, data):
+    """Upper confidence bound (NOMAD specific version) for maximization
+    Masks the values around the last measurement point to force exploration.
+    If y_is_good = False, multiply mean by -1.
+    """
     _params = data.strategy_args
     y_is_good = data.y_is_good
     _direction = 1 if y_is_good else -1
@@ -49,20 +57,30 @@ def upper_confidence_bound_nomad(mean, stddev, data):
 
 
 def expected_improvement(mean, stddev, data):
+    """Expected Improvement (EI) for maximization
+    If y_is_good = False, multiply mean and data value by -1.
+    """
     _params = data.strategy_args
     y_is_good = data.y_is_good
+    _direction = 1 if y_is_good else -1
 
-    if stddev < 1e-8:
-        return 0.0
-    z = (mean - data.Y_best) / stddev * (1 if y_is_good else -1)
-    return -stddev * (z * norm.cdf(z) + norm.pdf(z))
+    # guard against small or negative stddev
+    stddev = np.maximum(stddev, 1e-15)
+
+    z = (mean - data.Y_best) / stddev * _direction
+    return stddev * (z * norm.cdf(z) + norm.pdf(z))
 
 
 def confidence_bound(mean, stddev, data):
+    """Confidence bound for maximization
+    The same as upper_confidence_bound with exploit = 1., explore = norm.ppf(0.5 + data.confidence_bound / 2)
+    If y_is_good = False, multiply mean by -1.
+    """
     y_is_good = data.y_is_good
+    _direction = 1 if y_is_good else -1
     z_value = norm.ppf(0.5 + data.confidence_bound / 2)
 
-    return -z_value * stddev + mean * (-1 if y_is_good else 1)
+    return _direction * mean + z_value * stddev
 
 
 STRATEGIES = {
