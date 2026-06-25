@@ -16,10 +16,14 @@ def random_in_bounds(bounds: list[list[float]], rng: np.random.RandomState):
 
 
 def uncertainty_sampling(_mean, stddev, _data):
+    """Measure of uncertainty (stddev) for maximization"""
     return stddev
 
 
 def upper_confidence_bound(mean, stddev, data):
+    """Upper confidence bound for maximization
+    If y_is_good = False, multiply mean by -1.
+    """
     _params = data.strategy_args
     y_is_good = data.y_is_good
     _direction = 1 if y_is_good else -1
@@ -31,6 +35,10 @@ def upper_confidence_bound(mean, stddev, data):
 
 
 def upper_confidence_bound_nomad(mean, stddev, data):
+    """Upper confidence bound (NOMAD specific version) for maximization
+    Masks the values around the last measurement point to force exploration.
+    If y_is_good = False, multiply mean by -1.
+    """
     _params = data.strategy_args
     y_is_good = data.y_is_good
     _direction = 1 if y_is_good else -1
@@ -49,20 +57,30 @@ def upper_confidence_bound_nomad(mean, stddev, data):
 
 
 def expected_improvement(mean, stddev, data):
+    """Expected Improvement (EI) for maximization
+    If y_is_good = False, multiply mean and data value by -1.
+    """
     _params = data.strategy_args
     y_is_good = data.y_is_good
+    _direction = 1 if y_is_good else -1
 
-    if stddev < 1e-8:
-        return 0.0
-    z = (mean - data.Y_best) / stddev * (1 if y_is_good else -1)
-    return -stddev * (z * norm.cdf(z) + norm.pdf(z))
+    # guard against small or negative stddev
+    stddev = np.maximum(stddev, 1e-15)
+
+    z = (mean - data.Y_best) / stddev * _direction
+    return stddev * (z * norm.cdf(z) + norm.pdf(z))
 
 
 def confidence_bound(mean, stddev, data):
+    """Confidence bound for maximization
+    The same as upper_confidence_bound with exploit = 1., explore = norm.ppf(0.5 + data.confidence_bound / 2)
+    If y_is_good = False, multiply mean by -1.
+    """
     y_is_good = data.y_is_good
+    _direction = 1 if y_is_good else -1
     z_value = norm.ppf(0.5 + data.confidence_bound / 2)
 
-    return -z_value * stddev + mean * (-1 if y_is_good else 1)
+    return _direction * mean + z_value * stddev
 
 
 STRATEGIES = {
@@ -122,19 +140,18 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
 
     if data.discrete_measurements:
         _measurement_grid = create_measurement_grid(data)
-        # TODO - commented line is known to fail for expected_improvement regarding discrete measurements
-        # response_surface = to_minimize(_measurement_grid)
-        response_surface = [to_minimize(point) for point in _measurement_grid]
+        response_surface = to_minimize(_measurement_grid)
         index = np.int64(np.argmin(response_surface))
         selected_point = _measurement_grid[index]
         logger.debug('selected point with discrete measurements')
         logger.debug(selected_point)
         return selected_point
 
-    n_restarts = 10
+    n_restarts = 25
     init_array = np.array(hypercube(data.bounds, n_restarts, data.numpy_rng))
     best_score = np.inf
     selected_point = None
+    # out_list = []
     for x_init in init_array:
         res = minimize(
             to_minimize,
@@ -146,6 +163,12 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
         if res.fun < best_score:
             best_score = res.fun
             selected_point = res.x
+        # out_list.append((x_init.tolist(), res.x.tolist(), res.fun))
+
+    logger.debug('selected point with optimization')
+    logger.debug('score and point: %f, %s', best_score, str(selected_point))
+    # print(f'optimized: {best_score}, {selected_point}:', '\n',
+    #       '\n'.join([str(out) for out in out_list]))
 
     return selected_point.tolist()
 

@@ -36,8 +36,6 @@ def single_1D(backend, strategy, strategy_args):
         kernel_args={
             'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
@@ -66,8 +64,6 @@ def single_1D_discrete_grid(backend, strategy, strategy_args, discrete_measureme
         kernel_args={
             'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
@@ -124,8 +120,6 @@ def single_2D(
         kernel_args={
             'length_scale': 0.15,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
@@ -239,15 +233,12 @@ def single_3D(backend, strategy, strategy_args, discrete_measurement_grid_size=N
         kernel_args={
             'length_scale': 0.15,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
@@ -266,9 +257,9 @@ def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
+        dim_x=2,  # provide dim_x for empty dataset
         y_is_good=False,
         kernel='rbf',
-        length_per_dimension=False,
         bounds=[[0, 100], [-1, 1]],
         backend=backend,
         seed=42,
@@ -293,15 +284,12 @@ def prediction_1D(backend):
         kernel_args={
             'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
-            'noise_level': 0.0,
-            'noise_level_bounds': 'fixed',
             'constant_value': 50.0**2,
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
         preprocess_standardize=False,
         y_is_good=True,
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputPredictions(
@@ -404,7 +392,7 @@ def test_uncertainty(backend, approx):
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [1.037454]),
+        ('sklearn', [1.790396262]),
         # ('gpax', [2.0]),
     ],
 )
@@ -617,7 +605,7 @@ def test_hypercube_multiple_points(backend):
 
 
 @pytest.mark.parametrize(
-    ('backend', 'expected_means', 'expected_stddevs', 'expected_raw_stddevs'),
+    ('backend', 'expected_means', 'expected_stddevs'),
     [
         (
             'sklearn',
@@ -629,7 +617,6 @@ def test_hypercube_multiple_points(backend):
                 199.99999999,
             ],
             [2.11126987e01, 2.96625069e01, 2.11126987e01],
-            [21.11269870647274, 29.662506906581378, 21.112698706472752],
         ),
         # (
         # 'gpax',
@@ -641,46 +628,54 @@ def test_hypercube_multiple_points(backend):
         #     82.26569221517353,
         # ],
         # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
-        # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
         # ),
     ],
 )
-def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
+def test_surrogate(backend, expected_means, expected_stddevs):
     data = prediction_1D(backend)
     model = core.train_model(data)
-    means, stddevs, raw_stddevs, _ = core.get_surrogate_values(data, model)
+    means, stddevs, _ = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
-    assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)
 
 
 @pytest.mark.parametrize(
     ('backend'),
     [
         ('sklearn'),
-        # ('gpax'),
     ],
 )
 def test_inverse_transform(backend):
     data = prediction_1D(backend)
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([-1, 0, 1])
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, 0, 1])
+
+    test_y = np.array([-1, 0, 1])
+    test_yerr = np.array([0.1, 1, 10])
+
+    def test_transform(inv_y, inv_yerr):
+        y, yerr = data.transform_Y(inv_y, inv_yerr)
+        assert y == pytest.approx(test_y)
+        assert yerr == pytest.approx(test_yerr)
+
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx(test_y)
+    assert inv_yerr == pytest.approx(test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-        [1 / E_CONSTANT, 1, E_CONSTANT]
-    )
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([1 / E_CONSTANT, 1, E_CONSTANT])
+    assert inv_yerr == pytest.approx(inv_y * test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = False
     data.preprocess_standardize = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([100, 150, 200])
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx(
-        [-50, 0, 50]
-    )  # technically improper, as uncertainties can't be negative
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([100, 150, 200])
+    assert inv_yerr == pytest.approx(50 * test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-        [100, 141.42135623730945, 200]
-    )  # TODO
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([100, 141.42135623730945, 200])
+    assert inv_yerr == pytest.approx(inv_y * 0.34657359027997243 * test_yerr)
+    test_transform(inv_y, inv_yerr)

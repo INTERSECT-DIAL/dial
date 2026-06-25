@@ -43,10 +43,8 @@ class DialSurrogateValuesResponse(BaseModel):
 
     values: list[float]
     """The computed values (for example, from Gaussian backends, the means) from calling get_surrogate_values()"""
-    transformed_stddevs: list[float]
-    """The computed uncertainties from calling get_surrogate_values(), with an inverse transform. If inverse-transforming is not possible (due to log-preprocessing), this will be all -1"""
-    stddevs: list[float]  # TODO will probably remove in future
-    """The computed raw uncertainties from calling get_surrogate_values(), without an inverse transform"""
+    stddevs: list[float]
+    """The computed uncertainties from calling get_surrogate_values(), with an inverse transform."""
     dim_x: int
     """Number of dimensions of the associated data, derived from workflow"""
     bounds: list[list[float]]
@@ -57,5 +55,5 @@ class DialSurrogateValuesResponse(BaseModel):
     """The same workflow ID that was used to get the data, to facilitate possible load balancing."""
     dataset_x_size: int
     """Current length of dataset_x"""
-    transformed_stddevs_avg: float
-    """the average of the transformed stddevs being returned"""
+    stddevs_avg: float
+    """The average of the transformed stddevs being returned"""

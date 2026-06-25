@@ -1,4 +1,5 @@
 from .dial_dataclass import (
+    Delta,
     DialInputMultiple,
     DialInputMultipleOtherStrategy,
     DialInputPredictions,
@@ -8,6 +9,7 @@ from .dial_dataclass import (
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
     DialWorkflowDatasetUpdates,
+    Normal,
 )
 from .dial_dataclass_responses import (
     DialDataResponse1D,

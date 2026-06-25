@@ -23,6 +23,7 @@ from dial_dataclass import (
     DialInputSingleOtherStrategy,
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
+    Normal,
 )
 
 mpl.use('agg')
@@ -52,14 +53,14 @@ class IntersectCallbackEnd(Exception):  # noqa: N818
 
 class ActiveLearningOrchestrator:
     def __init__(self, service_destination: str):
-        self.bounds = np.array([[-2, 2]])
+        self.bounds = [[-2.0, 2.0]]
         self.num_dims = len(self.bounds)
 
-        self.x_raw = np.array([[1], [2.0]])
-        self.x_test = np.array([[-1], [0.5]])
+        self.x_raw = np.array([[1.0], [2.0]])
+        self.x_test = np.array([[-1.0], [0.5]])
         self.y_raw = sinusoidal_growth(self.x_raw)
 
-        self.meshgrid_size = 100
+        self.meshgrid_size = 200
         self.grid_points = [
             np.linspace(dim_bounds[0], dim_bounds[1], self.meshgrid_size)
             for dim_bounds in self.bounds
@@ -72,18 +73,47 @@ class ActiveLearningOrchestrator:
         self.dataset_y = self.y_raw.reshape(-1).tolist()
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
-        self.kernel = 'rbf'
-        self.kernel_args = {'length_scale': 0.12, 'length_scale_bounds': (0.1, 1.0)}
+        # Assume that there is some small noise in the measurements to stabilize the fit
+        self.statistics_y = Normal(loc='y', scale=1e-6)
+
         self.backend = 'sklearn'
-        self.backend_args = None
+        if self.backend == 'sklearn':
+            # configure kernel_hyperparameters
+            self.kernel = 'matern'  # 'rbf' or 'matern'
+            self.kernel_args = {
+                'length_scale': 0.1,
+                'constant_value': 1.0,
+            }
+            self.optimize_lengthscale = False
+            if self.optimize_lengthscale:
+                self.kernel_args.update(
+                    {
+                        'length_scale_bounds': (0.02, 0.2),
+                    }
+                )
+            self.backend_args = {}
+        elif self.backend == 'sable':
+            self.kernel = 'rbf'
+            self.kernel_args = {
+                'x_range': [-2.0, 2.0],
+                'sigma_range': [1.0e-3, 1.0],
+                'gamma': 0.1,
+            }
+            self.backend_args = {
+                'n_features': 10000,
+                'alpha': 0.0005,
+                'p': 1.25,
+                'n_iter_irls': 20,
+            }
+
         self.strategy = 'upper_confidence_bound'
         self.strategy_args = {'exploit': 0.4, 'explore': 1}
         self.niter = 0
         self.max_iter = 20
         self.at_grids = True
-        self.variance_grid = None
+        self.stddev_grid = None
         self.mean_grid = None
-        self.variance_test = None
+        self.stddev_test = None
         self.mean_test = None
         self.x_next = None
 
@@ -92,17 +122,22 @@ class ActiveLearningOrchestrator:
         self.service_destination = service_destination
 
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
+        self,
+        _source: str,
+        operation: str,
+        _has_error: bool,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
-        print(
-            f'Received message from {_source} with operation {operation} and payload {payload}',
-            file=sys.stderr,
-        )
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
             print(operation, file=sys.stderr)
             print(payload, file=sys.stderr)
             raise IntersectCallbackError(operation, payload)
+
+        # print(
+        #     f'Received message from {_source} with operation {operation} and payload {payload}',
+        #     file=sys.stderr,
+        # )
 
         if operation == 'dial.initialize_workflow':
             self.workflow_id = payload
@@ -142,10 +177,8 @@ class ActiveLearningOrchestrator:
                 kernel_args=self.kernel_args,
                 backend=self.backend,
                 backend_args=self.backend_args,
-                extra_args={'length_per_dimension': True},
                 preprocess_standardize=True,
                 y_is_good=True,
-                seed=20,
             )
 
         elif operation == 'dial.get_surrogate_values':
@@ -164,7 +197,8 @@ class ActiveLearningOrchestrator:
                 workflow_id=self.workflow_id,
                 strategy=self.strategy,
                 strategy_args=self.strategy_args,
-                bounds=self.bounds.tolist(),
+                bounds=self.bounds,
+                y_is_good=True,
             )
 
         elif operation == 'dial.update_workflow_with_data':
@@ -181,23 +215,23 @@ class ActiveLearningOrchestrator:
         return IntersectClientCallback(
             messages_to_send=[
                 IntersectDirectMessageParams(
-                    destination=self.service_destination, operation=operation, payload=next_payload
+                    destination=self.service_destination,
+                    operation=operation,
+                    payload=next_payload,
                 )
             ]
         )
 
     def handle_surrogate_values(self, payload):
         means = payload['values']
-        transformed_stddevs = payload['transformed_stddevs']
+        stddevs = payload['stddevs']
         if self.at_grids:
-            self.variance_grid = np.array(transformed_stddevs).reshape(
-                (self.meshgrid_size,) * self.num_dims
-            )
+            self.stddev_grid = np.array(stddevs).reshape((self.meshgrid_size,) * self.num_dims)
             self.mean_grid = np.array(means).reshape((self.meshgrid_size,) * self.num_dims)
         else:
-            self.variance_test = np.array(transformed_stddevs)
+            self.stddev_test = np.array(stddevs)
             self.mean_test = np.array(means)
-            print(f'Test Mean: {self.mean_test}, Variance: {self.variance_test}')
+            print(f'Test Mean: {self.mean_test}, Std.Dev.: {self.stddev_test}')
 
         # end of active learning loop after max_iter
         if self.niter > self.max_iter:
@@ -224,12 +258,12 @@ class ActiveLearningOrchestrator:
 
         fig, axs = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
-        # First subplot: Mean and variance with training data
+        # First subplot: Mean and standard deviation with training data
         axs[0].plot(self.x_grid, self.mean_grid, label='Mean Prediction')
         axs[0].fill_between(
             self.x_grid[:, 0],
-            self.mean_grid + 2 * self.variance_grid,
-            self.mean_grid - 2 * self.variance_grid,
+            self.mean_grid + 2 * self.stddev_grid,
+            self.mean_grid - 2 * self.stddev_grid,
             alpha=0.5,
             label='Confidence Interval',
         )
@@ -248,19 +282,20 @@ class ActiveLearningOrchestrator:
 
         # Second subplot: Acquisition function
         if self.strategy_args is not None:
-            if self.mean_grid is not None and self.variance_grid is not None:
+            if self.mean_grid is not None and self.stddev_grid is not None:
                 exploit = self.strategy_args.get('exploit', 0.0)
                 explore = self.strategy_args.get('explore', 1.0)
-                acquisition_values = exploit * self.mean_grid + explore * np.sqrt(
-                    self.variance_grid
-                )
+                acquisition_values = exploit * self.mean_grid + explore * self.stddev_grid
             else:
                 acquisition_values = np.zeros_like(self.x_grid)
 
             axs[1].plot(self.x_grid, acquisition_values)
             if self.x_next is not None:
                 axs[1].axvline(
-                    x=self.x_next[0], color='red', linestyle='--', label='Next Point (x_next)'
+                    x=self.x_next[0],
+                    color='red',
+                    linestyle='--',
+                    label='Next Point (x_next)',
                 )
             axs[1].set_xlabel('Features, x')
             axs[1].set_ylabel('Acquisition Value')
@@ -268,7 +303,7 @@ class ActiveLearningOrchestrator:
             axs[1].grid(True)
 
         plt.tight_layout()
-        plt.savefig('graph.png')
+        plt.savefig('graph_sinusoidal.png')
         plt.close(fig)
 
 

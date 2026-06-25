@@ -93,7 +93,6 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
     ) -> ValidatedObjectId:
         """Updates the DB with the provided params. Success of operation is based off whether or not the INTERSECT response is an error."""
 
-        # TODO - all exceptions should realistically provide error information to the client. INTERSECT-SDK v0.9 will introduce a specific exception we can throw which will allow us to do this.
         try:
             db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id)
         except Exception:
@@ -239,13 +238,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
-            if client_data.extra_args:
-                if validated_state.extra_args:
-                    validated_state.extra_args.update(client_data.extra_args)
-                else:
-                    validated_state.extra_args = client_data.extra_args
             data = ServersideInputSingle(validated_state, client_data)
-
             return_data = core.get_next_point(data, model)
             return DialDataResponse1D(
                 data=return_data,
@@ -285,13 +278,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
-            if client_data.extra_args:
-                if validated_state.extra_args:
-                    validated_state.extra_args.update(client_data.extra_args)
-                else:
-                    validated_state.extra_args = client_data.extra_args
             data = ServersideInputMultiple(validated_state, client_data)
-
             return_data = core.get_next_points(data, model)
             return DialDataResponse2D(
                 data=return_data,
@@ -309,10 +296,11 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
     def get_surrogate_values(
         self, client_data: DialInputPredictions
     ) -> DialSurrogateValuesResponse:
-        """Trains a model then returns 3 lists based on user-supplied points:
-        - Predicted values.  These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
-        - Inverse-transformed uncertainties.  If inverse-transforming is not possible (due to log-preprocessing), this will be all -1
-        - Uncertainties without inverse transformation
+        """Trains a model then returns two lists based on user-supplied points:
+        - Predicted values.
+          These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
+        - Uncertainties.
+          These are inverse transformed standard errors, transformed according to the differential of the transform.
 
         Additional metadata is also returned in the response.
         """
@@ -340,17 +328,16 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
                     validated_state.extra_args = client_data.extra_args
             data = ServersideInputPrediction(validated_state, client_data)
 
-            return_data = core.get_surrogate_values(data, model)
+            means, stddevs, average_stddev = core.get_surrogate_values(data, model)
             return DialSurrogateValuesResponse(
-                values=return_data[0],
-                transformed_stddevs=return_data[1],
-                stddevs=return_data[2],
+                values=means,
+                stddevs=stddevs,
                 dim_x=validated_state.dim_x,
                 points_to_predict=client_data.points_to_predict,
                 bounds=validated_state.bounds,
                 workflow_id=client_data.workflow_id,
                 dataset_x_size=len(validated_state.dataset_x),
-                transformed_stddevs_avg=return_data[3],
+                stddevs_avg=average_stddev,
             )
         except Exception as err:
             logger.exception(
