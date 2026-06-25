@@ -238,13 +238,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
-            if client_data.extra_args:
-                if validated_state.extra_args:
-                    validated_state.extra_args.update(client_data.extra_args)
-                else:
-                    validated_state.extra_args = client_data.extra_args
             data = ServersideInputSingle(validated_state, client_data)
-
             return_data = core.get_next_point(data, model)
             return DialDataResponse1D(
                 data=return_data,
@@ -284,13 +278,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         try:
             model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
-            if client_data.extra_args:
-                if validated_state.extra_args:
-                    validated_state.extra_args.update(client_data.extra_args)
-                else:
-                    validated_state.extra_args = client_data.extra_args
             data = ServersideInputMultiple(validated_state, client_data)
-
             return_data = core.get_next_points(data, model)
             return DialDataResponse2D(
                 data=return_data,

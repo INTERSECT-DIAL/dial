@@ -347,21 +347,31 @@ class DialWorkflowDatasetUpdates(BaseModel):
 
 
 class DialInputSingleConfidenceBound(BaseModel):
+    """This class is used to request a single next point using the confidence_bound strategy."""
+
     workflow_id: ValidatedObjectId
     strategy: Literal['confidence_bound']
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
-        bool,
+        bool | None,
         Field(
-            default=True,  # <-- Set default here
-            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+            default=None,
+            description=(
+                'If true, treat higher y values as better (e.g. y represents yield or profit).'
+                ' If false, opposite (e.g. y represents error or waste).'
+                ' If None, the value from DialWorkflowCreationParams is used.'
+            ),
         ),
     ]
-    bounds: list[
-        Annotated[
-            Annotated[list[float], Field(min_length=2, max_length=2)],
-            Field(min_length=2, max_length=2),
-        ]
+    bounds: Annotated[
+        None
+        | list[
+            Annotated[
+                Annotated[list[float], Field(min_length=2, max_length=2)],
+                Field(min_length=2, max_length=2),
+            ]
+        ],
+        Field(default=None),
     ]
     seed: Annotated[
         int,
@@ -390,6 +400,8 @@ class DialInputSingleConfidenceBound(BaseModel):
 
 
 class DialInputSingleOtherStrategy(BaseModel):
+    """This class is used to request a single next point using a given strategy."""
+
     workflow_id: ValidatedObjectId
     strategy: Literal[
         'random',
@@ -402,17 +414,25 @@ class DialInputSingleOtherStrategy(BaseModel):
     ]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
-        bool,
+        bool | None,
         Field(
-            default=True,  # <-- Set default here
-            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+            default=None,
+            description=(
+                'If true, treat higher y values as better (e.g. y represents yield or profit).'
+                ' If false, opposite (e.g. y represents error or waste).'
+                ' If None, the value from DialWorkflowCreationParams is used.'
+            ),
         ),
     ]
-    bounds: list[
-        Annotated[
-            Annotated[list[float], Field(min_length=2, max_length=2)],
-            Field(min_length=2, max_length=2),
-        ]
+    bounds: Annotated[
+        None
+        | list[
+            Annotated[
+                Annotated[list[float], Field(min_length=2, max_length=2)],
+                Field(min_length=2, max_length=2),
+            ]
+        ],
+        Field(default=None),
     ]
     seed: Annotated[
         int,
@@ -449,7 +469,7 @@ DialInputSingle = Annotated[
 
 
 class DialInputMultipleOtherStrategy(BaseModel):
-    """TODO: document this"""
+    """This class is used to request multiple next points (of number points) using a given strategy."""
 
     workflow_id: ValidatedObjectId
     points: PositiveIntType
@@ -464,17 +484,25 @@ class DialInputMultipleOtherStrategy(BaseModel):
     ]
     strategy_args: dict[str, float | int | bool] | None = Field(default=None)
     y_is_good: Annotated[
-        bool,
+        bool | None,
         Field(
-            default=True,  # <-- Set default here
-            description='If true, treat higher y values as better (e.g. y represents yield or profit).  If false, opposite (e.g. y represents error or waste)',
+            default=None,
+            description=(
+                'If true, treat higher y values as better (e.g. y represents yield or profit).'
+                ' If false, opposite (e.g. y represents error or waste).'
+                ' If None, the value from DialWorkflowCreationParams is used.'
+            ),
         ),
     ]
-    bounds: list[
-        Annotated[
-            Annotated[list[float], Field(min_length=2, max_length=2)],
-            Field(min_length=2, max_length=2),
-        ]
+    bounds: Annotated[
+        None
+        | list[
+            Annotated[
+                Annotated[list[float], Field(min_length=2, max_length=2)],
+                Field(min_length=2, max_length=2),
+            ]
+        ],
+        Field(default=None),
     ]
     seed: Annotated[
         int,

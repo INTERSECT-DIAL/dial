@@ -185,19 +185,34 @@ class ServersideInputSingle(ServersideInputBase):
         params: DialInputSingle,
     ):
         super().__init__(workflow_state)
+        # set new inputs
         self.strategy = params.strategy
         self.strategy_args = params.strategy_args
-        self.y_is_good = params.y_is_good
-        self.bounds = params.bounds
-        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
-
         self.optimization_points = params.optimization_points
         self.confidence_bound = (
             params.confidence_bound if params.strategy == 'confidence_bound' else 0.0
         )
+        # if params.strategy == 'confidence_bound':
+        #    self.confidence_bound = params.confidence_bound
+        # elif self.strategy_args is not None and 'confidence_bounds' in self.strategy_args:
+        #    self.confidence_bound = params.strategy_args['confidence_bound']
         self.discrete_measurements = params.discrete_measurements
         self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
         self.point_index = params.point_index
+
+        # update values from workflow initialization, if provided
+        if params.extra_args is not None:
+            if self.extra_args is not None:
+                self.extra_args.update(params.extra_args)
+            else:
+                self.extra_args = params.extra_args
+        if params.y_is_good is not None:
+            self.y_is_good = params.y_is_good
+        if params.bounds is not None:
+            self.bounds = params.bounds
+
+        # always reinit rng, since initial rng is not updated in db!
+        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
 
     def set_x_predict(self, X_raw: np.ndarray) -> None:
         """
@@ -214,21 +229,32 @@ class ServersideInputMultiple(ServersideInputBase):
         workflow_state: DialWorkflowCreationParamsService,
         params: DialInputMultiple,
     ):
+        # set new inputs
         super().__init__(workflow_state)
         self.strategy = params.strategy
         self.points = params.points
         self.strategy = params.strategy
         self.strategy_args = params.strategy_args
-        self.y_is_good = params.y_is_good
-        self.bounds = params.bounds
-        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
-
         self.optimization_points = params.optimization_points
         self.confidence_bound = (
             params.confidence_bound if params.strategy == 'confidence_bound' else 0.0
         )
         self.discrete_measurements = params.discrete_measurements
         self.discrete_measurement_grid_size = params.discrete_measurement_grid_size
+
+        # update values from workflow initialization, if provided
+        if params.extra_args is not None:
+            if self.extra_args is not None:
+                self.extra_args.update(params.extra_args)
+            else:
+                self.extra_args = params.extra_args
+        if params.y_is_good is not None:
+            self.y_is_good = params.y_is_good
+        if params.bounds is not None:
+            self.bounds = params.bounds
+
+        # always reinit rng, since initial rng is not updated in db!
+        self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
 
     def set_x_predict(self, X_raw: np.ndarray) -> None:
         """
