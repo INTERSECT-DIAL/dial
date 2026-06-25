@@ -53,14 +53,14 @@ class IntersectCallbackEnd(Exception):  # noqa: N818
 
 class ActiveLearningOrchestrator:
     def __init__(self, service_destination: str):
-        self.bounds = np.array([[-2.0, 2.0]])
+        self.bounds = [[-2.0, 2.0]]
         self.num_dims = len(self.bounds)
 
         self.x_raw = np.array([[1.0], [2.0]])
         self.x_test = np.array([[-1.0], [0.5]])
         self.y_raw = sinusoidal_growth(self.x_raw)
 
-        self.meshgrid_size = 100
+        self.meshgrid_size = 200
         self.grid_points = [
             np.linspace(dim_bounds[0], dim_bounds[1], self.meshgrid_size)
             for dim_bounds in self.bounds
@@ -77,10 +77,9 @@ class ActiveLearningOrchestrator:
         self.statistics_y = Normal(loc='y', scale=1e-6)
 
         self.backend = 'sklearn'
-
         if self.backend == 'sklearn':
             # configure kernel_hyperparameters
-            self.kernel = 'rbf'
+            self.kernel = 'matern'  # 'rbf' or 'matern'
             self.kernel_args = {
                 'length_scale': 0.1,
                 'constant_value': 1.0,
@@ -129,15 +128,16 @@ class ActiveLearningOrchestrator:
         _has_error: bool,
         payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
-        print(
-            f'Received message from {_source} with operation {operation} and payload {payload}',
-            file=sys.stderr,
-        )
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
             print(operation, file=sys.stderr)
             print(payload, file=sys.stderr)
             raise IntersectCallbackError(operation, payload)
+
+        # print(
+        #     f'Received message from {_source} with operation {operation} and payload {payload}',
+        #     file=sys.stderr,
+        # )
 
         if operation == 'dial.initialize_workflow':
             self.workflow_id = payload
@@ -179,7 +179,6 @@ class ActiveLearningOrchestrator:
                 backend_args=self.backend_args,
                 preprocess_standardize=True,
                 y_is_good=True,
-                seed=20,
             )
 
         elif operation == 'dial.get_surrogate_values':
@@ -198,7 +197,7 @@ class ActiveLearningOrchestrator:
                 workflow_id=self.workflow_id,
                 strategy=self.strategy,
                 strategy_args=self.strategy_args,
-                bounds=self.bounds.tolist(),
+                bounds=self.bounds,
                 y_is_good=True,
             )
 
