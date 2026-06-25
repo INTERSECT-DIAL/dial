@@ -140,19 +140,18 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
 
     if data.discrete_measurements:
         _measurement_grid = create_measurement_grid(data)
-        # TODO - commented line is known to fail for expected_improvement regarding discrete measurements
-        # response_surface = to_minimize(_measurement_grid)
-        response_surface = [to_minimize(point) for point in _measurement_grid]
+        response_surface = to_minimize(_measurement_grid)
         index = np.int64(np.argmin(response_surface))
         selected_point = _measurement_grid[index]
         logger.debug('selected point with discrete measurements')
         logger.debug(selected_point)
         return selected_point
 
-    n_restarts = 10
+    n_restarts = 25
     init_array = np.array(hypercube(data.bounds, n_restarts, data.numpy_rng))
     best_score = np.inf
     selected_point = None
+    # out_list = []
     for x_init in init_array:
         res = minimize(
             to_minimize,
@@ -164,6 +163,12 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
         if res.fun < best_score:
             best_score = res.fun
             selected_point = res.x
+        # out_list.append((x_init.tolist(), res.x.tolist(), res.fun))
+
+    logger.debug('selected point with optimization')
+    logger.debug('score and point: %f, %s', best_score, str(selected_point))
+    # print(f'optimized: {best_score}, {selected_point}:', '\n',
+    #       '\n'.join([str(out) for out in out_list]))
 
     return selected_point.tolist()
 

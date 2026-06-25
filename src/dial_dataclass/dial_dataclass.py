@@ -168,7 +168,6 @@ class _DialWorkflowCreationParams(BaseModel):
         list[
             float
             | Annotated[
-                # TODO: this could be the default
                 list[float],
                 Field(description='Field lengths of all subarrays should be equal'),
             ]

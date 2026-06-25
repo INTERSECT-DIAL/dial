@@ -392,7 +392,7 @@ def test_uncertainty(backend, approx):
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [1.037454]),
+        ('sklearn', [1.790396262]),
         # ('gpax', [2.0]),
     ],
 )
