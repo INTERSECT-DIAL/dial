@@ -8,6 +8,13 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from intersect_dial_dataclass import (
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
+    DialWorkflowCreationParamsClient,
+    DialWorkflowDatasetUpdate,
+    Normal,
+)
 from intersect_sdk import (
     INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
@@ -16,14 +23,6 @@ from intersect_sdk import (
     IntersectClientConfig,
     IntersectDirectMessageParams,
     default_intersect_lifecycle_loop,
-)
-
-from dial_dataclass import (
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-    DialWorkflowCreationParamsClient,
-    DialWorkflowDatasetUpdate,
-    Normal,
 )
 
 mpl.use('agg')
@@ -100,7 +99,11 @@ class ActiveLearningOrchestrator:
         self.test_points = self.x_test.reshape(-1, 1).tolist()
 
         self.kernel = 'rbf'
-        self.kernel_args = {'x_range': [0.0, 1.0], 'sigma_range': [2.5e-3, 0.5], 'gamma': 0.1}
+        self.kernel_args = {
+            'x_range': [0.0, 1.0],
+            'sigma_range': [2.5e-3, 0.5],
+            'gamma': 0.1,
+        }
         self.backend = 'sable'
         self.backend_args = {
             'n_features': 5000,
@@ -123,7 +126,11 @@ class ActiveLearningOrchestrator:
         self.service_destination = service_destination
 
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
+        self,
+        _source: str,
+        operation: str,
+        _has_error: bool,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
         if _has_error:
             print('============ERROR==============', file=sys.stderr)

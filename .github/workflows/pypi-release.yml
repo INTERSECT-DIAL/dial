@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/intersect-sdk
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: "Build package"
+        run: uv build --no-create-gitignore packages/intersect_dial_dataclass
+      - name: Publish package to PyPI
+        # if dial_dataclass and dial_service have different versions, then don't try to publish it to PyPI
+        run: if [ $(python -c 'from importlib.metadata import version; print(version("intersect_dial_dataclass") == version("dial_service"))') == 'True' ]; then uv publish; fi
+      - name: upload to github release
+        uses: docker://antonyurchenko/git-release:v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # assume any version with "a" (gets "ALPHA") or "b" (gets BETA) or "rc" (release candidates) will be a prerelease
+          PRE_RELEASE: "${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}"
+        with:
+          args: dist/*

@@ -1,41 +1,11 @@
-[project]
-name = "dial"
-version = "0.1.6"
-authors = [
-  { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
-  { name = "Lance Drane", email = "dranelt@ornl.gov" },
-  { name = "David Joy", email = "davidjoy022@gmail.com" },
-  { name = "Jacob Sweet", email = "jsweet@gatech.edu" },
-  { name = "Ankit Shrivastava", email = "shrivastavaa@ornl.gov" },
-  { name = "Konstantin Pieper", email = "pieperk@ornl.gov" },
-  { name = "Viktor Reshniak", email = "reshniakv@ornl.gov" },
-]
-description = "Dial (Distributed INTERSECT Active Learning): An INTERSECT service that provides Bayesian optimization and active learning"
-readme = "README.md"
-requires-python = ">=3.10"
-keywords = ["active learning"]
-license = { text = "BSD-3-Clause" }
-classifiers = ["Programming Language :: Python :: 3"]
-# TODO move some dependencies into optional dependencies
-dependencies = [
-  "intersect_sdk>=0.9.3,<0.10.0",
-  "numpy",
-  "scikit-learn>=1.4.0,<2.0.0",                        # TODO consider making an optional dependency group
-  "scipy>=1.12.0,<2.0.0",
-  "gpax>=0.1.8",                                       # TODO consider making an optional dependency group
-  "numpyro<0.20.1",                                    # depend on older numpyro for gpax (numpyro.contrib.module: random_haiku_module)
-  "pymongo>=4.12.1",                                   # TODO - this is only needed for dial_service, dial_dataclass can use a simple fixture for ObjectID representation which allows it to skip this dependency
-  "sable @ git+https://code.ornl.gov/sable/sable.git", # TODO this references the internal repo, transition to public version
+[tool.uv.workspace]
+members = [
+  "packages/intersect_dial_dataclass",
+  "services/dial_service",
 ]
 
-[project.urls]
-Homepage = "https://github.com/INTERSECT-DIAL/dial/"
-Changelog = "https://github.com/INTERSECT-DIAL/dial/blob/main/CHANGELOG.md"
-Documentation = "https://intersect-dial.readthedocs.io/en/latest/"
-Issues = "https://github.com/INTERSECT-DIAL/dial/issues"
-
-[project.optional-dependencies]
-docs = ["sphinx>=5.3.0", "furo>=2023.3.27"]
+[tool.uv.sources]
+intersect_dial_dataclass = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -48,25 +18,13 @@ dev = [
   "statsmodels>=0.14.4",
   "matplotlib>=3.8.2,<4.0.0",
 ]
-
-# TODO - consider swapping to scikit-build-core backend if we need C/C++ extensions
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/dial_dataclass", "src/dial_service"]
-
-[tool.hatch.metadata]
-# TODO - remove when Sable is published to PyPI
-allow-direct-references = true
-
-#[tool.pdm.scripts]
-# add --cov-fail-under=<NUMBER> when ready to require a minimum coverage amount
-#test-all = "pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml"
-#test-unit = "pytest tests/unit/"
+docs = [
+  "sphinx>=5.3.0",
+  "furo>=2023.3.27",
+]
 
 [tool.ruff]
+target-version = "py310"
 line-length = 100
 format = { quote-style = 'single' }
 namespace-packages = ["scripts/", "tests/"]

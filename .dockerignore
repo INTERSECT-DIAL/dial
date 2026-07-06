@@ -1,5 +1,6 @@
 *
-!src/**/*
+!packages/**/*
+!services/**/*
 !scripts/**/*
 !tests/**/*
 !pyproject.toml

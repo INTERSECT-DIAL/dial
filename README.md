@@ -2,23 +2,32 @@
 
 # Dial
 
+This repository is a uv workspace with two members:
+
+- `packages/intersect_dial_dataclass` (package of the core DIAL types, available on PyPI)
+- `services/dial_service` (DIAL service runtime package, available as a Docker container and a Helm chart)
+
 ## Requirements
 
 - Python >= 3.10
 
 ## Installing (Non-developers)
 
-To install intersect-sdk from PyPI:
+When writing a Client, most users will only need to install the `intersect-sdk` and `intersect-dial-dataclass` .
 
-`pip install intersect-sdk`
+To install all dependencies from PyPI:
 
-To install Dial from source, git clone this repository and run the following from the root directory (that is, within the neeter-active-learning directory):
+```
+pip install intersect-sdk intersect-dial-dataclass
+```
 
-`pip install .`
+To install the publishable dataclass package from source, run:
 
-Alternatively, both intersect-sdk and Dial may be installed with the following:
+`pip install ./packages/dial_dataclass`
 
-`pip install -e .`
+For more advanced users, to install the service package from source, run:
+
+`pip install -e ./packages/dial_dataclass -e ./services/dial_service`
 
 ## Installing (developers)
 
@@ -130,3 +139,8 @@ You will need `pytest` installed to run the tests.
 You will need to make sure the `docs` optional dependency group is installed. Then you can run `sphinx build -W --keep-going docs/ docs/_build/` .
 
 To quickly spin up the documentation web server on `http://localhost:8000` : `python -m http.server -d docs/_build/`
+
+## Version management
+
+- always bump `dial_service` whenever we want to tag a new version, and have the tag reference the `dial_service` version
+- when bumping `intersect_dial_dataclass` version, bump it to match the `dial_service` version (okay to skip versions)

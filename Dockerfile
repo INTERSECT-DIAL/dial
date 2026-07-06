@@ -27,15 +27,20 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-editable
+    --mount=type=bind,source=packages/intersect_dial_dataclass/pyproject.toml,target=packages/intersect_dial_dataclass/pyproject.toml \
+    --mount=type=bind,source=services/dial_service/pyproject.toml,target=services/dial_service/pyproject.toml \
+    uv sync --locked --package dial_service --no-install-workspace --no-editable
 
 # Sync the project
-COPY src src
+COPY packages packages
+COPY services services
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=packages/intersect_dial_dataclass/pyproject.toml,target=packages/intersect_dial_dataclass/pyproject.toml \
+    --mount=type=bind,source=services/dial_service/pyproject.toml,target=services/dial_service/pyproject.toml \
     --mount=type=bind,source=README.md,target=README.md \
-    uv sync --locked --no-editable
+    uv sync --locked --package dial_service --no-editable
 
 FROM --platform=$BUILDPLATFORM gcr.io/distroless/cc:nonroot AS runner
 

@@ -4,12 +4,6 @@ from math import e as E_CONSTANT
 import numpy as np
 import pytest
 from bson import ObjectId
-
-from dial_dataclass import (
-    DialInputMultiple,
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-)
 from dial_service import core
 from dial_service.serverside_data import (
     ServersideInputMultiple,
@@ -18,6 +12,11 @@ from dial_service.serverside_data import (
 )
 from dial_service.service_specific_dataclasses import (
     DialWorkflowCreationParamsService,
+)
+from intersect_dial_dataclass import (
+    DialInputMultiple,
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
 )
 
 DUMMY_WORKFLOW_ID = str(ObjectId())

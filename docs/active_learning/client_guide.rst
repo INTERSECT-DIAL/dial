@@ -12,7 +12,7 @@ When you return the ``IntersectClientCallback`` object from the Client callback 
 .. codeblock:: python
   from intersect_sdk import IntersectClientCallback, IntersectDirectMessageParams, INTERSECT_RESPONSE_VALUE
 
-  from dial_dataclass import (
+  from intersect_dial_dataclass import (
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
     DialWorkflowDatasetUpdates,
@@ -76,7 +76,7 @@ To validate the response from a message, you can use the dial_dataclasses types 
 .. codeblock:: python
   from intersect_sdk import IntersectClientCallback, IntersectDirectMessageParams, INTERSECT_RESPONSE_VALUE
 
-  from dial_dataclass import
+  from intersect_dial_dataclass import
 
   class CustomOrchestrator:
     # ...

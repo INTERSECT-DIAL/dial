@@ -10,13 +10,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from scipy.interpolate import LinearNDInterpolator
-
-# from pytest_benchmark.fixture import BenchmarkFixture
-from dial_dataclass import (
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-)
 from dial_service import (
     core as dial_core,
 )
@@ -26,6 +19,13 @@ from dial_service.serverside_data import (
     ServersideInputSingle,
 )
 from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+
+# from pytest_benchmark.fixture import BenchmarkFixture
+from intersect_dial_dataclass import (
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
+)
+from scipy.interpolate import LinearNDInterpolator
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,10 @@ TARGET_RMSE = 0.2
 
 
 def run_simulation(
-    dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
+    dataset_x: list[list[float]],
+    dataset_y: list[float],
+    strategy: str,
+    strategy_args: object,
 ) -> tuple[np.ndarray, np.ndarray]:
     # important "Hyper-parameters"
     length_scale = 0.2
@@ -353,7 +356,11 @@ def accuracy_benchmark(
         total_rmse = np.sqrt(np.mean(mse))
         print(iterations, total_rmse)
 
-        graph(np.sqrt(mse), dataset_x, f'{strategy}_{strategy_args.get("backend", "sklearn")}')
+        graph(
+            np.sqrt(mse),
+            dataset_x,
+            f'{strategy}_{strategy_args.get("backend", "sklearn")}',
+        )
 
         if total_rmse <= TARGET_RMSE:
             break
@@ -472,7 +479,11 @@ if __name__ == '__main__':
             targets_list.append(target)
             guesses_list.append(guess)
             logger.info(
-                '  Run %d/%d: iterations=%d, target=%.4f', run + 1, NUM_RUNS, iterations, target
+                '  Run %d/%d: iterations=%d, target=%.4f',
+                run + 1,
+                NUM_RUNS,
+                iterations,
+                target,
             )
 
         results[strategy_name] = {
@@ -501,14 +512,21 @@ if __name__ == '__main__':
     avg_iterations = [results[s]['avg_iterations'] for s in strategy_names]
     std_iterations = [results[s]['std_iterations'] for s in strategy_names]
     bars1 = ax1.bar(
-        range(len(strategy_names)), avg_iterations, yerr=std_iterations, capsize=5, alpha=0.7
+        range(len(strategy_names)),
+        avg_iterations,
+        yerr=std_iterations,
+        capsize=5,
+        alpha=0.7,
     )
     ax1.set_xlabel('Strategy')
     ax1.set_ylabel('Average Iterations')
     ax1.set_title('Iterations to Convergence (Lower is Better)')
     ax1.set_xticks(range(len(strategy_names)))
     ax1.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax1.grid(axis='y', alpha=0.3)
 
@@ -541,9 +559,17 @@ if __name__ == '__main__':
     ax2.set_title('Final Target Value (Lower is Better)')
     ax2.set_xticks(range(len(strategy_names)))
     ax2.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
-    ax2.axhline(y=TARGET_RMSE, color='r', linestyle='--', label=f'Target Threshold ({TARGET_RMSE})')
+    ax2.axhline(
+        y=TARGET_RMSE,
+        color='r',
+        linestyle='--',
+        label=f'Target Threshold ({TARGET_RMSE})',
+    )
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
 
@@ -568,7 +594,10 @@ if __name__ == '__main__':
     ax3.set_title(f'Success Rate (Target ≤ {TARGET_RMSE})')
     ax3.set_xticks(range(len(strategy_names)))
     ax3.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax3.set_ylim([0, 105])
     ax3.grid(axis='y', alpha=0.3)
@@ -589,7 +618,9 @@ if __name__ == '__main__':
     ax4 = axes[1, 1]
     iterations_data = [results[s]['iterations'] for s in strategy_names]
     bp = ax4.boxplot(
-        iterations_data, labels=[s.replace(' ', '\n') for s in strategy_names], patch_artist=True
+        iterations_data,
+        labels=[s.replace(' ', '\n') for s in strategy_names],
+        patch_artist=True,
     )
     for patch in bp['boxes']:
         patch.set_facecolor('lightblue')
@@ -829,7 +860,9 @@ if __name__ == '__main__':
         result = results[strategy_name]
         logger.info('\n%s:', strategy_name)
         logger.info(
-            '  Avg Iterations: %.2f ± %.2f', result['avg_iterations'], result['std_iterations']
+            '  Avg Iterations: %.2f ± %.2f',
+            result['avg_iterations'],
+            result['std_iterations'],
         )
         logger.info('  Avg Target:     %.4f ± %.4f', result['avg_target'], result['std_target'])
         logger.info('  Success Rate:   %.1f%%', result['success_rate'])
