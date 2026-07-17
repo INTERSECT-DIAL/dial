@@ -198,7 +198,7 @@ class _DialWorkflowCreationParams(BaseModel):
     dim_y: Annotated[
         PositiveIntType | None,
         Field(
-            default=1,
+            default=None,
             description=(
                 'Provide the dimension of entries in dataset_y explicitly,'
                 ' e.g. if the initial dataset is empty.'
