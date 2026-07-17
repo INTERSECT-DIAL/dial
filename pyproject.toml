@@ -25,7 +25,8 @@ dependencies = [
   "gpax>=0.1.8",                                       # TODO consider making an optional dependency group
   "numpyro<0.20.1",                                    # depend on older numpyro for gpax (numpyro.contrib.module: random_haiku_module)
   "pymongo>=4.12.1",                                   # TODO - this is only needed for dial_service, dial_dataclass can use a simple fixture for ObjectID representation which allows it to skip this dependency
-  "sable @ git+https://code.ornl.gov/sable/sable.git", # TODO this references the internal repo, transition to public version
+  "sable @ git+https://code.ornl.gov/sable/sable@develop",
+         # TODO this references the internal repo with develop branch, transition to public version
 ]
 
 [project.urls]
