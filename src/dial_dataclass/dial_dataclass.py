@@ -304,9 +304,13 @@ class DialWorkflowDatasetUpdate(BaseModel):
         description='The next collection of X values you want to append to your overall data',
         min_length=1,
     )
-    """the next collection of X values you want to append"""
-    next_y: float = Field(description='The next Y value you want to append to your overall data')
-    """the next Y value you want to append"""
+    next_y: Annotated[
+        float | list[float],
+        Field(
+            description=('The next Y value you want to append to your overall data'),
+        ),
+    ]
+
     kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
         default=None
     )
@@ -326,7 +330,7 @@ class DialWorkflowDatasetUpdates(BaseModel):
 
     workflow_id: ValidatedObjectId
     next_x_list: list[list[float]] = Field(min_length=1)
-    next_y_list: list[float] = Field(min_length=1)
+    next_y_list: list[float | list[float]] = Field(min_length=1)
     kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
     backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
     extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
