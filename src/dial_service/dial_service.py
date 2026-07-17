@@ -55,7 +55,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         """
         try:
             server_data = ServersideInputBase(client_data)
-            if client_data.dataset_x:
+            if client_data.dataset_x and len(client_data.dataset_y) > 0:
                 # the user provided some initial data, so train a model
                 model = pickle.dumps(core.train_model(server_data), protocol=5)
             else:
