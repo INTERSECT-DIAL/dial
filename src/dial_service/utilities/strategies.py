@@ -92,6 +92,113 @@ STRATEGIES = {
 }
 
 
+###############################################################################
+# Surrogate-free indexed strategies
+
+
+def domain_center(data, indices=None):  # noqa: ARG001
+    return [[0.5 * (data.bounds[i][1] + data.bounds[i][0]) for i in range(data.dim_x)]]
+
+
+def domain_corners(data, indices: list[int]):
+    points = []
+    for index in indices:
+        # convert flat index into coordinate indices for each dimension
+        coo_indices = np.unravel_index(index, [2] * data.dim_x)  # 2 corners per dimension
+        points.append([data.bounds[i][coo_indices[i]] for i in range(data.dim_x)])
+    return points
+
+
+def uniform_grid(data, indices: list[int]):
+    grid_size = data.strategy_args['grid_size']
+
+    # grid spacing in each dimension
+    steps = [
+        (data.bounds[i][1] - data.bounds[i][0]) / max(1, grid_size[i] - 1)
+        for i in range(data.dim_x)
+    ]
+
+    points = []
+    for index in indices:
+        # convert flat index into coordinate indices for each dimension
+        coo_indices = np.unravel_index(index, grid_size)
+        points.append(
+            [
+                data.bounds[i][0] + coo_indices[i] * steps[i]
+                if grid_size[i] > 1
+                else 0.5 * (data.bounds[i][1] + data.bounds[i][0])
+                for i in range(data.dim_x)
+            ]
+        )
+    return points
+
+
+def chebyshev_grid(data, indices: list[int]):
+    grid_size = data.strategy_args['grid_size']
+
+    points = []
+    for index in indices:
+        # convert flat index into coordinate indices for each dimension
+        coo_indices = np.unravel_index(index, grid_size)
+        # Chebyshev nodes in each dimension, or the midpoint if only one point is specified
+        x = [
+            np.cos(coo_indices[i] * np.pi / (grid_size[i] - 1))
+            if grid_size[i] > 1
+            else 0.5 * (data.bounds[i][1] + data.bounds[i][0])
+            for i in range(data.dim_x)
+        ]
+        points.append(
+            [
+                0.5 * (data.bounds[i][1] - data.bounds[i][0]) * (x[i] + 1) + data.bounds[i][0]
+                for i in range(data.dim_x)
+            ]
+        )
+    return points
+
+
+def latin_hypercube(data, indices: list[int]):
+    """For latin hypercube grid_size is the number of intervals per dimension"""
+    grid_size = data.strategy_args['grid_size']
+
+    points = []
+    for index in indices:
+        # convert flat index into interval indices for each dimension
+        interval_indices = np.unravel_index(index, grid_size)
+        points.append(
+            [
+                data.numpy_rng.uniform(
+                    data.bounds[i][0]
+                    + interval_indices[i] * (data.bounds[i][1] - data.bounds[i][0]) / grid_size[i],
+                    data.bounds[i][0]
+                    + (interval_indices[i] + 1)
+                    * (data.bounds[i][1] - data.bounds[i][0])
+                    / grid_size[i],
+                )
+                for i in range(data.dim_x)
+            ]
+        )
+    return points
+
+
+INDEXED_STRATEGIES = {
+    'center': domain_center,
+    'corners': domain_corners,
+    'grid': uniform_grid,
+    'chebyshev': chebyshev_grid,
+    'latin_hypercube': latin_hypercube,
+}
+
+MAX_INDEXED_POINTS = {
+    'center': lambda data: 1,  # noqa: ARG005
+    'corners': lambda data: 2**data.dim_x,
+    'grid': lambda data: np.prod(data.strategy_args['grid_size']),
+    'chebyshev': lambda data: np.prod(data.strategy_args['grid_size']),
+    'latin_hypercube': lambda data: np.prod(data.strategy_args['grid_size']),
+}
+
+###############################################################################
+
+
 def hypercube(
     bounds: list[list[float]], num_points: int, rng: np.random.RandomState
 ) -> list[list[float]]:
@@ -171,6 +278,20 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
     #       '\n'.join([str(out) for out in out_list]))
 
     return selected_point.tolist()
+
+
+def indexed_selection(data: ServersideInputSingle):
+    try:
+        strategy_ = INDEXED_STRATEGIES[data.strategy]
+    except KeyError as exc:
+        msg = f'Invalid strategy: {data.strategy}'
+        raise ValueError(msg) from exc
+
+    start_index = data.strategy_args.get('start_index', 0) if data.strategy_args is not None else 0
+    index = (len(data.Y_raw) - start_index) % MAX_INDEXED_POINTS[data.strategy](data)
+    selected_point = strategy_(data, [index])[0]
+
+    return selected_point
 
 
 def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
