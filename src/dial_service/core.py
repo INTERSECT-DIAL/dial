@@ -16,8 +16,10 @@ from .serverside_data import (
     ServersideInputSingle,
 )
 from .utilities.strategies import (
+    INDEXED_STRATEGIES,
     create_measurement_grid,
     hypercube,
+    indexed_selection,
     random_in_bounds,
 )
 
@@ -34,6 +36,10 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
     Returns:
         list[float]: The selected point for the next iteration.
     """
+
+    if data.strategy in INDEXED_STRATEGIES:
+        return indexed_selection(data)
+
     # If it's random point, we don't need to train a model or anything else
     if data.strategy == 'random':
         if data.discrete_measurements:
