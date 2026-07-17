@@ -399,20 +399,29 @@ class DialInputSingleConfidenceBound(BaseModel):
     ]
 
 
-class DialInputSingleOtherStrategy(BaseModel):
-    """This class is used to request a single next point using a given strategy."""
+SingleStrategyType = Literal[
+    #############################
+    # surrogate free strategies
+    'center',
+    'corners',
+    'grid',
+    'chebyshev',
+    'latin_hypercube',
+    'random',
+    #############################
+    # surrogate based strategies
+    'uncertainty',
+    'expected_improvement',
+    'upper_confidence_bound',
+    'upper_confidence_bound_nomad',
+    'polymer_acl_sampler',
+]
 
+
+class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
-    strategy: Literal[
-        'random',
-        'hypercube',
-        'uncertainty',
-        'expected_improvement',
-        'upper_confidence_bound',
-        'upper_confidence_bound_nomad',
-        'polymer_acl_sampler',
-    ]
-    strategy_args: dict[str, float | int | bool] | None = Field(default=None)
+    strategy: SingleStrategyType
+    strategy_args: dict[str, float | int | bool | list[int | float]] | None = Field(default=None)
     y_is_good: Annotated[
         bool | None,
         Field(
