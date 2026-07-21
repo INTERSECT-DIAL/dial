@@ -9,6 +9,7 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
+    Normal,
 )
 from dial_service import core
 from dial_service.serverside_data import (
@@ -258,6 +259,7 @@ def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
         dataset_x=[],
         dataset_y=[],
         dim_x=2,  # provide dim_x for empty dataset
+        dim_y=1,  # provide dim_y for empty dataset
         y_is_good=False,
         kernel='rbf',
         bounds=[[0, 100], [-1, 1]],
@@ -286,6 +288,30 @@ def prediction_1D(backend):
             'length_scale_bounds': 'fixed',
             'constant_value': 50.0**2,
             'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=False,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputPredictions(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
+    )
+    return ServersideInputPrediction(workflow_state, params)
+
+
+def prediction_1D_heteroscedastic(backend):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[[1.0], [1.5], [2.0]],
+        dataset_y=[[-1.0, 1e-2], [0.0, 1e2], [1.0, 1e-5]],
+        labels_y=['y', 'yerr'],
+        dim_y=2,
+        statistics_y=Normal(loc='y', scale='yerr'),
+        bounds=[[1.0, 2.0]],
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
         },
         backend=backend,
         preprocess_standardize=False,
@@ -637,6 +663,29 @@ def test_surrogate(backend, expected_means, expected_stddevs):
     means, stddevs, _ = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
+
+
+@pytest.mark.parametrize(
+    ('backend', 'expected_means', 'expected_stddevs'),
+    [
+        (
+            'sklearn',
+            [-1.0, -0.65, 0.0, 0.65, 1.0],
+            [1e-2, 0.42, 0.59, 0.42, 1e-5],
+        ),
+        (
+            'sable',
+            [-1.0, -0.56, 0.0, 0.56, 1.0],
+            [1e-2, 0.29, 0.34, 0.29, 1e-5],
+        ),
+    ],
+)
+def test_surrogate_heteroscedastic(backend, expected_means, expected_stddevs):
+    data = prediction_1D_heteroscedastic(backend)
+    model = core.train_model(data)
+    means, stddevs, _ = core.get_surrogate_values(data, model)
+    assert means == pytest.approx(expected_means, rel=0.01, abs=1e-4)
+    assert stddevs == pytest.approx(expected_stddevs, rel=0.01, abs=1e-4)
 
 
 @pytest.mark.parametrize(
