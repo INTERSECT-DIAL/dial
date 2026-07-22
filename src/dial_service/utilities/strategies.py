@@ -288,7 +288,7 @@ def indexed_selection(data: ServersideInputSingle):
         raise ValueError(msg) from exc
 
     start_index = data.strategy_args.get('start_index', 0) if data.strategy_args is not None else 0
-    index = (len(data.Y_raw) - start_index) % MAX_INDEXED_POINTS[data.strategy](data)
+    index = (len(data.dataset_y) - start_index) % MAX_INDEXED_POINTS[data.strategy](data)
     selected_point = strategy_(data, [index])[0]
 
     return selected_point

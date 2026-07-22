@@ -240,8 +240,8 @@ class ActiveLearningOrchestrator:
         if operation == 'dial.update_workflow_with_data':
             return self.assemble_message('get_surrogate_values')
         if operation == 'dial.get_surrogate_values':
-            data = payload['data'][0]
-            self.surrogate_y = np.array(data).reshape((MESHGRID_SIZE,) * NUM_DIMS)
+            means = payload['values']
+            self.surrogate_y = np.array(means).reshape((MESHGRID_SIZE,) * NUM_DIMS)
             return self.assemble_message('get_next_point')
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
