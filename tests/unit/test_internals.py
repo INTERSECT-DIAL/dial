@@ -254,6 +254,29 @@ def single_3D(backend, strategy, strategy_args, discrete_measurement_grid_size=N
     return ServersideInputSingle(workflow_state, params)
 
 
+def multiple_1D(backend, strategy, discrete_measurement_grid_size=None):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=1,  # provide dim_x for empty dataset
+        dim_y=1,  # provide dim_y for empty dataset
+        y_is_good=False,
+        kernel='rbf',
+        bounds=[[0, 100]],
+        backend=backend,
+        seed=42,
+    )
+    params = DialInputMultiple(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        bounds=[[0, 100]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
+        points=20,
+    )
+    return ServersideInputMultiple(workflow_state, params)
+
+
 def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
@@ -598,6 +621,22 @@ def test_hypercube_single_point_discrete_2D(backend):
 
 
 @pytest.mark.parametrize(
+    ('backend', 'strategy'),
+    [
+        ('sklearn', 'polymer_acl_sampler'),
+    ],
+)
+def test_batch_points(backend, strategy):
+    data = multiple_1D(backend, strategy=strategy)
+    model = core.initialize_model(data)
+    batch_points = core.get_next_points(data, model)
+    assert len(batch_points) == data.points
+    for pt in batch_points:
+        print(pt)
+        assert 0 <= pt[0] <= 100
+
+
+@pytest.mark.parametrize(
     ('backend'),
     [
         ('sklearn'),
@@ -616,7 +655,6 @@ def test_random_points(backend):
     ('backend'),
     [
         ('sklearn'),
-        # ('gpax'),
     ],
 )
 def test_hypercube_multiple_points(backend):
