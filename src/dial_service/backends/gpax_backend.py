@@ -13,9 +13,8 @@ gpax.utils.enable_x64()
 class GpaxBackend(AbstractBackend[gpax.viGP, str, tuple[jnp.ndarray, jnp.ndarray]]):
     @staticmethod
     def train_model(data):
-        rng_key_train, rng_key_predict = gpax.utils.get_keys(
-            seed=data.seed if data.seed != -1 else None
-        )
+        """Generate a trained model."""
+        rng_key_train, _ = gpax.utils.get_keys(seed=data.seed if data.seed != -1 else None)
         gp_model = gpax.viGP(len(data.bounds), GpaxBackend.get_kernel(data), guide='delta')
         gp_model.fit(
             rng_key_train,
@@ -29,15 +28,19 @@ class GpaxBackend(AbstractBackend[gpax.viGP, str, tuple[jnp.ndarray, jnp.ndarray
         return gp_model
 
     @staticmethod
+    def initialize_model(data):
+        """Generate an untrained model."""
+        return gpax.viGP(len(data.bounds), GpaxBackend.get_kernel(data), guide='delta')
+
+    @staticmethod
     def predict(model, data):
-        rng_key_train, rng_key_predict = gpax.utils.get_keys(
-            seed=data.seed if data.seed != -1 else None
-        )
+        _, rng_key_predict = gpax.utils.get_keys(seed=data.seed if data.seed != -1 else None)
         x = data.x_predict
         # mean, y_var = model.predict(rng_key_predict, data.x_predict)
         # TODO check why model.predict().reshape() fails
         mean, y_var = model.predict(rng_key_predict, x.reshape(1, -1))
-        return mean[0], data.stddev * y_var[0]
+        # return the square root of the variance (the standard deviation)
+        return mean[0], jnp.sqrt(y_var[0])
 
     @staticmethod
     def get_kernel(data):

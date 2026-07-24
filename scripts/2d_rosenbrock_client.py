@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from intersect_sdk import (
-    INTERSECT_JSON_VALUE,
+    INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
     IntersectClient,
     IntersectClientCallback,
@@ -22,6 +23,7 @@ from intersect_sdk import (
 # from scipy.stats import qmc
 from dial_dataclass import (
     DialInputPredictions,
+    DialInputSingleConfidenceBound,
     DialInputSingleOtherStrategy,
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
@@ -63,9 +65,14 @@ INITIAL_MESHGRIDS = np.meshgrid(
     *[np.linspace(dim_bounds[0], dim_bounds[1], MESHGRID_SIZE) for dim_bounds in INITIAL_BOUNDS],
     indexing='ij',
 )
-INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS])
+INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS]).tolist()
 
-NUM_ITERATIONS = 35
+NUM_ITERATIONS = 200
+
+# HYPERPARAMETERS
+LENGTH_SCALE = 0.1
+NOISE_LEVEL = 10e-8
+CONSTANT_VALUE = 1.0
 
 
 class ActiveLearningOrchestrator:
@@ -81,6 +88,23 @@ class ActiveLearningOrchestrator:
         self.dataset_x = INITIAL_DATASET_X
         self.dataset_y: list[float] = []
 
+        # we want to minimize
+        self.y_is_good = False
+
+        # Initialize a deque of strategies with desired number of iterations
+        self.strategies = deque(
+            [
+                (20, 'uncertainty', {}),
+                (40, 'upper_confidence_bound', {'exploit': 1.0, 'explore': 0.5}),
+                (40, 'confidence_bound', {'confidence_bound': 0.9}),
+                (200, 'expected_improvement', {}),
+            ]
+        )
+
+        # if we want to test discrete measurements
+        self.discrete_measurements = False
+        self.discrete_measurement_grid_size = [200, 200]
+
     # create a message to send to the server
     def assemble_message(self, operation: str, **kwargs: Any) -> IntersectClientCallback:
         if operation == 'initialize_workflow':
@@ -88,10 +112,19 @@ class ActiveLearningOrchestrator:
                 dataset_x=INITIAL_DATASET_X,
                 dataset_y=self.dataset_y,
                 bounds=INITIAL_BOUNDS,
+                dim_x=NUM_DIMS,  # Explicitly set the dimension based on the bounds
                 kernel='rbf',
-                length_per_dimension=False,  # allow the matern to use separate length scales for the two parameters
-                y_is_good=False,  # we wish to minimize y (the error)
-                backend='sklearn',  # "sklearn" or "gpax"
+                kernel_args={
+                    'length_scale': LENGTH_SCALE,
+                    'length_scale_bounds': 'fixed',
+                    'noise_level': NOISE_LEVEL,
+                    'noise_level_bounds': 'fixed',
+                    'constant_value': CONSTANT_VALUE,
+                    'constant_value_bounds': 'fixed',
+                },
+                preprocess_standardize=True,
+                y_is_good=self.y_is_good,  # we wish to minimize y (the error)
+                backend='sklearn',
                 seed=-1,  # Use seed = -1 for random results
             )
         elif operation == 'update_workflow_with_data':
@@ -100,11 +133,31 @@ class ActiveLearningOrchestrator:
                 **kwargs,
             )
         elif operation == 'get_next_point':
-            payload = DialInputSingleOtherStrategy(
-                workflow_id=self.workflow_id,
-                strategy='expected_improvement',
-                bounds=INITIAL_BOUNDS,
-            )
+            # select strategy
+            Niter, strategy, strategy_args = self.strategies.popleft()
+            Niter -= 1
+            if Niter > 0:
+                self.strategies.appendleft((Niter, strategy, strategy_args))
+            if strategy == 'confidence_bound':
+                payload = DialInputSingleConfidenceBound(
+                    workflow_id=self.workflow_id,
+                    bounds=INITIAL_BOUNDS,
+                    y_is_good=self.y_is_good,  # we wish to minimize y (the error)
+                    strategy='confidence_bound',
+                    confidence_bound=strategy_args['confidence_bound'],
+                    discrete_measurements=self.discrete_measurements,
+                    discrete_measurement_grid_size=self.discrete_measurement_grid_size,
+                )
+            else:
+                payload = DialInputSingleOtherStrategy(
+                    workflow_id=self.workflow_id,
+                    bounds=INITIAL_BOUNDS,
+                    y_is_good=self.y_is_good,  # we wish to minimize y (the error)
+                    strategy=strategy,
+                    strategy_args=strategy_args,
+                    discrete_measurements=self.discrete_measurements,
+                    discrete_measurement_grid_size=self.discrete_measurement_grid_size,
+                )
         elif operation == 'get_surrogate_values':
             payload = DialInputPredictions(
                 workflow_id=self.workflow_id,
@@ -124,6 +177,7 @@ class ActiveLearningOrchestrator:
         )
 
     def assemble_rosenbrock_message(self, operation: str) -> IntersectClientCallback:
+        print('assembling rosenbrock message', operation)
         if operation == 'rosenbrock':
             last_x = self.dataset_x[-1]
             payload = {
@@ -152,18 +206,21 @@ class ActiveLearningOrchestrator:
         _source: str,
         operation: str,
         has_error: bool,
-        payload: INTERSECT_JSON_VALUE,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
         if has_error:
             print('============ERROR==============', file=sys.stderr)
             print(operation, file=sys.stderr)
             print(payload, file=sys.stderr)
             print(file=sys.stderr)
-            raise Exception  # noqa: TRY002 (break INTERSECT loop)
+            msg = f'Error in operation {operation}: payload = {payload}'
+            raise Exception(msg)  # noqa: TRY002 (break INTERSECT loop)
         if operation == 'Rosenbrock.rosenbrock':
             # this operation gets called periodically
             self.dataset_y.append(payload)
-            print(f'{payload:.3f}')
+            coord_str = ', '.join([f'{x:.2f}' for x in self.dataset_x[-1]])
+            strategy = self.strategies[0][1]
+            print(f'got value {payload:.5f} at [{coord_str}] with strategy {strategy}')
             if len(self.dataset_x) == NUM_ITERATIONS:
                 minpos = np.argmin(self.dataset_y)
                 y_opt = self.dataset_y[minpos]
@@ -171,11 +228,12 @@ class ActiveLearningOrchestrator:
                 self.graph(optimal_coords, True)
                 coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
                 print(
-                    f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}',
+                    f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.5f}',
                     end='\n',
                     flush=True,
                 )
-                raise Exception  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
+                msg = 'Client simulation completed successfully.'
+                raise Exception(msg)  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
             return self.assemble_message(
                 'update_workflow_with_data', next_x=self.dataset_x[-1], next_y=payload
             )
@@ -191,14 +249,16 @@ class ActiveLearningOrchestrator:
         if (
             operation == 'dial.get_surrogate_values'
         ):  # if we receive a grid of surrogate values, record it for graphing, then ask for the next recommended point
-            self.mean_grid = np.array(payload[0]).reshape((MESHGRID_SIZE,) * NUM_DIMS)
+            means = payload['values']
+            self.mean_grid = np.array(means).reshape((MESHGRID_SIZE,) * NUM_DIMS)
             return self.assemble_message('get_next_point')
 
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
-            self.graph(payload)
-            self.dataset_x.append(payload)
-            coord_str = ', '.join([f'{coord:.2f}' for coord in payload])
+            next_point = payload['data']
+            self.graph(next_point)
+            self.dataset_x.append(next_point)
+            coord_str = ', '.join([f'{coord:.2f}' for coord in next_point])
             print(f'Running simulation at ({coord_str}): ', end='', flush=True)
             return self.assemble_rosenbrock_message('rosenbrock')
 
@@ -226,8 +286,8 @@ class ActiveLearningOrchestrator:
             plt.ylabel('Simulation Parameter #2')
             # add black dots for data points and a red marker for the recommendation:
             X_train = np.array(self.dataset_x)
-            plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='o')
-            plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='black', marker='o')
+            plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='.')
+            plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='tab:orange', marker='o')
 
             minpos = np.argmin(self.dataset_y)
             optimal_coords = self.dataset_x[minpos]
@@ -239,7 +299,7 @@ class ActiveLearningOrchestrator:
                     f'Best point estimate so far is x=({final_x}), y={self.dataset_y[minpos]:.3f}'
                 )
             else:
-                plt.scatter([x_EI[0]], [x_EI[1]], color='red', marker='o')
+                plt.scatter([x_EI[0]], [x_EI[1]], color='tab:red', marker='o')
                 plt.scatter(
                     [x_EI[0]],
                     [x_EI[1]],
@@ -248,7 +308,7 @@ class ActiveLearningOrchestrator:
                     marker='o',
                     s=300,
                 )
-            plt.savefig('graph.png')
+            plt.savefig('graph_rosenbrock.png', dpi=200)
         else:
             fig, ax = plt.subplots(figsize=(8, 6))
             message = (

@@ -1,3 +1,4 @@
+import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -5,7 +6,7 @@ from bson import Binary
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
-from dial_dataclass import DialWorkflowDatasetUpdate
+from dial_dataclass import DialWorkflowDatasetUpdate, DialWorkflowDatasetUpdates
 from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
 from .logger import logger
@@ -52,8 +53,16 @@ class MongoDBHandler:
           - the stringified DB ID if data was inserted successfully
           - None if we couldn't insert the data successfully
         """
+        now = datetime.datetime.now(datetime.timezone.utc)
         try:
-            result = self._mongo_collection.insert_one({**initial_data, 'model': Binary(model)})
+            result = self._mongo_collection.insert_one(
+                {
+                    **initial_data,
+                    'model': Binary(model),
+                    'created_on': now,
+                    'last_modified': now,
+                }
+            )
         except PyMongoError as e:
             logger.debug(e)
             return None
@@ -71,7 +80,8 @@ class MongoDBHandler:
         """
         try:
             result = self._mongo_collection.find_one(
-                {'_id': workflow_id}, {'fields': {'model': 0}} if not include_model else None
+                {'_id': workflow_id},
+                {'fields': {'model': 0}} if not include_model else None,
             )
         except PyMongoError as e:
             logger.debug(e)
@@ -82,6 +92,7 @@ class MongoDBHandler:
         """Update the dataset of a workflow"""
         set_args = {
             'model': Binary(model),
+            'last_modified': datetime.datetime.now(datetime.timezone.utc),
         }
         if params.backend_args is not None:
             set_args['backend_args'] = params.backend_args
@@ -104,3 +115,32 @@ class MongoDBHandler:
             logger.warning(e)
             return False
         return True
+
+    def update_workflow_dataset_batch(
+        self, params: DialWorkflowDatasetUpdates, model: bytes
+    ) -> bool:
+        set_args = {
+            'model': Binary(model),
+            'last_modified': datetime.datetime.now(datetime.timezone.utc),
+        }
+        if params.backend_args is not None:
+            set_args['backend_args'] = params.backend_args
+        if params.extra_args is not None:
+            set_args['extra_args'] = params.extra_args
+        if params.kernel_args is not None:
+            set_args['kernel_args'] = params.kernel_args
+        try:
+            result = self._mongo_collection.update_one(
+                {'_id': params.workflow_id},
+                {
+                    '$set': set_args,
+                    '$push': {
+                        'dataset_x': {'$each': params.next_x_list},
+                        'dataset_y': {'$each': params.next_y_list},
+                    },
+                },
+            )
+        except (TypeError, IndexError, PyMongoError) as e:
+            logger.warning(e)
+            return False
+        return result.matched_count == 1 and result.modified_count >= 1

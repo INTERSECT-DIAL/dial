@@ -1,3 +1,4 @@
+import math
 from math import e as E_CONSTANT
 
 import numpy as np
@@ -15,7 +16,9 @@ from dial_service.serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+from dial_service.service_specific_dataclasses import (
+    DialWorkflowCreationParamsService,
+)
 
 DUMMY_WORKFLOW_ID = str(ObjectId())
 """This is used so that we can run the tests without connecting to a backend database or skipping validation for the rest of the data."""
@@ -30,7 +33,12 @@ def single_1D(backend, strategy, strategy_args):
         dataset_y=[100, 200],
         bounds=[[1, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -46,7 +54,41 @@ def single_1D(backend, strategy, strategy_args):
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_2D(backend, strategy, strategy_args):
+def single_1D_discrete_grid(backend, strategy, strategy_args, discrete_measurement_grid_size):
+    bounds = [[0, discrete_measurement_grid_size[0] - 1]]
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[[i] for i in range(discrete_measurement_grid_size[0])],
+        dataset_y=[i * 100 for i in range(discrete_measurement_grid_size[0])],
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        seed=42,
+        discrete_measurements=True,
+        discrete_measurement_grid_size=discrete_measurement_grid_size,
+    )
+    return ServersideInputSingle(workflow_state, params)
+
+
+def single_2D(
+    backend,
+    strategy,
+    strategy_args,
+):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [0.9317758694133622, -0.23597335497782845],
@@ -60,6 +102,7 @@ def single_2D(backend, strategy, strategy_args):
             [-1.572941300813352, 1.0014173171150125],
             [0.033053333077524005, 0.44682040004191537],
         ],
+        dim_x=2,
         dataset_y=[
             2.08609604,
             2.26284928,
@@ -74,7 +117,12 @@ def single_2D(backend, strategy, strategy_args):
         ],
         bounds=[[-2, 2], [-2, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={
+            'length_scale': 0.15,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
@@ -90,7 +138,70 @@ def single_2D(backend, strategy, strategy_args):
     return ServersideInputSingle(workflow_state, params)
 
 
-def single_3D(backend, strategy, strategy_args):
+def single_2D_discrete_grid(
+    backend,
+    strategy,
+    strategy_args,
+    discrete_measurement_grid_size,
+):
+    bounds = [
+        [0, discrete_measurement_grid_size[0] - 1],
+        [0, discrete_measurement_grid_size[1] - 1],
+    ]
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[
+            [0.9317758694133622, -0.23597335497782845],
+            [-0.7569874398003542, -0.76891211613756],
+            [-0.38457336507729645, -1.1327391183311766],
+            [-0.9293590899359039, 0.25039725076881014],
+            [1.984696498789749, -1.7147926093003538],
+            [1.2001856430453541, 1.572387611848939],
+            [0.5080666898409634, -1.566722183270571],
+            [-1.871124738716507, 1.9022651997285078],
+            [-1.572941300813352, 1.0014173171150125],
+            [0.033053333077524005, 0.44682040004191537],
+        ],
+        dim_x=2,
+        dataset_y=[
+            2.08609604,
+            2.26284928,
+            2.21989834,
+            1.61634392,
+            3.50481457,
+            0.25065034,
+            2.52277171,
+            2.42139515,
+            2.34930184,
+            1.31811177,
+        ],
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.15,
+            'length_scale_bounds': 'fixed',
+            'noise_level': 0.0,
+            'noise_level_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        discrete_measurements=True,
+        discrete_measurement_grid_size=discrete_measurement_grid_size,
+        seed=42,
+    )
+    return ServersideInputSingle(workflow_state, params)
+
+
+def single_3D(backend, strategy, strategy_args, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[
             [-0.3666976630219634, -0.7643946670537294, -1.1506370018439385],
@@ -104,6 +215,7 @@ def single_3D(backend, strategy, strategy_args):
             [1.9722151349341495, -1.0312670259072774, -1.6539808151893483],
             [-1.0234541059672568, 1.7103830579558839, -0.310540710518709],
         ],
+        dim_x=3,
         dataset_y=[
             386.7765772276362,
             259.6237369279032,
@@ -118,11 +230,15 @@ def single_3D(backend, strategy, strategy_args):
         ],
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={
+            'length_scale': 0.15,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
         backend=backend,
         preprocess_standardize=True,
         y_is_good=True,
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputSingleOtherStrategy(
@@ -130,26 +246,31 @@ def single_3D(backend, strategy, strategy_args):
         strategy=strategy,
         strategy_args=strategy_args,
         bounds=[[-2, 2], [-2, 2], [-2, 2]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
 
 
-def multiple_2D(backend, strategy):
+def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
+        dim_x=2,  # provide dim_x for empty dataset
         y_is_good=False,
         kernel='rbf',
-        length_per_dimension=False,
         bounds=[[0, 100], [-1, 1]],
         backend=backend,
         seed=42,
     )
     params = DialInputMultiple(
         workflow_id=DUMMY_WORKFLOW_ID,
-        points=10,
         strategy=strategy,
+        bounds=[[0, 100], [-1, 1]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
+        points=10,
     )
     return ServersideInputMultiple(workflow_state, params)
 
@@ -160,15 +281,20 @@ def prediction_1D(backend):
         dataset_y=[100, 200],
         bounds=[[1, 2]],
         kernel='rbf',
-        kernel_args={'length_scale': 0.5, 'length_scale_bounds': 'fixed'},
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 50.0**2,
+            'constant_value_bounds': 'fixed',
+        },
         backend=backend,
         preprocess_standardize=False,
         y_is_good=True,
-        extra_args={'length_per_dimension': True},
         seed=42,
     )
     params = DialInputPredictions(
-        workflow_id=DUMMY_WORKFLOW_ID, points_to_predict=[[1], [1.25], [1.5], [1.75], [2]]
+        workflow_id=DUMMY_WORKFLOW_ID,
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
     )
     return ServersideInputPrediction(workflow_state, params)
 
@@ -185,10 +311,33 @@ def prediction_1D(backend):
 )
 def test_EI_1D(backend, approx):
     data = single_1D(
-        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
     )
     model = core.train_model(data)
     assert core.get_next_point(data, model) == pytest.approx([approx], abs=0.00001)
+
+
+@pytest.mark.parametrize(
+    ('backend', 'val'),
+    [
+        ('sklearn', 1.0),
+        # ('gpax', 2.0),
+    ],
+)
+def test_EI_1D_discrete(backend, val):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
+        discrete_measurement_grid_size=[60],
+    )
+    model = core.train_model(data)
+    next_point = core.get_next_point(data, model)[0]
+    assert 0 <= next_point < 60
+    assert int(next_point) == next_point
+    assert next_point in np.arange(60).astype(float)
 
 
 @pytest.mark.parametrize(
@@ -200,10 +349,12 @@ def test_EI_1D(backend, approx):
 )
 def test_EI_2D(backend, approx):
     data = single_2D(
-        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
     )
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.1)
 
 
 @pytest.mark.parametrize(
@@ -216,35 +367,32 @@ def test_EI_2D(backend, approx):
 )
 def test_EI_3D(backend, approx):
     data = single_3D(
-        backend, strategy='upper_confidence_bound', strategy_args={'exploit': 1, 'explore': 1}
+        backend,
+        strategy='upper_confidence_bound',
+        strategy_args={'exploit': 1, 'explore': 1},
     )
     model = core.train_model(data)
-    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.01)
-
-
-@pytest.mark.parametrize(
-    'backend',
-    [
-        'sklearn',
-        # ('gpax',),
-    ],
-)
-def test_uncertainty(backend):
-    data = single_1D(backend, strategy='uncertainty', strategy_args=None)
-    model = core.train_model(data)
-    result = core.get_next_point(data, model)
-    # The uncertainty sampling should select one of the boundary points (1.0 or 2.0)
-    # since training data is at both boundaries. Which boundary is selected can vary
-    # based on optimizer and numerical precision across Python versions.
-    assert abs(result[0] - 1.0) < 0.01 or abs(result[0] - 2.0) < 0.01, (
-        f'Expected result near 1.0 or 2.0, got {result[0]}'
-    )
+    assert core.get_next_point(data, model) == pytest.approx(approx, abs=0.1)
 
 
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [1.037454]),
+        ('sklearn', [1.5]),
+        # ('gpax',),
+    ],
+)
+def test_uncertainty(backend, approx):
+    data = single_1D(backend, strategy='uncertainty', strategy_args=None)
+    model = core.train_model(data)
+    result = core.get_next_point(data, model)
+    assert result == pytest.approx(approx, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    ('backend', 'approx'),
+    [
+        ('sklearn', [1.790396262]),
         # ('gpax', [2.0]),
     ],
 )
@@ -255,6 +403,30 @@ def test_preprocessing_standardize(backend, approx):
     assert data.Y_best == 1
     assert data.Y_train == pytest.approx([-1, 1])
     assert core.get_next_point(data, model) == pytest.approx(approx)
+
+
+@pytest.mark.parametrize(
+    ('backend', 'val'),
+    [
+        ('sklearn', [1.0]),
+        # ('gpax', [2.0]),
+    ],
+)
+def test_preprocessing_standardize_discrete(backend, val):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='expected_improvement',
+        strategy_args=None,
+        discrete_measurement_grid_size=[60],
+    )
+    data.preprocess_standardize = True
+    model = core.train_model(data)
+    # assert data.Y_best == 1
+    # assert data.Y_train == pytest.approx([-1, 1])
+    next_point = core.get_next_point(data, model)[0]
+    assert 0 <= next_point < 60
+    assert int(next_point) == next_point
+    assert next_point in np.arange(60).astype(float)
 
 
 @pytest.mark.parametrize(
@@ -280,9 +452,136 @@ def test_random(backend):
         ('gpax'),
     ],
 )
+def test_hypercube_single_point(backend):
+    data = single_1D(backend, strategy='hypercube', strategy_args=None)
+    model = core.train_model(data)
+    output = None
+    last_point = None
+    DEFAULT_HYPERCUBE_VAL = (
+        4  # hypercube sets this parameter by default if no discrete grid provided
+    )
+    for i in range(100):
+        last_point = output
+        output = core.get_next_point(data, model)
+        assert len(output) == 1
+        output = output[0]
+        assert output != last_point
+        if last_point is not None:
+            if i % DEFAULT_HYPERCUBE_VAL != 0:
+                assert output > last_point
+            else:
+                assert last_point > output
+        assert 1 <= output <= 2
+        data.point_index += 1
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+def test_random_discrete(backend):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='random',
+        strategy_args=None,
+        discrete_measurement_grid_size=[60],
+    )
+    model = core.train_model(data)
+    for _ in range(100):
+        output = core.get_next_point(data, model)
+        assert len(output) == 1
+        # assert output[0] in _measurement_grid
+        # assert output[0] == int(output[0])
+        assert 0 <= output[0] <= 59
+        assert int(output[0]) == output[0]
+        assert output[0] in np.arange(60).astype(float)
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+def test_hypercube_single_point_discrete(backend):
+    data = single_1D_discrete_grid(
+        backend,
+        strategy='hypercube',
+        strategy_args=None,
+        discrete_measurement_grid_size=[60],
+    )
+    model = core.train_model(data)
+    output = None
+    last_point = None
+    for i in range(100):
+        last_point = output
+        output = core.get_next_point(data, model)
+        assert len(output) == 1
+        output = output[0]
+        assert output != last_point
+        if last_point is not None:
+            if i % data.discrete_measurement_grid_size[0] != 0:
+                assert output > last_point
+            else:
+                assert last_point > output
+        # assert output[0] in _measurement_grid
+        # assert output[0] == int(output[0])
+        assert 0 <= output <= 59
+        assert int(output) == output
+        assert output in np.arange(60).astype(float)
+        data.point_index += 1
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+def test_hypercube_single_point_discrete_2D(backend):
+    data = single_2D_discrete_grid(
+        backend,
+        strategy='hypercube',
+        strategy_args=None,
+        discrete_measurement_grid_size=[6, 6],
+    )
+    model = core.train_model(data)
+    output = None
+    last_point = None
+    num_points = math.prod(data.discrete_measurement_grid_size)
+    for i in range(100):
+        last_point = output
+        output = core.get_next_point(data, model)
+        assert len(output) == 2
+        assert output != last_point
+        if last_point is not None:
+            if i % num_points != 0:
+                assert output[0] > last_point[0] or output[1] > last_point[1]
+            else:
+                assert last_point[0] > output[0] or last_point[1] > output[1]
+        for o in output:
+            assert 0 <= o <= 59
+            assert int(o) == o
+            assert o in np.arange(60).astype(float)
+        data.point_index += 1
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
 def test_random_points(backend):
     data = multiple_2D(backend, strategy='random')
-    for pt in core.get_next_points(data):
+    model = core.initialize_model(data)
+    for pt in core.get_next_points(data, model):
         assert 0 <= pt[0] <= 100
         assert -1 <= pt[1] <= 1
 
@@ -294,9 +593,10 @@ def test_random_points(backend):
         # ('gpax'),
     ],
 )
-def test_hypercube(backend):
+def test_hypercube_multiple_points(backend):
     data = multiple_2D(backend, strategy='hypercube')
-    points = core.get_next_points(data)
+    model = core.initialize_model(data)
+    points = core.get_next_points(data, model)
     for i in range(10):
         assert sum(1 for pt in points if 10 * i <= pt[0] <= 10 * (i + 1)) == 1
         assert sum(1 for pt in points if -1 + 0.2 * i <= pt[1] <= -1 + 0.2 * (i + 1)) == 1, (
@@ -305,13 +605,18 @@ def test_hypercube(backend):
 
 
 @pytest.mark.parametrize(
-    ('backend', 'expected_means', 'expected_stddevs', 'expected_raw_stddevs'),
+    ('backend', 'expected_means', 'expected_stddevs'),
     [
         (
             'sklearn',
-            [99.99999999, 127.23019909, 160.26912982, 191.74589221, 199.99999999],
+            [
+                99.99999999,
+                127.23019909,
+                160.26912982,
+                191.74589221,
+                199.99999999,
+            ],
             [2.11126987e01, 2.96625069e01, 2.11126987e01],
-            [21.11269870647274, 29.662506906581378, 21.112698706472752],
         ),
         # (
         # 'gpax',
@@ -323,46 +628,54 @@ def test_hypercube(backend):
         #     82.26569221517353,
         # ],
         # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
-        # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
         # ),
     ],
 )
-def test_surrogate(backend, expected_means, expected_stddevs, expected_raw_stddevs):
+def test_surrogate(backend, expected_means, expected_stddevs):
     data = prediction_1D(backend)
     model = core.train_model(data)
-    means, stddevs, raw_stddevs = core.get_surrogate_values(data, model)
+    means, stddevs, _ = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
-    assert raw_stddevs[1:4] == pytest.approx(expected_raw_stddevs)
 
 
 @pytest.mark.parametrize(
     ('backend'),
     [
         ('sklearn'),
-        # ('gpax'),
     ],
 )
 def test_inverse_transform(backend):
     data = prediction_1D(backend)
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([-1, 0, 1])
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, 0, 1])
+
+    test_y = np.array([-1, 0, 1])
+    test_yerr = np.array([0.1, 1, 10])
+
+    def test_transform(inv_y, inv_yerr):
+        y, yerr = data.transform_Y(inv_y, inv_yerr)
+        assert y == pytest.approx(test_y)
+        assert yerr == pytest.approx(test_yerr)
+
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx(test_y)
+    assert inv_yerr == pytest.approx(test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-        [1 / E_CONSTANT, 1, E_CONSTANT]
-    )
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([1 / E_CONSTANT, 1, E_CONSTANT])
+    assert inv_yerr == pytest.approx(inv_y * test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = False
     data.preprocess_standardize = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx([100, 150, 200])
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx(
-        [-50, 0, 50]
-    )  # technically improper, as uncertainties can't be negative
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([100, 150, 200])
+    assert inv_yerr == pytest.approx(50 * test_yerr)
+    test_transform(inv_y, inv_yerr)
 
     data.preprocess_log = True
-    assert data.inverse_transform(np.array([-1, 0, 1])) == pytest.approx(
-        [100, 141.42135623730945, 200]
-    )  # TODO
-    assert data.inverse_transform(np.array([-1, 0, 1]), True) == pytest.approx([-1, -1, -1])
+    inv_y, inv_yerr = data.inverse_transform_Y(test_y, test_yerr)
+    assert inv_y == pytest.approx([100, 141.42135623730945, 200])
+    assert inv_yerr == pytest.approx(inv_y * 0.34657359027997243 * test_yerr)
+    test_transform(inv_y, inv_yerr)

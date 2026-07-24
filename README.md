@@ -22,13 +22,16 @@ Alternatively, both intersect-sdk and Dial may be installed with the following:
 
 ## Installing (developers)
 
-Install PDM ([link](https://pdm-project.org/en/latest/#installation)) and then run:
+Install UV ([link](https://docs.astral.sh/uv/getting-started/installation/)) and then run:
 
-`pdm install`
+```
+uv sync --all-groups --all-extras --all-packages
+pre-commit install
+```
 
-We use PDM as a dependency manager and intend on using the dependencies listed in `pdm.lock` in a production environment.
+We use UV as a dependency manager and intend on using the dependencies listed in `uv.lock` in a production environment.
 
-We use ruff to lint/format; if using the PDM workflow, `pre-commit` will automatically fail the commit if there are linting/formatting errors.
+We use ruff to lint/format; if using the UV workflow, `pre-commit` will automatically fail the commit if there are linting/formatting errors.
 
 To format:
 
@@ -40,9 +43,9 @@ To run linter and automatically fix errors:
 
 ## running infrastructure locally
 
-You can use `docker compose up -d -f docker-compose-dev.yml` or to automatically spin up both a broker instance and a database instance locally.
+You can use `docker compose -f docker-compose-dev.yml up` or to automatically spin up both a broker instance and a database instance locally.
 
-If you also want to run DIAL inside the container, you can instead run `docker compose up -d`
+If you also want to run DIAL inside the container, you can instead run `docker compose up`
 
 To remove the infrastructure containers: `docker compose down -v`; leave off the `-v` flag if you would like to persist the DB data.
 
@@ -51,8 +54,9 @@ To remove the infrastructure containers: `docker compose down -v`; leave off the
 To run the service: `python scripts/launch_service.py`
 
 In a separate terminal, you can run one of the following clients:
-  - Automatic: `python scripts/automated_client.py`
-  - Manual: `python scripts/manual_client.py`
+
+- Automatic: `python scripts/automated_client.py`
+- Manual: `python scripts/manual_client.py`
 
 CLI arg `--config` or environment variable `DIAL_CONFIG_FILE` should be a path to a valid JSON configuration. If neither value is set, it will default to `local-conf.json` .
 
@@ -90,21 +94,25 @@ helm install dial . -n dial --create-namespace
 ```
 
 For detailed Helm chart documentation, see:
+
 - [charts/dial/README.md](charts/dial/README.md) - Comprehensive Helm documentation
 
 ### Common Helm Commands
 
 With custom INTERSECT configuration:
+
 ```bash
 helm install dial . -n dial --create-namespace -f values.yaml -f values.config.yaml
 ```
 
 With NodePort service:
+
 ```bash
 helm install dial . -n dial --create-namespace -f values.yaml -f values.nodePort.yaml
 ```
 
 With external MongoDB:
+
 ```bash
 helm install dial . -n dial --create-namespace \
   --set mongodb.enabled=false \
@@ -113,6 +121,12 @@ helm install dial . -n dial --create-namespace \
 
 ## Testing
 
-You will need `pytest` installed to run the tests, it should be automatically included in your virtual environment if using the PDM workflow.
+You will need `pytest` installed to run the tests.
 
-`pdm run test-all`
+`pytest tests/`
+
+## Building the documentation
+
+You will need to make sure the `docs` optional dependency group is installed. Then you can run `sphinx build -W --keep-going docs/ docs/_build/` .
+
+To quickly spin up the documentation web server on `http://localhost:8000` : `python -m http.server -d docs/_build/`

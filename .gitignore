@@ -4,6 +4,8 @@
 ### application-specific ###
 # ignore generated plots by default
 *.png
+# but don't ignore any PNG files used on the documentation website
+!/docs/**/*.png
 
 # ignore all configuration files except for our default one
 *.json
@@ -12,6 +14,8 @@
 
 # testing reports
 reports/
+# any generated custom HTML files
+*.html
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
@@ -101,7 +105,7 @@ ipython_config.py
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+.python-version
 
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
@@ -206,3 +210,8 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
+
+.venv*
+Taskfile.yml
+.DS_Store
+*~
