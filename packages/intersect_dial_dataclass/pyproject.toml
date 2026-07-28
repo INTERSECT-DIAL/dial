@@ -1,6 +1,6 @@
 [project]
 name = "intersect-dial-dataclass"
-version = "0.1.6"
+version = "0.1.7"
 authors = [
   { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
   { name = "Lance Drane", email = "dranelt@ornl.gov" },
@@ -16,9 +16,7 @@ requires-python = ">=3.10"
 keywords = ["active learning", "dataclass"]
 license = { text = "BSD-3-Clause" }
 classifiers = ["Programming Language :: Python :: 3"]
-dependencies = [
-  "pydantic>=2.13.0",
-]
+dependencies = ["pydantic>=2.13.0"]
 
 [project.urls]
 Homepage = "https://github.com/INTERSECT-DIAL/dial/"
