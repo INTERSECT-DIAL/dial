@@ -26,7 +26,7 @@ jobs:
         run: uv build --no-create-gitignore packages/intersect_dial_dataclass
       - name: Publish package to PyPI
         # if dial_dataclass and dial_service have different versions, then don't try to publish it to PyPI
-        run: if [[ $(python -c 'from importlib.metadata import version; print(version("intersect_dial_dataclass") == version("dial_service"))') == 'True' ]]; then uv publish; fi
+        run: if [ $(python -c 'from importlib.metadata import version; print(version("intersect_dial_dataclass") == version("dial_service"))') = 'True' ]; then uv publish; fi
       - name: upload to github release
         uses: docker://antonyurchenko/git-release:v5
         env:
