@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-publish:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -22,12 +22,18 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
+      # if the output of check_needs_publish is not "True" (only happens if dial_dataclass and dial_service have the same versions), do not try to publish to PyPI or Github Releases
+      - name: "Check if package should be published"
+        id: "check_needs_publish"
+        run: echo "match=$(python -c 'from importlib.metadata import version; print(version("intersect_dial_dataclass") == version("dial_service"))')" >> "$GITHUB_OUTPUT"
       - name: "Build package"
+        if: ${{ steps.check_needs_publish.outputs.match == 'True' }}
         run: uv build --no-create-gitignore packages/intersect_dial_dataclass
       - name: Publish package to PyPI
-        # if dial_dataclass and dial_service have different versions, then don't try to publish it to PyPI
-        run: if [ $(python -c 'from importlib.metadata import version; print(version("intersect_dial_dataclass") == version("dial_service"))') = 'True' ]; then uv publish; fi
+        if: ${{ steps.check_needs_publish.outputs.match == 'True' }}
+        run: uv publish
       - name: upload to github release
+        if: ${{ steps.check_needs_publish.outputs.match == 'True' }}
         uses: docker://antonyurchenko/git-release:v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
