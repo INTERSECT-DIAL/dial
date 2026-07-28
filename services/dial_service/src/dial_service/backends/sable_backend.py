@@ -20,12 +20,19 @@ _SAMPLERS_SABLE = {
 
 def _get_model_kwargs(data) -> dict:
     backend_args = {} if data.backend_args is None else data.backend_args
-    return {
-        'n_features': backend_args.get('n_features', 10000),
-        'alpha': backend_args.get('alpha', 0.3),
-        'p': backend_args.get('p', 1.25),
-        'n_iter_irls': backend_args.get('n_iter_irls', 100),
+    # set some default args
+    model_kwargs = {
+        # default to a low number of features in general
+        'n_features': backend_args.get('n_features', 5000),
+        # set the prior standard deviation to a default value of 1.
+        # this works well for data where np.std(data.Y_train) ~ 1 (after output normalization)
+        'prior_std': 1.0,
+        # default to moderate sparsity (p = 1.2) instead of full sparsity (p = 1.) for now
+        'p': backend_args.get('p', 1.2),
     }
+    # update and add any user-supplied args
+    model_kwargs.update(backend_args)
+    return model_kwargs
 
 
 def _get_observation_errors(data, n_observations: int) -> np.ndarray:

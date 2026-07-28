@@ -190,13 +190,29 @@ def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideI
       - ΔT(t) = max(current_batch_t_max, t) - current_batch_t_max (parallel reactor cost)
     """
 
+    if data.dim_x > 1:
+        msg = f'strategy batch_sampling_acl supports only one input dimension, but {data.dim_x=}'
+        raise ValueError(msg)
+
     x_grid = create_measurement_grid(data)
     x_grid = np.array(x_grid)
 
     data.set_x_predict(x_grid)
-    mean, sd_dev = backend_module.predict(model, data)
-    x_train = data.X_raw
-    _params = data.strategy_args
+    _, sd_dev = backend_module.predict(model, data)
+    x_train = data.dataset_x  # get raw x data without scaling
+
+    # set some default parameters
+    _params = {
+        'lambda_time': 0.0,
+        'lambda_near_train': 1.0,
+        'lambda_near_batch': 1.0,
+        'lambda_batchT': 0.0,
+        'radius_train_factor': 0.1,
+        'radius_batch_factor': 0.1,
+        'eps': 1.0e-3,
+    }
+    # update with provided values
+    _params.update(data.strategy_args or {})
 
     batch_size = data.points
     lambda_time = _params['lambda_time']  # penalty on large t

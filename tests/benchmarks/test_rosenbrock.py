@@ -15,11 +15,14 @@ from dial_service.serverside_data import (
     ServersideInputBase,
     ServersideInputSingle,
 )
-from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+from dial_service.service_specific_dataclasses import (
+    DialWorkflowCreationParamsService,
+)
 
 # from pytest_benchmark.fixture import BenchmarkFixture
 from intersect_dial_dataclass import (
     DialInputSingleOtherStrategy,
+    Normal,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,15 +95,12 @@ def run_simulation(
     client_state = DialWorkflowCreationParamsService(
         dataset_x=dataset_x,
         dataset_y=dataset_y,
+        statistics_y=Normal(loc='y', scale=NOISE_LEVEL),
         bounds=INITIAL_BOUNDS,
         kernel='rbf',
         kernel_args={
             'length_scale': LENGTH_SCALE,
-            'length_scale_bounds': 'fixed',
-            'noise_level': NOISE_LEVEL,
-            'noise_level_bounds': 'fixed',
             'constant_value': CONSTANT_VALUE,
-            'constant_value_bounds': 'fixed',
         },
         y_is_good=False,  # we wish to minimize y (the error)
         backend='sklearn',  # "sklearn" or "gpax"
@@ -255,6 +255,31 @@ def test_benchmark_rosenbrock_accuracy(
     )
 
 
+def _run_single(task: tuple) -> tuple:
+    """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess, history)."""
+    import json
+
+    strategy, strategy_args, run_index, dataset_x = task
+    strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
+    iterations, target, guess, history = accuracy_benchmark(strategy, strategy_args, dataset_x)
+    logger.info(
+        '  [%s] Run %d: iterations=%d, target=%.4f',
+        strategy_name,
+        run_index + 1,
+        iterations,
+        target,
+    )
+    return (
+        strategy_name,
+        strategy,
+        strategy_args,
+        iterations,
+        target,
+        guess,
+        history,
+    )
+
+
 if __name__ == '__main__':
     """Generate HTML benchmark report with plots comparing different strategies."""
     import argparse
@@ -307,38 +332,20 @@ if __name__ == '__main__':
         NUM_RUNS,
     )
 
-    def _run_single(task: tuple) -> tuple:
-        """Worker: run one accuracy benchmark and return (strategy_name, iterations, target, guess, history)."""
-        strategy, strategy_args, run_index, dataset_x = task
-        strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
-        iterations, target, guess, history = accuracy_benchmark(strategy, strategy_args, dataset_x)
-        logger.info(
-            '  [%s] Run %d: iterations=%d, target=%.4f',
-            strategy_name,
-            run_index + 1,
-            iterations,
-            target,
-        )
-        return (
-            strategy_name,
-            strategy,
-            strategy_args,
-            iterations,
-            target,
-            guess,
-            history,
-        )
-
     # Use the same dataset for each parameter we have
     datasets = [generate_initial_dataset() for _ in range(NUM_RUNS)]
     tasks = [
-        (strategy, strategy_args, run_index, dataset)
+        (strategy, strategy_args, run_index, dataset.copy())
         for strategy, strategy_args in parameters
         for run_index, dataset in enumerate(datasets)
     ]
 
+    # run in parallel
     with Pool() as pool:
         run_outputs = pool.map(_run_single, tasks)
+
+    # run in serial
+    # run_outputs = [_run_single(task) for task in tasks]
 
     # Aggregate results preserving strategy order
     strategy_order = [
@@ -413,7 +420,11 @@ if __name__ == '__main__':
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes: np.ndarray[mpaxes.Axes, np.dtype[np.int64]] = axes  # noqa: PLW0127
     print(type(fig), '---', type(axes), '---', type(axes[0, 0]))
-    fig.suptitle('Rosenbrock Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
+    fig.suptitle(
+        'Rosenbrock Optimization Benchmark Comparison',
+        fontsize=16,
+        fontweight='bold',
+    )
 
     # Plot 1: Average iterations to convergence
     ax1 = axes[0, 0]
@@ -549,7 +560,11 @@ if __name__ == '__main__':
 
     # Convergence plot: best-y vs. iteration, mean ± std across runs, one line per strategy
     fig_conv, ax_conv = plt.subplots(figsize=(10, 6))
-    ax_conv.set_title('Convergence: Best Value Found vs. Iteration', fontsize=14, fontweight='bold')
+    ax_conv.set_title(
+        'Convergence: Best Value Found vs. Iteration',
+        fontsize=14,
+        fontweight='bold',
+    )
     ax_conv.set_xlabel('Iteration')
     ax_conv.set_ylabel('Best Target Value (log scale)')
     ax_conv.set_yscale('log')
@@ -795,7 +810,11 @@ if __name__ == '__main__':
             result['avg_iterations'],
             result['std_iterations'],
         )
-        logger.info('  Avg Target:     %.4f ± %.4f', result['avg_target'], result['std_target'])
+        logger.info(
+            '  Avg Target:     %.4f ± %.4f',
+            result['avg_target'],
+            result['std_target'],
+        )
         logger.info('  Success Rate:   %.1f%%', result['success_rate'])
 
     logger.info('\n%s', '=' * 60)

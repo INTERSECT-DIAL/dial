@@ -29,6 +29,13 @@ For more advanced users, to install the service package from source, run:
 
 `pip install -e ./packages/dial_dataclass -e ./services/dial_service`
 
+By default, **only scikit-learn is available as a backend**. We also support GPax and Sable as backends. To install these:
+
+- for GPax: `pip install "./packages/dial_dataclass[gpax]"`
+- for Sable: `pip install "./packages/dial_dataclass[sable]"`
+
+Use commas to add multiple backends: `pip install "./packages/dial_dataclass[gpax,sable]"`
+
 ## Installing (developers)
 
 Install UV ([link](https://docs.astral.sh/uv/getting-started/installation/)) and then run:

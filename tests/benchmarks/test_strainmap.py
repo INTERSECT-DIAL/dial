@@ -18,14 +18,19 @@ from dial_service.serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+from dial_service.service_specific_dataclasses import (
+    DialWorkflowCreationParamsService,
+)
 
 # from pytest_benchmark.fixture import BenchmarkFixture
 from intersect_dial_dataclass import (
     DialInputPredictions,
     DialInputSingleOtherStrategy,
+    Normal,
 )
 from scipy.interpolate import LinearNDInterpolator
+
+from ..helpers import generate_pytest_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -42,102 +47,111 @@ high_f_data_name = (
 )
 
 
-def normalize_data(in_data):
-    m_data = (in_data.max() + in_data.min()) * 0.5
-    d_data = (in_data.max() - in_data.min()) * 0.5
-    return (in_data - m_data) / d_data
+def read_and_prepare_data():
+    # normalization helper
+    def normalize_data(in_data):
+        m_data = (in_data.max() + in_data.min()) * 0.5
+        d_data = (in_data.max() - in_data.min()) * 0.5
+        return (in_data - m_data) / d_data
 
+    # define constants and read data
+    # wall_st_index = 0
+    # wall_st_end = 676
+    x_col_index = 0  # z follow next
+    e_col_index = 2  # e11, e22 and e33
+    nrows = 26  # Rows in sim strain map of the wall
+    ncols = 26  # Cols in sim strain map of the wall
+    data = pd.read_csv(low_f_data_name)
 
-wall_st_index = 0
-wall_st_end = 676
-x_col_index = 0  # z follow next
-e_col_index = 2  # e11, e22 and e33
-nrows = 26  # Rows in sim strain map of the wall
-ncols = 26  # Cols in sim strain map of the wall
-data = pd.read_csv(low_f_data_name)
+    Y, Z, E11, E22, E33, R11, R22, R33 = np.array(
+        [
+            data.values[:, x_col_index],
+            data.values[:, x_col_index + 1],
+            data.values[:, e_col_index],
+            data.values[:, e_col_index + 1],
+            data.values[:, e_col_index + 2],
+            data.values[:, e_col_index + 3],
+            data.values[:, e_col_index + 4],
+            data.values[:, e_col_index + 5],
+        ]
+    )
 
-Y, Z, E11, E22, E33, R11, R22, R33 = np.array(
-    [
-        data.values[:, x_col_index],
-        data.values[:, x_col_index + 1],
-        data.values[:, e_col_index],
-        data.values[:, e_col_index + 1],
-        data.values[:, e_col_index + 2],
-        data.values[:, e_col_index + 3],
-        data.values[:, e_col_index + 4],
-        data.values[:, e_col_index + 5],
-    ]
-)
+    # Convert data
+    x1 = Y.astype(np.float32).reshape(nrows, ncols)
+    x2 = Z.astype(np.float32).reshape(nrows, ncols)
 
-x1 = Y.astype(np.float32).reshape(nrows, ncols)
-x2 = Z.astype(np.float32).reshape(nrows, ncols)
+    # Sim_e11 = np.array(E11).astype(np.float32).reshape(nrows, ncols)
+    # Real_e11 = np.array(R11).astype(np.float32).reshape(nrows, ncols)
 
-x1_norm = normalize_data(x1)
-x2_norm = normalize_data(x2)
+    # Sim_e22 = np.array(E22).astype(np.float32).reshape(nrows, ncols)
+    # Real_e22 = np.array(R22).astype(np.float32).reshape(nrows, ncols)
 
-Sim_e11 = np.array(E11).astype(np.float32).reshape(nrows, ncols)
-Real_e11 = np.array(R11).astype(np.float32).reshape(nrows, ncols)
+    # Sim_e33 = np.array(E33).astype(np.float32).reshape(nrows, ncols)
+    Real_e33 = np.array(R33).astype(np.float32).reshape(nrows, ncols)
 
-Sim_e22 = np.array(E22).astype(np.float32).reshape(nrows, ncols)
-Real_e22 = np.array(R22).astype(np.float32).reshape(nrows, ncols)
+    # Normalize data
+    x1_norm = normalize_data(x1)
+    x2_norm = normalize_data(x2)
 
-Sim_e33 = np.array(E33).astype(np.float32).reshape(nrows, ncols)
-Real_e33 = np.array(R33).astype(np.float32).reshape(nrows, ncols)
+    # Sim_e11_norm = normalize_data(Sim_e11)
+    # Real_e11_norm = normalize_data(Real_e11)
 
-# Normalize data
-Sim_e11_norm = normalize_data(Sim_e11)
-Real_e11_norm = normalize_data(Real_e11)
+    # Sim_e22_norm = normalize_data(Sim_e22)
+    # Real_e22_norm = normalize_data(Real_e22)
 
-Sim_e22_norm = normalize_data(Sim_e22)
-Real_e22_norm = normalize_data(Real_e22)
+    # Sim_e33_norm = normalize_data(Sim_e33)
+    Real_e33_norm = normalize_data(Real_e33)
 
-Sim_e33_norm = normalize_data(Sim_e33)
-Real_e33_norm = normalize_data(Real_e33)
+    # read high fidelity data
+    # data = pd.read_csv(high_f_data_name)
 
+    # Y, Z, E11, E22, E33, R11, R22, R33 = np.array(
+    #    [
+    #        data.values[:, x_col_index],
+    #        data.values[:, x_col_index + 1],
+    #        data.values[:, e_col_index],
+    #        data.values[:, e_col_index + 1],
+    #        data.values[:, e_col_index + 2],
+    #        data.values[:, e_col_index + 3],
+    #        data.values[:, e_col_index + 4],
+    #        data.values[:, e_col_index + 5],
+    #    ]
+    # )
 
-data = pd.read_csv(high_f_data_name)
+    # Sim_hi_e11 = np.array(E11).astype(np.float32).reshape(nrows, ncols)
+    # Sim_hi_e22 = np.array(E22).astype(np.float32).reshape(nrows, ncols)
+    # Sim_hi_e33 = np.array(E33).astype(np.float32).reshape(nrows, ncols)
 
-Y, Z, E11, E22, E33, R11, R22, R33 = np.array(
-    [
-        data.values[:, x_col_index],
-        data.values[:, x_col_index + 1],
-        data.values[:, e_col_index],
-        data.values[:, e_col_index + 1],
-        data.values[:, e_col_index + 2],
-        data.values[:, e_col_index + 3],
-        data.values[:, e_col_index + 4],
-        data.values[:, e_col_index + 5],
-    ]
-)
+    # Transpose the high-fidelity simulation data
+    # TODO, figure out why this is transposed
+    # Sim_hi_e11 = Sim_hi_e11.T
+    # Sim_hi_e22 = Sim_hi_e22.T
+    # Sim_hi_e33 = Sim_hi_e33.T
 
-Sim_hi_e11 = np.array(E11).astype(np.float32).reshape(nrows, ncols)
-Sim_hi_e22 = np.array(E22).astype(np.float32).reshape(nrows, ncols)
-Sim_hi_e33 = np.array(E33).astype(np.float32).reshape(nrows, ncols)
+    # Normalize data
+    # Sim_hi_e11_norm = normalize_data(Sim_hi_e11)
+    # Sim_hi_e22_norm = normalize_data(Sim_hi_e22)
+    # Sim_hi_e33_norm = normalize_data(Sim_hi_e33)
 
-# Transpose the high-fidelity simulation data
-# TODO, figure out why this is transposed
-Sim_hi_e11 = Sim_hi_e11.T
-Sim_hi_e22 = Sim_hi_e22.T
-Sim_hi_e33 = Sim_hi_e33.T
+    # return data that will be used for the benchmark
+    return nrows, (x1_norm, x2_norm), Real_e33_norm
 
-# Normalize data
-Sim_hi_e11_norm = normalize_data(Sim_hi_e11)
-Sim_hi_e22_norm = normalize_data(Sim_hi_e22)
-Sim_hi_e33_norm = normalize_data(Sim_hi_e33)
 
 ###############
 
 ## Select data for ground truth
 
+ngrid, x_grids, y_grid = read_and_prepare_data()
+
 # default inputs
 INITIAL_BOUNDS = [[-1.0, 1.0], [-1.0, 1.0]]
 NUM_DIMS = len(INITIAL_BOUNDS)
 
-MESHGRID_SIZE = nrows
-INITIAL_MESHGRIDS = (x1_norm, x2_norm)
+MESHGRID_SIZE = ngrid
+INITIAL_MESHGRIDS = x_grids
 INITIAL_POINTS_TO_PREDICT = np.hstack([mg.reshape(-1, 1) for mg in INITIAL_MESHGRIDS])
 
-INITIAL_PREDICTIONS = Real_e33_norm.reshape(-1, 1)
+INITIAL_PREDICTIONS = y_grid.reshape(-1, 1)
 
 ###############
 
@@ -176,12 +190,12 @@ truth_strain_map = StrainMap(truth_interp=truth_interp, noise_level=NOISE_LEVEL)
 ###############
 
 # test parameters
-INITIAL_NUM_POINTS = 9
+INITIAL_NUM_POINTS = 25
 MAX_ITERATIONS = 150  # only allow a maximum of this many iterations in tests
 
 INITIAL_DATASET_X = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
-TARGET_RMSE = 0.2
+TARGET_ERROR = 0.11
 
 
 def run_simulation(
@@ -191,9 +205,11 @@ def run_simulation(
     strategy_args: object,
 ) -> tuple[np.ndarray, np.ndarray]:
     # important "Hyper-parameters"
-    length_scale = 0.2
-    noise_level = NOISE_LEVEL
-    constant_value = 1.0
+    length_scale = 0.4
+    prior_std = 1.0
+
+    # Assume that there is some small noise in the measurements to stabilize the fit
+    statistics_y = Normal(loc='y', scale=NOISE_LEVEL)
 
     # modify a local copy of strategy_args
     strategy_args = strategy_args.copy()
@@ -201,51 +217,37 @@ def run_simulation(
 
     if backend == 'sable':
         # train model with new data
+        kernel = 'rbf'
         kernel_args = {
-            'x_range': [-1.0, 1.0],
-            'sigma_range': [1e-2, 1.0],
-            'gamma': 0.1,
+            'sigma_range': [5e-2, 1.0],
+            'gamma': 0.5,
         }
         backend_args = {
-            'n_features': 5000,
-            'alpha': constant_value * 0.05,
-            'p': 1.25,
-            'n_iter_irls': 100,
-            'noise_level': noise_level,
+            'prior_std': prior_std,
         }
 
-        client_state = DialWorkflowCreationParamsService(
-            dataset_x=dataset_x,
-            dataset_y=dataset_y,
-            bounds=INITIAL_BOUNDS,
-            kernel='rbf',
-            kernel_args=kernel_args,
-            y_is_good=False,
-            backend=backend,
-            backend_args=backend_args,
-            seed=-1,
-            dim_x=2,
-        )
     else:
         # train model with new data
-        client_state = DialWorkflowCreationParamsService(
-            dataset_x=dataset_x,
-            dataset_y=dataset_y,
-            bounds=INITIAL_BOUNDS,
-            kernel='rbf',
-            kernel_args={
-                'length_scale': length_scale,
-                'length_scale_bounds': 'fixed',
-                'noise_level': noise_level,
-                'noise_level_bounds': 'fixed',
-                'constant_value': constant_value,
-                'constant_value_bounds': 'fixed',
-            },
-            y_is_good=False,  # we wish to minimize y (the error)
-            backend=backend,  # "sklearn" or "gpax"
-            seed=-1,  # Use seed = -1 for random results
-            dim_x=2,
-        )
+        kernel = 'matern'
+        kernel_args = {
+            'length_scale': length_scale,
+            'constant_value': prior_std**2,
+        }
+        backend_args = {}
+
+    client_state = DialWorkflowCreationParamsService(
+        dataset_x=dataset_x,
+        dataset_y=dataset_y,
+        statistics_y=statistics_y,
+        bounds=INITIAL_BOUNDS,
+        kernel=kernel,
+        kernel_args=kernel_args,
+        y_is_good=False,
+        backend=backend,
+        backend_args=backend_args,
+        seed=-1,
+        dim_x=2,
+    )
 
     data = ServersideInputBase(client_state)
     model = dial_core.train_model(data)
@@ -271,10 +273,12 @@ def run_simulation(
         DialInputSingleOtherStrategy(
             workflow_id=MOCK_WORKFLOW_ID,
             bounds=INITIAL_BOUNDS,
-            y_is_good=False,  # we wish to minimize y (the error)
-            seed=-1,  # Use seed = -1 for random results
+            y_is_good=False,
+            seed=-1,
             strategy=strategy,
             strategy_args=strategy_args,
+            discrete_measurements=True,
+            discrete_measurement_grid_size=[MESHGRID_SIZE, MESHGRID_SIZE],
         ),
     )
     next_point = dial_core.get_next_point(data, model)
@@ -312,7 +316,7 @@ def graph(err_grid, dataset_x, strategy):
     )
     cbar = plt.colorbar()
     cbar.set_ticks(np.logspace(-2, 0, 7))
-    cbar.set_label('RMSE')
+    cbar.set_label('Overall error')
     plt.xlabel('Simulation Parameter #1')
     plt.ylabel('Simulation Parameter #2')
     # add black dots for data points and a red marker for the recommendation:
@@ -325,7 +329,7 @@ def graph(err_grid, dataset_x, strategy):
 
 def accuracy_benchmark(
     strategy: str, strategy_args: object, max_iterations=MAX_ITERATIONS
-) -> tuple[int, float]:
+) -> tuple[int, float, float]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
@@ -333,7 +337,6 @@ def accuracy_benchmark(
     """
 
     iterations = 0
-    total_rmse = float('inf')
 
     initial_dataset_x = np.random.uniform(-1.0, 1.0, size=(INITIAL_NUM_POINTS, NUM_DIMS)).tolist()
 
@@ -351,38 +354,46 @@ def accuracy_benchmark(
         # guess has no meaning here, take the last acquired datapoint
         guess = dataset_x[-1]
 
-        # compute the RMSE on the grid and the average
-        mse = err_grid**2 + std_grid**2
-        total_rmse = np.sqrt(np.mean(mse))
-        print(iterations, total_rmse)
+        # compute the RMSE and MAD on the grid and the average
+        # rmse = np.sqrt(err_grid**2 + std_grid**2)
+        mad = np.abs(err_grid)
+        # total_rmse = np.sqrt(np.mean(rmse**2))
+        total_mad = np.sqrt(np.mean(mad**2))
+
+        # pick the MAD over the RMSE as an error criterion, it only measures the mean deviation:
+        # it is less sensitive to wrong std and hyperparameter calibration, but does not measure how well
+        # the "error bars" (std_grid) quantify the actual ty
+        error = total_mad
+        print(iterations, error)
 
         graph(
-            np.sqrt(mse),
+            mad,
             dataset_x,
             f'{strategy}_{strategy_args.get("backend", "sklearn")}',
         )
 
-        if total_rmse <= TARGET_RMSE:
+        if error <= TARGET_ERROR:
             break
         iterations += 1
 
-    return iterations, total_rmse, guess
+    return iterations, error, guess
 
 
 TEST_PARAMS = (
-    ('strategy', 'strategy_args', 'max_iterations'),
+    ('backend', 'strategy', 'strategy_args', 'max_iterations'),
     [
-        ('uncertainty', {}, 2),
-        ('uncertainty', {'backend': 'sable'}, 2),
-        ('random', {}, 2),
+        ('sklearn', 'uncertainty', {}, 2),
+        ('sable', 'uncertainty', {}, 2),
+        ('sklearn', 'random', {}, 2),
         # use low number of iterations for unit test
     ],
 )
 
 
-@pytest.mark.parametrize(*TEST_PARAMS)
+@pytest.mark.parametrize(*generate_pytest_parameters(TEST_PARAMS, 0))
 def test_benchmark_strainmap_accuracy(
     # benchmark: BenchmarkFixture,
+    backend: str,
     strategy: str,
     strategy_args: dict,
     max_iterations: int,
@@ -392,7 +403,9 @@ def test_benchmark_strainmap_accuracy(
     # iterations, target = benchmark(
     # partial(accuracy_benchmark, strategy, strategy_args)
     # )
-    iterations, target, guess = accuracy_benchmark(strategy, strategy_args, max_iterations)
+    iterations, target, guess = accuracy_benchmark(
+        strategy, {'backend': backend, **strategy_args}, max_iterations
+    )
     print(
         'Iterations for',
         strategy,
@@ -405,7 +418,7 @@ def test_benchmark_strainmap_accuracy(
     )
     print(
         'Maximum early terminus value',
-        TARGET_RMSE,
+        TARGET_ERROR,
         ' with ',
         max_iterations,
         ' maximum iterations.',
@@ -465,7 +478,7 @@ if __name__ == '__main__':
     logger.info('Running benchmarks with %d iterations per strategy...', NUM_RUNS)
 
     results = {}
-    for strategy, strategy_args in strategies:
+    for strategy, strategy_args, _ in strategies:
         strategy_name = f'{strategy}' + (f' {json.dumps(strategy_args)}' if strategy_args else '')
         logger.info('\nBenchmarking: %s', strategy_name)
 
@@ -496,7 +509,7 @@ if __name__ == '__main__':
             'std_iterations': np.std(iterations_list),
             'avg_target': np.mean(targets_list),
             'std_target': np.std(targets_list),
-            'success_rate': sum(1 for t in targets_list if t <= TARGET_RMSE) / NUM_RUNS * 100,
+            'success_rate': sum(1 for t in targets_list if t <= TARGET_ERROR) / NUM_RUNS * 100,
         }
 
     # Generate plots
@@ -504,7 +517,11 @@ if __name__ == '__main__':
     output_dir.mkdir(parents=True, exist_ok=True)
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('Strainmap Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
+    fig.suptitle(
+        'Strainmap Optimization Benchmark Comparison',
+        fontsize=16,
+        fontweight='bold',
+    )
 
     # Plot 1: Average iterations to convergence
     ax1 = axes[0, 0]
@@ -565,10 +582,10 @@ if __name__ == '__main__':
         fontsize=8,
     )
     ax2.axhline(
-        y=TARGET_RMSE,
+        y=TARGET_ERROR,
         color='r',
         linestyle='--',
-        label=f'Target Threshold ({TARGET_RMSE})',
+        label=f'Target Threshold ({TARGET_ERROR})',
     )
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
@@ -591,7 +608,7 @@ if __name__ == '__main__':
     bars3 = ax3.bar(range(len(strategy_names)), success_rates, alpha=0.7, color='green')
     ax3.set_xlabel('Strategy')
     ax3.set_ylabel('Success Rate (%)')
-    ax3.set_title(f'Success Rate (Target ≤ {TARGET_RMSE})')
+    ax3.set_title(f'Success Rate (Target ≤ {TARGET_ERROR})')
     ax3.set_xticks(range(len(strategy_names)))
     ax3.set_xticklabels(
         [s.replace(' ', '\n') for s in strategy_names],
@@ -617,11 +634,7 @@ if __name__ == '__main__':
     # Plot 4: Box plot of iterations distribution
     ax4 = axes[1, 1]
     iterations_data = [results[s]['iterations'] for s in strategy_names]
-    bp = ax4.boxplot(
-        iterations_data,
-        labels=[s.replace(' ', '\n') for s in strategy_names],
-        patch_artist=True,
-    )
+    bp = ax4.boxplot(iterations_data, patch_artist=True)
     for patch in bp['boxes']:
         patch.set_facecolor('lightblue')
     ax4.set_xlabel('Strategy')
@@ -726,7 +739,7 @@ if __name__ == '__main__':
         <p><strong>Generated:</strong> {datetime.datetime.now(tz=datetime.timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p><strong>Number of Runs per Strategy:</strong> {NUM_RUNS}</p>
         <p><strong>Maximum Iterations:</strong> {MAX_ITERATIONS}</p>
-        <p><strong>Target Threshold:</strong> {TARGET_RMSE}</p>
+        <p><strong>Target Threshold:</strong> {TARGET_ERROR}</p>
         <p><strong>Initial Bounds:</strong> {INITIAL_BOUNDS}</p>
         <p><strong>Initial Points:</strong> {INITIAL_NUM_POINTS}</p>
     </div>
@@ -734,7 +747,7 @@ if __name__ == '__main__':
     <div class="summary">
         <h3>🎯 Test Objective</h3>
         <p>This benchmark evaluates different acquisition strategies for Bayesian optimization on a strain mapping experiment dataset.
-        The goal is to minimize the RMSE (error) within {MAX_ITERATIONS} iterations, starting from {INITIAL_NUM_POINTS} initial points.</p>
+        The goal is to minimize the total surrogate error (over all inputs) within {MAX_ITERATIONS} iterations, starting from {INITIAL_NUM_POINTS} initial points.</p>
     </div>
 
     <h2>📈 Benchmark Results</h2>
@@ -864,7 +877,11 @@ if __name__ == '__main__':
             result['avg_iterations'],
             result['std_iterations'],
         )
-        logger.info('  Avg Target:     %.4f ± %.4f', result['avg_target'], result['std_target'])
+        logger.info(
+            '  Avg Target:     %.4f ± %.4f',
+            result['avg_target'],
+            result['std_target'],
+        )
         logger.info('  Success Rate:   %.1f%%', result['success_rate'])
 
     logger.info('\n%s', '=' * 60)

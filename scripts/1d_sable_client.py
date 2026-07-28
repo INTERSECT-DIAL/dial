@@ -88,8 +88,6 @@ class ActiveLearningOrchestrator:
         ]
         self.meshgrids = np.meshgrid(*self.grid_points, indexing='ij')
         self.x_grid = np.hstack([mg.reshape(-1, 1) for mg in self.meshgrids])
-        # Mirror the demo's RNG sequence before generating the noisy initial observations.
-        truth_model(self.x_grid[:, 0], 0.0, self.rng)
         self.y_raw, _ = truth_model(self.x_raw[:, 0], self.noise_level, self.rng)
 
         self.dataset_x = self.x_raw.reshape(-1, 1).tolist()
@@ -100,19 +98,15 @@ class ActiveLearningOrchestrator:
 
         self.kernel = 'rbf'
         self.kernel_args = {
-            'x_range': [0.0, 1.0],
             'sigma_range': [2.5e-3, 0.5],
             'gamma': 0.1,
         }
         self.backend = 'sable'
         self.backend_args = {
-            'n_features': 5000,
-            'alpha': 0.05,
-            'p': 1.25,
-            'n_iter_irls': 100,
+            'prior_std': 0.8,
         }
-        self.strategy = 'upper_confidence_bound'
-        self.strategy_args = {'exploit': 0.0, 'explore': 1.0}
+        self.strategy = 'uncertainty'
+        self.strategy_args = {}
         self.niter = 0
         self.max_iter = 30
         self.at_grids = True
@@ -253,13 +247,6 @@ class ActiveLearningOrchestrator:
         self.dataset_x.append(self.x_next)
         self.dataset_y.append(y_scalar)
 
-        # In this example we are running pure exploration, no optimization:
-        # optpos = np.argmax(self.dataset_y)
-        # y_opt = self.dataset_y[optpos]
-        # optimal_coords = self.dataset_x[optpos]
-        # coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
-        # print(f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}\n')
-
     def graph(self):
         plt.clf()
 
@@ -294,7 +281,12 @@ class ActiveLearningOrchestrator:
 
         axs[1].plot(self.x_grid[:, 0], acquisition_values)
         if self.x_next is not None:
-            axs[1].axvline(x=self.x_next[0], color='red', linestyle='--', label='Next Point')
+            axs[1].axvline(
+                x=self.x_next[0],
+                color='red',
+                linestyle='--',
+                label='Next Point',
+            )
         axs[1].set_xlabel('Features, x')
         axs[1].set_ylabel('Acquisition Value')
         axs[1].legend()

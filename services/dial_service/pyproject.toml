@@ -22,11 +22,17 @@ dependencies = [
   "numpy",
   "scikit-learn>=1.4.0,<2.0.0",
   "scipy>=1.12.0,<2.0.0",
-  "gpax>=0.1.8",
-  "numpyro<0.20.1",
   "pymongo>=4.12.1",
-  "sable @ git+https://code.ornl.gov/sable/sable.git",  # TODO replace with PyPI version when available
 ]
+
+[project.optional-dependencies]
+gpax = [
+  "gpax>=0.1.8",
+  "numpyro<0.20.1", # depend on older numpyro for gpax (numpyro.contrib.module: random_haiku_module)
+]
+sable = [
+  "sable @ git+https://code.ornl.gov/sable/sable.git",
+] # TODO replace with PyPI version when available
 
 [project.urls]
 Homepage = "https://github.com/INTERSECT-DIAL/dial/"

@@ -17,8 +17,8 @@ class ServersideInputBase:
         self.dim_y = data.dim_y
         self.labels_x = data.labels_x
         self.labels_y = data.labels_y
-        self.dataset_x = np.array(data.dataset_x)
-        self.dataset_y = np.array(data.dataset_y).reshape((-1, self.dim_y))
+        self.dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
+        self.dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
         self.statistics_y = data.statistics_y
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
         self.bounds = data.bounds
