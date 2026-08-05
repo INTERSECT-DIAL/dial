@@ -249,6 +249,7 @@ class ServersideInputMultiple(ServersideInputBase):
         # set new inputs
         super().__init__(workflow_state)
         self.strategy = params.strategy
+        self.batch_strategy = params.batch_strategy
         self.points = params.points
         self.strategy = params.strategy
         self.strategy_args = params.strategy_args
