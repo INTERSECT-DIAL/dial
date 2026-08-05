@@ -57,7 +57,7 @@ GROUND_TRUTH_X = np.hstack([mg.reshape(-1, 1) for mg in SURROGATE_MESHGRID])
 GROUND_TRUTH_Y = rosenbrock(SURROGATE_MESHGRID[0], SURROGATE_MESHGRID[1]).tolist()
 
 
-NUM_ITERATIONS = 200
+NUM_ITERATIONS = 50
 
 
 SAMPLING_GRID_SIZE = [5, 5]
@@ -241,14 +241,13 @@ class Plotter:
 
     def __call__(
         self,
-        sample_index: int,
         new_x: list[float] | list[list[float]],
         train_x,
         train_y,
         surrogate_y=None,
         final: bool = False,
     ):
-        strategy_index = self.scheduler.get_strategy_index(sample_index)
+        strategy_index = self.scheduler.get_strategy_index(len(train_x))
         ax = self._graph_axes[strategy_index + 1]
 
         # Save attributes before clearing
@@ -543,7 +542,6 @@ class ActiveLearningOrchestrator:
                 y_opt = self.dataset_y[minpos]
                 # self.graph(x_opt, True)
                 self.plotter(
-                    sample_index=len(self.dataset_x),
                     new_x=x_opt,
                     train_x=self.dataset_x,
                     train_y=self.dataset_y,
@@ -563,7 +561,6 @@ class ActiveLearningOrchestrator:
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
             self.next_x = payload['data']
             self.plotter(
-                sample_index=len(self.dataset_x),
                 new_x=self.next_x,
                 train_x=self.dataset_x,
                 train_y=self.dataset_y,
@@ -575,7 +572,6 @@ class ActiveLearningOrchestrator:
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
             self.next_x = payload['data']
             self.plotter(
-                sample_index=len(self.dataset_x),
                 new_x=self.next_x,
                 train_x=self.dataset_x,
                 train_y=self.dataset_y,
