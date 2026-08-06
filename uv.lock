@@ -757,7 +757,7 @@ wheels = [
 
 [[package]]
 name = "dial-service"
-version = "0.1.6"
+version = "0.1.7"
 source = { editable = "services/dial_service" }
 dependencies = [
     { name = "intersect-dial-dataclass" },
@@ -1177,7 +1177,7 @@ wheels = [
 
 [[package]]
 name = "intersect-dial-dataclass"
-version = "0.1.6"
+version = "0.1.7"
 source = { editable = "packages/intersect_dial_dataclass" }
 dependencies = [
     { name = "pydantic" },
