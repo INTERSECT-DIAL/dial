@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/intersect-sdk
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      # if the output of check_needs_publish is not "True" (only happens if dial_dataclass and dial_service have the same versions), do not try to publish to PyPI or Github Releases
+      - name: "Check if package should be published"
+        id: "check_needs_publish"
+        run: echo "match=$(python -c 'from importlib.metadata import version; print(version("intersect_dial_dataclass") == version("dial_service"))')" >> "$GITHUB_OUTPUT"
+      - name: "Build package"
+        if: ${{ steps.check_needs_publish.outputs.match == 'True' }}
+        run: uv build --no-create-gitignore packages/intersect_dial_dataclass
+      - name: Publish package to PyPI
+        if: ${{ steps.check_needs_publish.outputs.match == 'True' }}
+        run: uv publish
+      - name: upload to github release
+        if: ${{ steps.check_needs_publish.outputs.match == 'True' }}
+        uses: docker://antonyurchenko/git-release:v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # assume any version with "a" (gets "ALPHA") or "b" (gets BETA) or "rc" (release candidates) will be a prerelease
+          PRE_RELEASE: "${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}"
+        with:
+          args: dist/*

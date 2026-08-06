@@ -1,7 +1,6 @@
 from copy import deepcopy
 
 import pytest
-
 from dial_service.service_specific_dataclasses import AVAILABLE_DIAL_BACKENDS
 
 

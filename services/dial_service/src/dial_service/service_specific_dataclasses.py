@@ -1,8 +1,10 @@
 from typing import Annotated, Literal
 
+from intersect_dial_dataclass.dial_dataclass import (
+    _POSSIBLE_BACKENDS,
+    _DialWorkflowCreationParams,
+)
 from pydantic import Field
-
-from dial_dataclass.dial_dataclass import _POSSIBLE_BACKENDS, _DialWorkflowCreationParams
 
 from .logger import logger
 

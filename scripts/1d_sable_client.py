@@ -8,6 +8,13 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from intersect_dial_dataclass import (
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
+    DialWorkflowCreationParamsClient,
+    DialWorkflowDatasetUpdate,
+    Normal,
+)
 from intersect_sdk import (
     INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
@@ -16,14 +23,6 @@ from intersect_sdk import (
     IntersectClientConfig,
     IntersectDirectMessageParams,
     default_intersect_lifecycle_loop,
-)
-
-from dial_dataclass import (
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-    DialWorkflowCreationParamsClient,
-    DialWorkflowDatasetUpdate,
-    Normal,
 )
 
 mpl.use('agg')
@@ -121,7 +120,11 @@ class ActiveLearningOrchestrator:
         self.service_destination = service_destination
 
     def __call__(
-        self, _source: str, operation: str, _has_error: bool, payload: INTERSECT_RESPONSE_VALUE
+        self,
+        _source: str,
+        operation: str,
+        _has_error: bool,
+        payload: INTERSECT_RESPONSE_VALUE,
     ) -> IntersectClientCallback:
         if _has_error:
             print('============ERROR==============', file=sys.stderr)
@@ -278,7 +281,12 @@ class ActiveLearningOrchestrator:
 
         axs[1].plot(self.x_grid[:, 0], acquisition_values)
         if self.x_next is not None:
-            axs[1].axvline(x=self.x_next[0], color='red', linestyle='--', label='Next Point')
+            axs[1].axvline(
+                x=self.x_next[0],
+                color='red',
+                linestyle='--',
+                label='Next Point',
+            )
         axs[1].set_xlabel('Features, x')
         axs[1].set_ylabel('Acquisition Value')
         axs[1].legend()
