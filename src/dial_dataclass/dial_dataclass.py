@@ -408,6 +408,7 @@ SingleStrategyType = Literal[
     'chebyshev',
     'latin_hypercube',
     'random',
+    'hypercube',
     #############################
     # surrogate based strategies
     'uncertainty',
