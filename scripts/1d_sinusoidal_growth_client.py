@@ -76,13 +76,18 @@ class ActiveLearningOrchestrator:
         # Assume that there is some small noise in the measurements to stabilize the fit
         self.statistics_y = Normal(loc='y', scale=1e-6)
 
-        self.backend = 'sklearn'
+        # Set the prior standard deviation of the surrogate model
+        self.prior_std = 1.0
+
+        self.backend = 'sklearn'  # 'sklearn' or 'sable'
         if self.backend == 'sklearn':
             # configure kernel_hyperparameters
             self.kernel = 'matern'  # 'rbf' or 'matern'
+            # set kernel hyperparameters
+            prior_variance = self.prior_std**2
             self.kernel_args = {
                 'length_scale': 0.1,
-                'constant_value': 1.0,
+                'constant_value': prior_variance,
             }
             self.optimize_lengthscale = False
             if self.optimize_lengthscale:
@@ -95,19 +100,18 @@ class ActiveLearningOrchestrator:
         elif self.backend == 'sable':
             self.kernel = 'rbf'
             self.kernel_args = {
-                'x_range': [-2.0, 2.0],
                 'sigma_range': [1.0e-3, 1.0],
-                'gamma': 0.1,
             }
+            # increase the prior standard deviation to avoid overconfidence
+            self.prior_std *= 5.0
             self.backend_args = {
-                'n_features': 10000,
-                'alpha': 0.0005,
-                'p': 1.25,
-                'n_iter_irls': 20,
+                'prior_std': self.prior_std,
             }
 
-        self.strategy = 'upper_confidence_bound'
-        self.strategy_args = {'exploit': 0.4, 'explore': 1}
+        strat = ('upper_confidence_bound', {'exploit': 0.4, 'explore': 1})
+        # strat = ('expected_improvement', {})
+        self.strategy, self.strategy_args = strat
+
         self.niter = 0
         self.max_iter = 20
         self.at_grids = True
@@ -177,7 +181,6 @@ class ActiveLearningOrchestrator:
                 kernel_args=self.kernel_args,
                 backend=self.backend,
                 backend_args=self.backend_args,
-                preprocess_standardize=True,
                 y_is_good=True,
             )
 
@@ -265,7 +268,7 @@ class ActiveLearningOrchestrator:
             self.mean_grid + 2 * self.stddev_grid,
             self.mean_grid - 2 * self.stddev_grid,
             alpha=0.5,
-            label='Confidence Interval',
+            label='$2\\sigma$ Confidence Interval',
         )
         axs[0].scatter(
             np.array(self.dataset_x)[:-1, 0],

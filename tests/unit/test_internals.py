@@ -9,6 +9,7 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
+    Normal,
 )
 from dial_service import core
 from dial_service.serverside_data import (
@@ -17,6 +18,7 @@ from dial_service.serverside_data import (
     ServersideInputSingle,
 )
 from dial_service.service_specific_dataclasses import (
+    AVAILABLE_DIAL_BACKENDS,
     DialWorkflowCreationParamsService,
 )
 
@@ -25,6 +27,34 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 
 
 ######### HELPERS ####################
+
+
+def empty_data(backend, strategy, strategy_args, dim_x, bounds):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=dim_x,
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        seed=42,
+    )
+    return ServersideInputSingle(workflow_state, params)
 
 
 def single_1D(backend, strategy, strategy_args):
@@ -253,11 +283,35 @@ def single_3D(backend, strategy, strategy_args, discrete_measurement_grid_size=N
     return ServersideInputSingle(workflow_state, params)
 
 
+def multiple_1D(backend, strategy, discrete_measurement_grid_size=None):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=1,  # provide dim_x for empty dataset
+        dim_y=1,  # provide dim_y for empty dataset
+        y_is_good=False,
+        kernel='rbf',
+        bounds=[[0, 100]],
+        backend=backend,
+        seed=42,
+    )
+    params = DialInputMultiple(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        bounds=[[0, 100]],
+        discrete_measurements=bool(discrete_measurement_grid_size),
+        discrete_measurement_grid_size=discrete_measurement_grid_size or [20, 20],
+        points=20,
+    )
+    return ServersideInputMultiple(workflow_state, params)
+
+
 def multiple_2D(backend, strategy, discrete_measurement_grid_size=None):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
         dim_x=2,  # provide dim_x for empty dataset
+        dim_y=1,  # provide dim_y for empty dataset
         y_is_good=False,
         kernel='rbf',
         bounds=[[0, 100], [-1, 1]],
@@ -299,6 +353,30 @@ def prediction_1D(backend):
     return ServersideInputPrediction(workflow_state, params)
 
 
+def prediction_1D_heteroscedastic(backend):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[[1.0], [1.5], [2.0]],
+        dataset_y=[[-1.0, 1e-2], [0.0, 1e2], [1.0, 1e-5]],
+        labels_y=['y', 'yerr'],
+        dim_y=2,
+        statistics_y=Normal(loc='y', scale='yerr'),
+        bounds=[[1.0, 2.0]],
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+        },
+        backend=backend,
+        preprocess_standardize=False,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputPredictions(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        points_to_predict=[[1], [1.25], [1.5], [1.75], [2]],
+    )
+    return ServersideInputPrediction(workflow_state, params)
+
+
 ####### TESTS ###################
 
 
@@ -306,7 +384,13 @@ def prediction_1D(backend):
     ('backend', 'approx'),
     [
         ('sklearn', 1.842309),
-        # ('gpax', 2.0),
+        # pytest.param(
+        #     'gpax', 2.0,
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_EI_1D(backend, approx):
@@ -323,7 +407,13 @@ def test_EI_1D(backend, approx):
     ('backend', 'val'),
     [
         ('sklearn', 1.0),
-        # ('gpax', 2.0),
+        # pytest.param(
+        #     'gpax', 2.0,
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_EI_1D_discrete(backend, val):
@@ -344,7 +434,13 @@ def test_EI_1D_discrete(backend, val):
     ('backend', 'approx'),
     [
         ('sklearn', [1.705352, -1.682829]),
-        # ('gpax', [2.0, 2.0]),
+        # pytest.param(
+        #     'gpax', [2.0, 2,0],
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_EI_2D(backend, approx):
@@ -361,7 +457,12 @@ def test_EI_2D(backend, approx):
     ('backend', 'approx'),
     [
         ('sklearn', [2.000000, -1.143727, -1.859496]),
-        # ('gpax', [2.0, 2.0, -2.0],  # WAS: [2.0, 2.0, 2.0]
+        # pytest.param(
+        #     'gpax', [2.0, 2,0, 2.0,],  # WAS: [2.0,2.0,2,0]
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
         # ),
     ],
 )
@@ -379,7 +480,13 @@ def test_EI_3D(backend, approx):
     ('backend', 'approx'),
     [
         ('sklearn', [1.5]),
-        # ('gpax',),
+        # pytest.param(
+        #     'gpax' [2.0],
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_uncertainty(backend, approx):
@@ -393,7 +500,13 @@ def test_uncertainty(backend, approx):
     ('backend', 'approx'),
     [
         ('sklearn', [1.790396262]),
-        # ('gpax', [2.0]),
+        # pytest.param(
+        #     'gpax' [2.0],
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_preprocessing_standardize(backend, approx):
@@ -409,7 +522,13 @@ def test_preprocessing_standardize(backend, approx):
     ('backend', 'val'),
     [
         ('sklearn', [1.0]),
-        # ('gpax', [2.0]),
+        # pytest.param(
+        #     'gpax' [2.0],
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_preprocessing_standardize_discrete(backend, val):
@@ -433,7 +552,13 @@ def test_preprocessing_standardize_discrete(backend, val):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 def test_random(backend):
@@ -449,7 +574,13 @@ def test_random(backend):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 def test_hypercube_single_point(backend):
@@ -479,7 +610,13 @@ def test_hypercube_single_point(backend):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 def test_random_discrete(backend):
@@ -504,7 +641,13 @@ def test_random_discrete(backend):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 def test_hypercube_single_point_discrete(backend):
@@ -540,7 +683,13 @@ def test_hypercube_single_point_discrete(backend):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 def test_hypercube_single_point_discrete_2D(backend):
@@ -572,10 +721,32 @@ def test_hypercube_single_point_discrete_2D(backend):
 
 
 @pytest.mark.parametrize(
+    ('backend', 'strategy'),
+    [
+        ('sklearn', 'polymer_acl_sampler'),
+    ],
+)
+def test_batch_points(backend, strategy):
+    data = multiple_1D(backend, strategy=strategy)
+    model = core.initialize_model(data)
+    batch_points = core.get_next_points(data, model)
+    assert len(batch_points) == data.points
+    for pt in batch_points:
+        print(pt)
+        assert 0 <= pt[0] <= 100
+
+
+@pytest.mark.parametrize(
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 def test_random_points(backend):
@@ -590,7 +761,13 @@ def test_random_points(backend):
     ('backend'),
     [
         ('sklearn'),
-        # ('gpax'),
+        # pytest.param(
+        #     'gpax',
+        #     marks=pytest.mark.skipif(
+        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
+        #         reason='gpax not installed',
+        #     ),
+        # ),
     ],
 )
 def test_hypercube_multiple_points(backend):
@@ -618,7 +795,7 @@ def test_hypercube_multiple_points(backend):
             ],
             [2.11126987e01, 2.96625069e01, 2.11126987e01],
         ),
-        # (
+        # pytest.param(
         # 'gpax',
         # [
         #     76.99987768175089,
@@ -628,6 +805,7 @@ def test_hypercube_multiple_points(backend):
         #     82.26569221517353,
         # ],
         # [3335.7290084812175, 3327.202331393974, 3335.7290084812175],
+        # marks=pytest.mark.skipif('gpax' not in AVAILABLE_DIAL_BACKENDS, reason='gpax not installed')
         # ),
     ],
 )
@@ -637,6 +815,33 @@ def test_surrogate(backend, expected_means, expected_stddevs):
     means, stddevs, _ = core.get_surrogate_values(data, model)
     assert means == pytest.approx(expected_means)
     assert stddevs[1:4] == pytest.approx(expected_stddevs)
+
+
+@pytest.mark.parametrize(
+    ('backend', 'expected_means', 'expected_stddevs'),
+    [
+        (
+            'sklearn',
+            [-1.0, -0.65, 0.0, 0.65, 1.0],
+            [1e-2, 0.42, 0.59, 0.42, 1e-5],
+        ),
+        pytest.param(
+            'sable',
+            [-1.0, -0.56, 0.0, 0.56, 1.0],
+            [1e-2, 0.29, 0.34, 0.29, 1e-5],
+            marks=pytest.mark.skipif(
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
+            ),
+        ),
+    ],
+)
+def test_surrogate_heteroscedastic(backend, expected_means, expected_stddevs):
+    data = prediction_1D_heteroscedastic(backend)
+    model = core.train_model(data)
+    means, stddevs, _ = core.get_surrogate_values(data, model)
+    assert means == pytest.approx(expected_means, rel=0.01, abs=1e-4)
+    assert stddevs == pytest.approx(expected_stddevs, rel=0.01, abs=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -679,3 +884,222 @@ def test_inverse_transform(backend):
     assert inv_y == pytest.approx([100, 141.42135623730945, 200])
     assert inv_yerr == pytest.approx(inv_y * 0.34657359027997243 * test_yerr)
     test_transform(inv_y, inv_yerr)
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_center(backend, dim):
+    if dim == 1:
+        data = single_1D_discrete_grid(
+            backend,
+            strategy='center',
+            strategy_args=None,
+            discrete_measurement_grid_size=[60],
+        )
+    else:
+        data = single_2D_discrete_grid(
+            backend,
+            strategy='center',
+            strategy_args=None,
+            discrete_measurement_grid_size=[6, 6],
+        )
+    model = core.initialize_model(data)
+    output = core.get_next_point(data, model)
+    assert len(output) == dim
+    if dim == 1:
+        output = output[0]
+        assert output == pytest.approx(0.5 * (data.bounds[0][0] + data.bounds[0][1]))
+    else:
+        assert output[0] == pytest.approx(0.5 * (data.bounds[0][0] + data.bounds[0][1]))
+        assert output[1] == pytest.approx(0.5 * (data.bounds[1][0] + data.bounds[1][1]))
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_corners(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend, strategy='corners', strategy_args=None, dim_x=1, bounds=[[0, 59]]
+        )
+        points = [[0], [59]]
+    else:
+        data = empty_data(
+            backend, strategy='corners', strategy_args=None, dim_x=2, bounds=[[0, 5], [0, 5]]
+        )
+        points = [[data.bounds[0][i], data.bounds[1][j]] for i in range(2) for j in range(2)]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_grid(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend, strategy='grid', strategy_args={'grid_size': [60]}, dim_x=1, bounds=[[0, 59]]
+        )
+        points = [[i] for i in range(60)]
+    else:
+        data = empty_data(
+            backend,
+            strategy='grid',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [[i, j] for i in range(6) for j in range(6)]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_chebyshev_grid(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [60]},
+            dim_x=1,
+            bounds=[[0, 59]],
+        )
+        points = [np.cos(i * np.pi / 59) for i in range(60)]
+        points = [
+            0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point + 1) + data.bounds[0][0]
+            for point in points
+        ]
+    else:
+        data = empty_data(
+            backend,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [
+            [np.cos(i * np.pi / 5), np.cos(j * np.pi / 5)] for i in range(6) for j in range(6)
+        ]
+        points = [
+            [
+                0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point[0] + 1) + data.bounds[0][0],
+                0.5 * (data.bounds[1][1] - data.bounds[1][0]) * (point[1] + 1) + data.bounds[1][0],
+            ]
+            for point in points
+        ]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_latin_hypercube(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [60]},
+            dim_x=1,
+            bounds=[[0, 60]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 61)]
+    else:
+        data = empty_data(
+            backend,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 6], [0, 6]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 7)]
+        intervals = [[i, j] for i in intervals for j in intervals]
+    model = core.initialize_model(data)
+    for i in range(len(intervals)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            for interval in intervals:
+                if interval[0] <= output[0] <= interval[1]:
+                    intervals.remove(interval)
+                    break
+            assert len(intervals) == 60 - (i + 1)
+        else:
+            for interval in intervals:
+                if (
+                    interval[0][0] <= output[0] <= interval[0][1]
+                    and interval[1][0] <= output[1] <= interval[1][1]
+                ):
+                    intervals.remove(interval)
+                    break
+            assert len(intervals) == 36 - (i + 1)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(intervals) == 0
