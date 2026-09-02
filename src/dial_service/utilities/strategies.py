@@ -1,5 +1,6 @@
 import itertools
 import logging
+from numbers import Real
 
 import numpy as np
 from scipy.optimize import minimize
@@ -292,6 +293,98 @@ def indexed_selection(data: ServersideInputSingle):
     selected_point = strategy_(data, [index])[0]
 
     return selected_point
+
+
+def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
+    """
+    Greedy batch selection using the liar or believer strategies.
+    """
+
+    if data.points <= 0:
+        return []
+
+    selected_points: list[list[float]] = []
+    initial_x = np.asarray(data.dataset_x, dtype=float)
+    initial_y = np.asarray(data.dataset_y, dtype=float)
+
+    if data.batch_strategy is not None:
+        if data.batch_strategy == 'liar':
+            liar_setting = (
+                data.strategy_args.get('liar_value', 'mean')
+                if data.strategy_args is not None
+                else 'mean'
+            )
+
+            if isinstance(liar_setting, Real):
+                liar_value = float(liar_setting)
+            elif isinstance(liar_setting, str):
+                match liar_setting:
+                    case 'mean':
+                        liar_value = np.mean(data.dataset_y)
+                    case 'max':
+                        liar_value = np.max(data.dataset_y)
+                    case 'min':
+                        liar_value = np.min(data.dataset_y)
+                    case 'random':
+                        liar_value = data.numpy_rng.uniform(
+                            np.min(data.dataset_y), np.max(data.dataset_y)
+                        )
+                    case 'median':
+                        liar_value = np.median(data.dataset_y)
+                    case _:
+                        liar_value = np.mean(data.dataset_y)
+            elif callable(liar_setting):
+                liar_value = liar_setting(data.dataset_y)
+
+            def predictor(point):  # noqa: ARG001
+                return liar_value
+
+        elif data.batch_strategy == 'believer':
+            believer_setting = (
+                data.strategy_args.get('believer_type', 'kriging')
+                if data.strategy_args is not None
+                else 'kriging'
+            )
+
+            match believer_setting:
+                case 'kriging':
+
+                    def predictor(point):
+                        data.set_x_predict(point)
+                        return backend_module.predict(model, data)[0][0]
+
+    current_model = model
+    try:
+        for _ in range(data.points):
+            if data.strategy in INDEXED_STRATEGIES:
+                point = indexed_selection(data)
+            else:
+                point = greedy_sampling(backend_module, current_model, data)
+            selected_points.append([float(v) for v in point])
+
+            x_arr = np.asarray(point, dtype=float).reshape(1, -1)
+            y_arr = np.asarray([[predictor(selected_points[-1])]], dtype=float)
+
+            if data.dataset_x.size == 0:
+                data.dataset_x = x_arr
+            else:
+                data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), x_arr])
+            data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), y_arr])
+
+            # Why do we need to strip cached properties here?
+            # Because we are modifying dataset_x and dataset_y, which are used in cached properties like stddev, Y_best, etc.
+            # If we don't clear these caches, they might return outdated values based on the old dataset
+            # By stripping the cached properties, we ensure that the next time these properties are accessed, they will be recalculated based on the updated dataset
+            data.clear_cached_properties()
+
+            current_model = backend_module.train_model(data)
+    finally:
+        # Restore original state so pseudo-observations never leak outside this method.
+        data.dataset_x = initial_x
+        data.dataset_y = initial_y
+        data.clear_cached_properties()
+
+    return selected_points
 
 
 def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
