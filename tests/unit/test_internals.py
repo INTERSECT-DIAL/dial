@@ -380,6 +380,14 @@ def prediction_1D_heteroscedastic(backend):
 ####### TESTS ###################
 
 
+def test_dataset_y_reassignment_invalidates_cache():
+    data = single_1D('sklearn', strategy='random', strategy_args=None)
+    assert data.y_train_raw == pytest.approx([100, 200])
+
+    data.dataset_y = np.array([[300], [400]])
+    assert data.y_train_raw == pytest.approx([300, 400])
+
+
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [

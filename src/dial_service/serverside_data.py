@@ -18,8 +18,8 @@ class ServersideInputBase:
         self.dim_y = data.dim_y
         self.labels_x = data.labels_x
         self.labels_y = data.labels_y
-        self.dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
-        self.dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
+        self._dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
+        self._dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
         self.statistics_y = data.statistics_y
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
         self.bounds = data.bounds
@@ -33,6 +33,24 @@ class ServersideInputBase:
         self.backend_args = data.backend_args
         self.kernel_args = data.kernel_args
         self.extra_args = data.extra_args
+
+    @property
+    def dataset_x(self) -> np.ndarray:
+        return self._dataset_x
+
+    @dataset_x.setter
+    def dataset_x(self, value: np.ndarray) -> None:
+        self._dataset_x = value
+        self.clear_cached_properties()
+
+    @property
+    def dataset_y(self) -> np.ndarray:
+        return self._dataset_y
+
+    @dataset_y.setter
+    def dataset_y(self, value: np.ndarray) -> None:
+        self._dataset_y = value
+        self.clear_cached_properties()
 
     @cached_property
     def X_train(self) -> np.ndarray:
@@ -62,14 +80,11 @@ class ServersideInputBase:
 
         return (X - lows) / span
 
-    def _extract_y_train_from_dataset(self):
+    @cached_property
+    def y_train_raw(self) -> np.ndarray:
         """
-        Find output y and error values yerr in dataset_y, and save.
+        Return the raw training target values extracted from the dataset.
         """
-        if hasattr(self, 'y_train_raw') and hasattr(self, 'yerr_train_raw'):
-            # only compute this on first invocation
-            return
-
         y_label = self.statistics_y.loc
         if not isinstance(y_label, str):
             msg = 'statistics_y.loc must be a Label (str).'
@@ -78,21 +93,27 @@ class ServersideInputBase:
         # Use the label from self.statistics_y.loc to find the data column with the mean y data
         # this may trigger a ValueError, if the label does not exist, but should be handled by dataclass validation
         pos_y = self.labels_y.index(y_label)
-        self.y_train_raw = self.dataset_y[:, pos_y]
+        return self.dataset_y[:, pos_y]
 
+    @cached_property
+    def yerr_train_raw(self) -> any:
+        """
+        Return the raw training error values extracted from the dataset.
+        """
         yerr_label = self.statistics_y.scale
         if isinstance(yerr_label, float):
-            self.yerr_train_raw = yerr_label
+            _yerr_train_raw = yerr_label
         else:
             # yerr_label is str
             # this may trigger a ValueError, but should be handled by dataclass validation
             pos_yerr = self.labels_y.index(yerr_label)
-            self.yerr_train_raw = self.dataset_y[:, pos_yerr]
+            _yerr_train_raw = self.dataset_y[:, pos_yerr]
 
-        if np.any(self.yerr_train_raw < 0):
-            idxs = np.where(np.yerr_train_raw < 0)
-            msg = f'yerr values in statistics_y.scale must be non-negative, found {np.yerr_train_raw[idxs[0]]} at {idxs[0]}.'
+        if np.any(_yerr_train_raw < 0):
+            idxs = np.where(_yerr_train_raw < 0)
+            msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
             raise ValueError(msg)
+        return _yerr_train_raw
 
     @cached_property
     def Y_train(self) -> np.ndarray:
@@ -100,9 +121,6 @@ class ServersideInputBase:
         Find output y and error values yerr in dataset_y, and apply transformation.
         Return transformed y value.
         """
-        # ensure that self.y_train_raw, self.yerr_train_raw are populated
-        self._extract_y_train_from_dataset()
-
         y, _ = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
 
         # return only y, to conform to interface
@@ -114,9 +132,6 @@ class ServersideInputBase:
         Find output y and error values in dataset y, and apply transformation.
         Return transformed yerr value.
         """
-        # ensure that self.y_train_raw, self.yerr_train_raw are populated
-        self._extract_y_train_from_dataset()
-
         # recompute transformation, at some overhead (probably not worth to optimize)
         _, yerr = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
 
@@ -127,9 +142,6 @@ class ServersideInputBase:
         """
         Return the appropriate mean and scaling of the raw y data for normalization
         """
-        # ensure that self.y_train_raw, self.yerr_train_raw are populated
-        self._extract_y_train_from_dataset()
-
         # find y_std from y_train_raw
         y_train = self.y_train_raw
         if len(y_train) > 0 and self.preprocess_standardize:
@@ -176,6 +188,29 @@ class ServersideInputBase:
     @cached_property
     def Y_best(self) -> float:
         return self.Y_train.max() if self.y_is_good else self.Y_train.min()
+
+    def clear_cached_properties(self) -> None:
+        # Track attribute names that have already been encountered.
+        # Classes are inspected in Method Resolution Order (MRO) order,
+        # starting with the most-derived class
+        resolved_names = set()
+
+        # Walk through the class hierarchy:
+        # DerivedClass -> BaseClass -> ... -> object
+        for cls in type(self).__mro__:
+            # Inspect only attributes defined directly on the current class
+            for name, attr in cls.__dict__.items():
+                # Skip names already defined by a more-derived class
+                if name in resolved_names:
+                    continue
+
+                resolved_names.add(name)
+
+                # A cached_property descriptor is stored on the class,
+                # while its computed value is stored in the instance __dict__
+                if isinstance(attr, cached_property):
+                    # Remove the cached value if it exists
+                    self.__dict__.pop(name, None)
 
 
 class ServersideInputSingle(ServersideInputBase):
