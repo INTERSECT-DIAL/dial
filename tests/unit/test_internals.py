@@ -29,6 +29,34 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 ######### HELPERS ####################
 
 
+def empty_data(backend, strategy, strategy_args, dim_x, bounds):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=dim_x,
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        seed=42,
+    )
+    return ServersideInputSingle(workflow_state, params)
+
+
 def single_1D(backend, strategy, strategy_args):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[[1], [2]],
@@ -856,3 +884,222 @@ def test_inverse_transform(backend):
     assert inv_y == pytest.approx([100, 141.42135623730945, 200])
     assert inv_yerr == pytest.approx(inv_y * 0.34657359027997243 * test_yerr)
     test_transform(inv_y, inv_yerr)
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_center(backend, dim):
+    if dim == 1:
+        data = single_1D_discrete_grid(
+            backend,
+            strategy='center',
+            strategy_args=None,
+            discrete_measurement_grid_size=[60],
+        )
+    else:
+        data = single_2D_discrete_grid(
+            backend,
+            strategy='center',
+            strategy_args=None,
+            discrete_measurement_grid_size=[6, 6],
+        )
+    model = core.initialize_model(data)
+    output = core.get_next_point(data, model)
+    assert len(output) == dim
+    if dim == 1:
+        output = output[0]
+        assert output == pytest.approx(0.5 * (data.bounds[0][0] + data.bounds[0][1]))
+    else:
+        assert output[0] == pytest.approx(0.5 * (data.bounds[0][0] + data.bounds[0][1]))
+        assert output[1] == pytest.approx(0.5 * (data.bounds[1][0] + data.bounds[1][1]))
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_corners(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend, strategy='corners', strategy_args=None, dim_x=1, bounds=[[0, 59]]
+        )
+        points = [[0], [59]]
+    else:
+        data = empty_data(
+            backend, strategy='corners', strategy_args=None, dim_x=2, bounds=[[0, 5], [0, 5]]
+        )
+        points = [[data.bounds[0][i], data.bounds[1][j]] for i in range(2) for j in range(2)]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_grid(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend, strategy='grid', strategy_args={'grid_size': [60]}, dim_x=1, bounds=[[0, 59]]
+        )
+        points = [[i] for i in range(60)]
+    else:
+        data = empty_data(
+            backend,
+            strategy='grid',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [[i, j] for i in range(6) for j in range(6)]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_chebyshev_grid(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [60]},
+            dim_x=1,
+            bounds=[[0, 59]],
+        )
+        points = [np.cos(i * np.pi / 59) for i in range(60)]
+        points = [
+            0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point + 1) + data.bounds[0][0]
+            for point in points
+        ]
+    else:
+        data = empty_data(
+            backend,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [
+            [np.cos(i * np.pi / 5), np.cos(j * np.pi / 5)] for i in range(6) for j in range(6)
+        ]
+        points = [
+            [
+                0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point[0] + 1) + data.bounds[0][0],
+                0.5 * (data.bounds[1][1] - data.bounds[1][0]) * (point[1] + 1) + data.bounds[1][0],
+            ]
+            for point in points
+        ]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        ('gpax'),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_latin_hypercube(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [60]},
+            dim_x=1,
+            bounds=[[0, 60]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 61)]
+    else:
+        data = empty_data(
+            backend,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 6], [0, 6]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 7)]
+        intervals = [[i, j] for i in intervals for j in intervals]
+    model = core.initialize_model(data)
+    for i in range(len(intervals)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            for interval in intervals:
+                if interval[0] <= output[0] <= interval[1]:
+                    intervals.remove(interval)
+                    break
+            assert len(intervals) == 60 - (i + 1)
+        else:
+            for interval in intervals:
+                if (
+                    interval[0][0] <= output[0] <= interval[0][1]
+                    and interval[1][0] <= output[1] <= interval[1][1]
+                ):
+                    intervals.remove(interval)
+                    break
+            assert len(intervals) == 36 - (i + 1)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(intervals) == 0
