@@ -215,8 +215,10 @@ def empty_data(backend, strategy, strategy_args, dim_x, bounds):
     return ServersideInputSingle(workflow_state, params)
 
 
-def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, dim_x, bounds, discrete_measurements=False, discrete_measurement_grid_size=[]):
+def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, dim_x, bounds, discrete_measurements=False, discrete_measurement_grid_size=None):
     """Helper function to create empty batch data for testing."""
+    if discrete_measurement_grid_size is None:
+        discrete_measurement_grid_size = []
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
         dataset_y=[],
