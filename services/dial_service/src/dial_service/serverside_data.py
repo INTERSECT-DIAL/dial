@@ -2,8 +2,7 @@ from functools import cached_property
 from typing import Any
 
 import numpy as np
-
-from dial_dataclass import (
+from intersect_dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingle,

@@ -3,14 +3,7 @@ import pickle
 import traceback
 from typing import Any
 
-from intersect_sdk import (
-    IntersectBaseCapabilityImplementation,
-    IntersectCapabilityError,
-    intersect_message,
-    intersect_status,
-)
-
-from dial_dataclass import (
+from intersect_dial_dataclass import (
     DialDataResponse1D,
     DialDataResponse2D,
     DialInputMultiple,
@@ -21,7 +14,13 @@ from dial_dataclass import (
     DialWorkflowDatasetUpdates,
     DialWorkflowFullState,
 )
-from dial_dataclass.pydantic_helpers import ValidatedObjectId
+from intersect_dial_dataclass.pydantic_helpers import ValidatedObjectId
+from intersect_sdk import (
+    IntersectBaseCapabilityImplementation,
+    IntersectCapabilityError,
+    intersect_message,
+    intersect_status,
+)
 
 from . import core
 from .mongo_handler import MongoDBCredentials, MongoDBHandler

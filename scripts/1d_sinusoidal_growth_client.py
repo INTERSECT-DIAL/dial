@@ -8,6 +8,13 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from intersect_dial_dataclass import (
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
+    DialWorkflowCreationParamsClient,
+    DialWorkflowDatasetUpdate,
+    Normal,
+)
 from intersect_sdk import (
     INTERSECT_RESPONSE_VALUE,
     HierarchyConfig,
@@ -16,14 +23,6 @@ from intersect_sdk import (
     IntersectClientConfig,
     IntersectDirectMessageParams,
     default_intersect_lifecycle_loop,
-)
-
-from dial_dataclass import (
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-    DialWorkflowCreationParamsClient,
-    DialWorkflowDatasetUpdate,
-    Normal,
 )
 
 mpl.use('agg')

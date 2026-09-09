@@ -9,7 +9,7 @@ If using the iHub interface, these schemas and their descriptions should be visi
 Request Objects
 ===============
 
-.. automodule:: dial_dataclass.dial_dataclass
+.. automodule:: intersect_dial_dataclass.dial_dataclass
    :members:
    :undoc-members:
    :exclude-members: model_computed_fields, model_config, model_fields
@@ -17,7 +17,7 @@ Request Objects
 Response Objects
 ================
 
-.. automodule:: dial_dataclass.dial_dataclass_responses
+.. automodule:: intersect_dial_dataclass.dial_dataclass_responses
    :members:
    :undoc-members:
    :exclude-members: model_computed_fields, model_config, model_fields

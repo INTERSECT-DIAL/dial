@@ -3,11 +3,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from bson import Binary
+from intersect_dial_dataclass import (
+    DialWorkflowDatasetUpdate,
+    DialWorkflowDatasetUpdates,
+)
+from intersect_dial_dataclass.pydantic_helpers import ValidatedObjectId
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
-
-from dial_dataclass import DialWorkflowDatasetUpdate, DialWorkflowDatasetUpdates
-from dial_dataclass.pydantic_helpers import ValidatedObjectId
 
 from .logger import logger
 
