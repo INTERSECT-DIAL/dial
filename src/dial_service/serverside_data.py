@@ -1,4 +1,5 @@
 from functools import cached_property
+from typing import Any
 
 import numpy as np
 
@@ -96,7 +97,7 @@ class ServersideInputBase:
         return self.dataset_y[:, pos_y]
 
     @cached_property
-    def yerr_train_raw(self) -> any:
+    def yerr_train_raw(self) -> Any:
         """
         Return the raw training error values extracted from the dataset.
         """
@@ -127,7 +128,7 @@ class ServersideInputBase:
         return y
 
     @cached_property
-    def Yerr_train(self) -> any:
+    def Yerr_train(self) -> Any:
         """
         Find output y and error values in dataset y, and apply transformation.
         Return transformed yerr value.
@@ -155,7 +156,7 @@ class ServersideInputBase:
 
         return y_mean, y_std
 
-    def transform_Y(self, y: np.ndarray, yerr: any) -> tuple[np.ndarray, any]:
+    def transform_Y(self, y: np.ndarray, yerr: Any) -> tuple[np.ndarray, Any]:
         """
         Transform y and yerr according to preprocess options
         """
@@ -170,7 +171,7 @@ class ServersideInputBase:
 
         return y, yerr
 
-    def inverse_transform_Y(self, y: np.ndarray, yerr: any) -> tuple[np.ndarray, any]:
+    def inverse_transform_Y(self, y: np.ndarray, yerr: Any) -> tuple[np.ndarray, Any]:
         """
         Inverse transforms of y and yerr, in reverse order
         """
