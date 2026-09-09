@@ -1,4 +1,5 @@
 from functools import cached_property
+from typing import Any
 
 import numpy as np
 
@@ -96,7 +97,7 @@ class ServersideInputBase:
         return self.dataset_y[:, pos_y]
 
     @cached_property
-    def yerr_train_raw(self) -> any:
+    def yerr_train_raw(self) -> Any:
         """
         Return the raw training error values extracted from the dataset.
         """
@@ -110,8 +111,12 @@ class ServersideInputBase:
             _yerr_train_raw = self.dataset_y[:, pos_yerr]
 
         if np.any(_yerr_train_raw < 0):
-            idxs = np.where(_yerr_train_raw < 0)
-            msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
+            if isinstance(_yerr_train_raw, float):
+                # TODO: should probably verify this in the dataclass instead
+                msg = f'yerr value in statistics_y.scale must be non-negative, found {_yerr_train_raw}'
+            else:
+                idxs = np.where(_yerr_train_raw < 0)
+                msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
             raise ValueError(msg)
         return _yerr_train_raw
 
@@ -127,7 +132,7 @@ class ServersideInputBase:
         return y
 
     @cached_property
-    def Yerr_train(self) -> any:
+    def Yerr_train(self) -> Any:
         """
         Find output y and error values in dataset y, and apply transformation.
         Return transformed yerr value.
@@ -147,7 +152,7 @@ class ServersideInputBase:
         if len(y_train) > 0 and self.preprocess_standardize:
             if self.preprocess_log:
                 y_train = np.log(y_train)
-            y_std = np.std(y_train)
+            y_std = max(np.std(y_train), 1e-12)
             y_mean = np.mean(y_train)
         else:
             y_std = 1.0
@@ -155,7 +160,7 @@ class ServersideInputBase:
 
         return y_mean, y_std
 
-    def transform_Y(self, y: np.ndarray, yerr: any) -> tuple[np.ndarray, any]:
+    def transform_Y(self, y: np.ndarray, yerr: Any) -> tuple[np.ndarray, Any]:
         """
         Transform y and yerr according to preprocess options
         """
@@ -170,7 +175,7 @@ class ServersideInputBase:
 
         return y, yerr
 
-    def inverse_transform_Y(self, y: np.ndarray, yerr: any) -> tuple[np.ndarray, any]:
+    def inverse_transform_Y(self, y: np.ndarray, yerr: Any) -> tuple[np.ndarray, Any]:
         """
         Inverse transforms of y and yerr, in reverse order
         """
@@ -267,8 +272,8 @@ class ServersideInputMultiple(ServersideInputBase):
         # set new inputs
         super().__init__(workflow_state)
         self.strategy = params.strategy
+        self.batch_strategy = params.batch_strategy
         self.points = params.points
-        self.strategy = params.strategy
         self.strategy_args = params.strategy_args
         self.optimization_points = params.optimization_points
         self.confidence_bound = (

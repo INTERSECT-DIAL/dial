@@ -423,6 +423,13 @@ SingleStrategyType = Literal[
 ]
 
 
+MultipleStrategyType = Literal[
+    #############################
+    # batch strategies
+    'liar', 'believer'
+]
+
+
 class DialInputSingleOtherStrategy(BaseModel):
     workflow_id: ValidatedObjectId
     strategy: SingleStrategyType
@@ -487,16 +494,15 @@ class DialInputMultipleOtherStrategy(BaseModel):
 
     workflow_id: ValidatedObjectId
     points: PositiveIntType
-    strategy: Literal[
-        'random',
-        'uncertainty',
-        'expected_improvement',
-        'upper_confidence_bound',
-        'upper_confidence_bound_nomad',
-        'polymer_acl_sampler',
-        'hypercube',
-    ]
-    strategy_args: dict[str, float | int | bool] | None = Field(default=None)
+    strategy: SingleStrategyType
+    batch_strategy: MultipleStrategyType | None = Field(
+        default=None,
+        description='If a batch strategy is specified, it will be used to generate multiple points from the single point strategy. '
+        'If None, the single point strategy will be used to generate multiple points.',
+    )
+    strategy_args: dict[str, str | float | int | bool | list[int | float]] | None = Field(
+        default=None
+    )
     y_is_good: Annotated[
         bool | None,
         Field(

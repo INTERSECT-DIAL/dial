@@ -1,6 +1,8 @@
 import argparse
+import bisect
 import json
 import logging
+import math
 import os
 import sys
 from pathlib import Path
@@ -26,6 +28,7 @@ from dial_dataclass import (
     DialInputSingleOtherStrategy,
     DialWorkflowCreationParamsClient,
     DialWorkflowDatasetUpdate,
+    DialWorkflowDatasetUpdates,
 )
 
 mpl.use('agg')
@@ -54,19 +57,74 @@ GROUND_TRUTH_X = np.hstack([mg.reshape(-1, 1) for mg in SURROGATE_MESHGRID])
 GROUND_TRUTH_Y = rosenbrock(SURROGATE_MESHGRID[0], SURROGATE_MESHGRID[1]).tolist()
 
 
-NUM_ITERATIONS = 100
+NUM_ITERATIONS = 200
 
 
 SAMPLING_GRID_SIZE = [5, 5]
 STRATEGY_SCHEDULE = [
     {'strategy': 'center', 'num_samples': 1},
     {'strategy': 'corners', 'num_samples': 2**NUM_DIMS},
-    # {'strategy': 'grid',      'num_samples': np.prod(SAMPLING_GRID_SIZE), 'args': {'grid_size': SAMPLING_GRID_SIZE}},
+    # # {'strategy': 'grid',      'num_samples': np.prod(SAMPLING_GRID_SIZE), 'args': {'grid_size': SAMPLING_GRID_SIZE}},
     # {'strategy': 'chebyshev', 'num_samples': np.prod(SAMPLING_GRID_SIZE), 'args': {'grid_size': SAMPLING_GRID_SIZE}},
+    # {
+    #     'strategy': 'latin_hypercube',
+    #     'num_samples': np.prod(SAMPLING_GRID_SIZE),
+    #     'args': {'grid_size': SAMPLING_GRID_SIZE},
+    # },
+    # {
+    #     'batch_strategy': 'liar',
+    #     'strategy': 'corners',
+    #     'num_samples': 4,
+    #     'args': {'liar_value': 0},
+    # },
     {
+        'batch_strategy': 'liar',
+        'strategy': 'grid',
+        'num_samples': 25,
+        'args': {'liar_value': 'median', 'grid_size': [4, 4]},
+    },
+    {
+        'batch_strategy': 'liar',
+        'strategy': 'chebyshev',
+        'num_samples': 25,
+        'args': {'liar_value': 100, 'grid_size': [5, 5]},
+    },
+    {
+        'batch_strategy': 'believer',
         'strategy': 'latin_hypercube',
-        'num_samples': np.prod(SAMPLING_GRID_SIZE),
-        'args': {'grid_size': SAMPLING_GRID_SIZE},
+        'num_samples': 25,
+        'args': {'grid_size': [5, 5]},
+    },
+    {
+        'batch_strategy': 'liar',
+        'strategy': 'expected_improvement',
+        'num_samples': 10,
+        'args': {'liar_value': 0},
+    },
+    {
+        'batch_strategy': 'liar',
+        'strategy': 'expected_improvement',
+        'num_samples': 10,
+        'args': {'liar_value': 'mean'},
+    },
+    {
+        'batch_strategy': 'believer',
+        'strategy': 'expected_improvement',
+        'num_samples': 10,
+        'args': {'liar_value': 'mean'},
+    },
+    {'strategy': 'expected_improvement', 'num_samples': 10},
+    {
+        'batch_strategy': 'believer',
+        'strategy': 'expected_improvement',
+        'num_samples': 30,
+        'args': {'liar_value': 'mean'},
+    },
+    {
+        'batch_strategy': 'liar',
+        'strategy': 'expected_improvement',
+        'num_samples': 10,
+        'args': {'liar_value': 'min'},
     },
     {'strategy': 'expected_improvement'},
 ]
@@ -77,22 +135,247 @@ NOISE_LEVEL = 10e-6
 CONSTANT_VALUE = 1.0
 
 
-class ActiveLearningOrchestrator:
-    @property
-    def current_strategy(self):
-        if not hasattr(self, '_current_strategy_id'):
-            self._current_strategy_id = 0
-            self._strategy_break_points = np.cumsum(
-                [s.get('num_samples', 1e6) for s in STRATEGY_SCHEDULE]
+class Scheduler:
+    def __init__(self, strategy_schedule: list[dict[str, Any]]):
+        self.strategy_schedule = strategy_schedule
+        self.strategy_break_points = np.cumsum(
+            [s.get('num_samples', 1e6) for s in strategy_schedule], dtype=int
+        )
+
+    def __call__(self, sample_index):
+        index = bisect.bisect_right(self.strategy_break_points, sample_index)
+        return self.strategy_schedule[min(index, len(self.strategy_schedule) - 1)]
+
+    def get_strategy_index(self, sample_index):
+        index = bisect.bisect_right(self.strategy_break_points, sample_index)
+        return min(index, len(self.strategy_schedule) - 1)
+
+
+class Plotter:
+    """Class to handle plotting of the surrogate model and optimization progress."""
+
+    def __init__(self, scheduler: Scheduler, max_cols: int = 4):
+        """Initialize with a grid of subplots based on the number of strategies"""
+        self.save_path = 'graph.png'
+        self.scheduler = scheduler
+
+        num_plots = len(scheduler.strategy_schedule) + 1
+        num_cols = min(max_cols, num_plots)
+        num_rows = math.ceil(num_plots / num_cols)
+
+        self._graph_fig, graph_axes = plt.subplots(
+            num_rows, num_cols, figsize=(6 * num_cols, 6 * num_rows), squeeze=False
+        )
+        self._graph_axes = graph_axes.ravel()
+
+        # Hide empty subplot positions
+        for unused_ax in self._graph_axes[num_plots:]:
+            unused_ax.set_visible(False)
+
+        self._graph_colorbars = {}
+
+        break_points = [0, *list(scheduler.strategy_break_points)]
+        for i, ax in enumerate(self._graph_axes[1:num_plots]):
+            current_strategy = scheduler(break_points[i])
+            batch_strategy = current_strategy.get('batch_strategy', None)
+            if batch_strategy and batch_strategy.lower() == 'liar':
+                batch_strategy = f'{batch_strategy} ({current_strategy["args"]["liar_value"]})'
+            strategy_name = (f'{batch_strategy} + ' if batch_strategy else '') + current_strategy[
+                'strategy'
+            ]
+            strategy_name += (
+                f', {current_strategy["num_samples"]} samples'
+                if 'num_samples' in current_strategy
+                else ''
             )
 
-        if len(self.dataset_y) < self._strategy_break_points[self._current_strategy_id]:
-            return STRATEGY_SCHEDULE[self._current_strategy_id]
-        self._current_strategy_id += 1
-        if self._current_strategy_id < len(self._strategy_break_points):
-            return STRATEGY_SCHEDULE[self._current_strategy_id]
-        return {'strategy': 'expected_improvement'}
+            # ax.set_xlabel('Simulation Parameter #1')
+            # ax.set_ylabel('Simulation Parameter #2')
+            ax.set_title(f'{strategy_name}')
 
+            colorbar = self._graph_fig.colorbar(None, ax=ax)
+            colorbar.set_ticks(np.logspace(-2, 4, 7))
+            # colorbar.set_label('Simulation Result')
+            self._graph_colorbars[ax] = colorbar
+
+        self.plot_ground_truth()
+
+    def plot_ground_truth(self):
+        """Plot the ground truth Rosenbrock function on the first subplot"""
+        contourf = self._graph_axes[0].contourf(
+            SURROGATE_MESHGRID[0],
+            SURROGATE_MESHGRID[1],
+            GROUND_TRUTH_Y,
+            levels=np.logspace(-2, 4, 101),
+            norm='log',
+            extend='both',
+        )
+        self._graph_axes[0].contour(
+            SURROGATE_MESHGRID[0],
+            SURROGATE_MESHGRID[1],
+            GROUND_TRUTH_Y,
+            levels=np.logspace(-2, 4, 10),
+            norm='log',
+            extend='both',
+            colors='k',
+        )
+        self._graph_axes[0].scatter(
+            1,
+            1,
+            color='red',
+            marker='*',
+            s=200,
+            zorder=10,
+        )
+        self._graph_axes[0].set_xlabel('Simulation Parameter #1')
+        self._graph_axes[0].set_ylabel('Simulation Parameter #2')
+        self._graph_axes[0].set_title('Ground Truth Rosenbrock Function')
+
+        colorbar = self._graph_fig.colorbar(contourf, ax=self._graph_axes[0])
+        colorbar.set_ticks(np.logspace(-2, 4, 7))
+        # colorbar.set_label('Simulation Result')
+        self._graph_colorbars[self._graph_axes[0]] = colorbar
+
+        self._graph_fig.tight_layout()
+        self._graph_fig.savefig(self.save_path, bbox_inches='tight')
+
+    def __call__(
+        self,
+        new_x: list[float] | list[list[float]],
+        train_x,
+        train_y,
+        surrogate_y=None,
+        final: bool = False,
+    ):
+        strategy_index = self.scheduler.get_strategy_index(len(train_x))
+        ax = self._graph_axes[strategy_index + 1]
+
+        # Save attributes before clearing
+        t = ax.get_title()
+        xl = ax.get_xlabel()
+        yl = ax.get_ylabel()
+        # Clear the axis content only
+        ax.cla()
+        # Restore the attributes
+        ax.set_title(t)
+        ax.set_xlabel(xl)
+        ax.set_ylabel(yl)
+
+        if NUM_DIMS == 2:
+            new_x = np.asarray(new_x, dtype=float).reshape(-1, NUM_DIMS)
+
+            if surrogate_y is not None:
+                data = np.maximum(np.asarray(surrogate_y), 0.11)
+            else:
+                data = np.zeros((MESHGRID_SIZE, MESHGRID_SIZE))
+
+            contourf = ax.contourf(
+                SURROGATE_MESHGRID[0],
+                SURROGATE_MESHGRID[1],
+                data,
+                levels=np.logspace(-2, 4, 101),
+                norm='log',
+                extend='both',
+            )
+            ax.scatter(
+                1.0,
+                1.0,
+                s=300,
+                facecolors='none',
+                edgecolors='black',
+                marker='o',
+                label='True Minimum',
+                zorder=10,
+            )
+
+            self._graph_colorbars[ax].update_normal(contourf)
+
+            optimal_coords = None
+            minpos = None
+            if len(train_x) > 0:
+                train_x = np.asarray(train_x)
+
+                prev_strategies_points = self.scheduler.strategy_break_points[
+                    max(0, strategy_index - 1)
+                ]
+
+                ax.scatter(
+                    train_x[:prev_strategies_points, 0],
+                    train_x[:prev_strategies_points, 1],
+                    color='black',
+                    marker='s',
+                    label='Previous strategies',
+                    s=30,
+                    alpha=0.3,
+                    zorder=10,
+                )
+                ax.scatter(
+                    train_x[prev_strategies_points:, 0],
+                    train_x[prev_strategies_points:, 1],
+                    color='black',
+                    marker='o',
+                    label='Current strategy',
+                    s=50,
+                    zorder=10,
+                )
+
+                minpos = int(np.argmin(train_y))
+                optimal_coords = np.asarray(train_x[minpos])
+
+                ax.scatter(
+                    optimal_coords[0],
+                    optimal_coords[1],
+                    color='red',
+                    marker='*',
+                    s=200,
+                    label='Best Point Estimate',
+                    zorder=10,
+                )
+
+            if final and optimal_coords is not None:
+                ax.set_title('final surrogate')
+                final_x = ', '.join(f'{coord:.2f}' for coord in optimal_coords)
+
+                self._graph_fig.suptitle(
+                    f'Best point estimate so far is x=({final_x}), '
+                    f'y={train_y[minpos]:.3f}; '
+                    'true minimum is at x=(1.00, 1.00), y=0.00',
+                    x=0.5,
+                    y=1.0,
+                )
+            else:
+                ax.scatter(
+                    new_x[:, 0],
+                    new_x[:, 1],
+                    color='red',
+                    marker='o',
+                    label='Recommended Points',
+                    s=50,
+                    zorder=10,
+                )
+
+            # Extract and deduplicate handles and labels from ALL subplots
+            handles, labels = [], []
+            for ax in self._graph_fig.axes:
+                h, lab = ax.get_legend_handles_labels()
+                handles.extend(h)
+                labels.extend(lab)
+            # Use a dictionary to keep only the first occurrence of each unique label
+            by_label = dict(zip(labels, handles, strict=False))
+            # Create the clean figure-level legend
+            self._graph_fig.legend(
+                by_label.values(),
+                by_label.keys(),
+                loc='outside lower center',
+                ncol=3,
+                bbox_to_anchor=(0.5, -0.05),
+            )
+
+            self._graph_fig.tight_layout()
+            self._graph_fig.savefig(self.save_path, bbox_inches='tight')
+
+
+class ActiveLearningOrchestrator:
     def __init__(self, service_destination: str, rosenbrock_destination: str):
         self.service_destination = service_destination
         self.rosenbrock_destination = rosenbrock_destination
@@ -105,13 +388,21 @@ class ActiveLearningOrchestrator:
         self.dataset_x = []
         self.dataset_y: list[float] = []
 
+        self.next_x = None
+        self.surrogate_y = None
+
+        self.scheduler = Scheduler(STRATEGY_SCHEDULE)
+        self.plotter = Plotter(scheduler=self.scheduler)
+
+    @property
+    def current_strategy(self):
+        return self.scheduler(len(self.dataset_y))
+
     # create a message to send to the server
     def assemble_message(self, operation: str, **kwargs: Any) -> IntersectClientCallback:
         print(f'assembling dial message: {operation}')
         if operation == 'initialize_workflow':
             payload = DialWorkflowCreationParamsClient(
-                # init_strategy=self.init_strategy,
-                # init_npoints=self.init_npoints,
                 dataset_x=self.dataset_x,
                 dataset_y=self.dataset_y,
                 bounds=BOUNDS,
@@ -130,9 +421,13 @@ class ActiveLearningOrchestrator:
                 backend='sklearn',  # "sklearn" or "gpax"
                 seed=-1,  # Use seed = -1 for random results
             )
-            print(payload)
         elif operation == 'update_workflow_with_data':
             payload = DialWorkflowDatasetUpdate(
+                workflow_id=self.workflow_id,
+                **kwargs,
+            )
+        elif operation == 'update_workflow_with_batch_data':
+            payload = DialWorkflowDatasetUpdates(
                 workflow_id=self.workflow_id,
                 **kwargs,
             )
@@ -144,11 +439,14 @@ class ActiveLearningOrchestrator:
                 bounds=BOUNDS,
             )
         elif operation == 'get_next_points':
+            if self.current_strategy.get('batch_strategy', None) is None:
+                return self.assemble_message('get_next_point')
             payload = DialInputMultipleOtherStrategy(
                 workflow_id=self.workflow_id,
+                batch_strategy=self.current_strategy.get('batch_strategy'),
                 strategy=self.current_strategy['strategy'],
                 strategy_args=self.current_strategy.get('args', None),
-                points=self.batch_size,
+                points=self.current_strategy.get('num_samples', 1),
                 bounds=BOUNDS,
             )
         elif operation == 'get_surrogate_values':
@@ -172,13 +470,12 @@ class ActiveLearningOrchestrator:
     def assemble_rosenbrock_message(self, operation: str) -> IntersectClientCallback:
         print(f'assembling rosenbrock message: {operation}')
         if operation == 'rosenbrock':
-            last_x = self.dataset_x[-1]
             payload = {
-                'x': last_x[0],
-                'y': last_x[1],
+                'x': self.next_x[0],
+                'y': self.next_x[1],
             }
         elif operation == 'rosenbrock_bulk':
-            payload = [{'x': x[0], 'y': x[1]} for x in self.dataset_x]
+            payload = [{'x': x[0], 'y': x[1]} for x in self.next_x]
         else:
             err_msg = f'Invalid operation {operation}'
             raise Exception(err_msg)  # noqa: TRY002
@@ -209,16 +506,49 @@ class ActiveLearningOrchestrator:
             msg = f'Error in operation {operation}: payload = {payload}'
             raise Exception(msg)  # noqa: TRY002 (break INTERSECT loop)
         if operation == 'Rosenbrock.rosenbrock':
-            # this operation gets called periodically
-            self.dataset_y.append(payload)
-            coord_str = ', '.join([f'{coord:.2f}' for coord in self.next_point])
+            coord_str = ', '.join([f'{coord:.2f}' for coord in self.next_x])
             print(f'Running simulation at ({coord_str}): {payload:.3f}')
+            self.dataset_x.append(self.next_x)
+            self.dataset_y.append(payload)
+            return self.assemble_message(
+                'update_workflow_with_data', next_x=self.next_x, next_y=payload
+            )
+        if operation == 'Rosenbrock.rosenbrock_bulk':
+            self.dataset_x += self.next_x
+            self.dataset_y += payload
+            coord_str = '\n '.join(
+                [
+                    '(' + ', '.join([f'{coord:.2f}' for coord in next_x]) + f') -> {next_y:.3f}'
+                    for next_x, next_y in zip(self.next_x, payload, strict=False)
+                ]
+            )
+            print(f'Running simulation at\n {coord_str}')
+            return self.assemble_message(
+                'update_workflow_with_batch_data', next_x_list=self.next_x, next_y_list=payload
+            )
+        if operation == 'dial.initialize_workflow':
+            self.workflow_id: str = payload
+            return self.assemble_message('get_next_points')
+        if operation == 'dial.update_workflow_with_data':
+            return self.assemble_message('get_surrogate_values')
+        if operation == 'dial.update_workflow_with_batch_data':
+            return self.assemble_message('get_surrogate_values')
+        if operation == 'dial.get_surrogate_values':
+            means = payload['values']
+            self.surrogate_y = np.array(means).reshape((MESHGRID_SIZE,) * NUM_DIMS)
             if len(self.dataset_x) >= NUM_ITERATIONS:
                 minpos = np.argmin(self.dataset_y)
+                x_opt = self.dataset_x[minpos]
                 y_opt = self.dataset_y[minpos]
-                optimal_coords = self.dataset_x[minpos]
-                self.graph(optimal_coords, True)
-                coord_str = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
+                # self.graph(x_opt, True)
+                self.plotter(
+                    new_x=x_opt,
+                    train_x=self.dataset_x,
+                    train_y=self.dataset_y,
+                    surrogate_y=self.surrogate_y,
+                    final=True,
+                )
+                coord_str = ', '.join([f'{coord:.2f}' for coord in x_opt])
                 print(
                     f'Optimal simulated datapoint at ({coord_str}), y={y_opt:.3f}',
                     end='\n',
@@ -226,127 +556,32 @@ class ActiveLearningOrchestrator:
                 )
                 msg = 'Client simulation completed successfully.'
                 raise Exception(msg)  # noqa: TRY002 (INTERSECT interaction mechanism, do not need custom exception)
-            return self.assemble_message(
-                'update_workflow_with_data', next_x=self.dataset_x[-1], next_y=payload
-            )
-        if operation == 'Rosenbrock.rosenbrock_bulk':
-            # this operation only gets called at the very beginning of the workflow
-            self.dataset_y: list[float] = payload
-            return self.assemble_message('initialize_workflow')
-        if operation == 'dial.initialize_workflow':
-            self.workflow_id: str = payload
-            # return self.assemble_message('get_surrogate_values')
-            return self.assemble_message('get_next_point')
-        if operation == 'dial.update_workflow_with_data':
-            return self.assemble_message('get_surrogate_values')
-        if operation == 'dial.get_surrogate_values':
-            means = payload['values']
-            self.surrogate_y = np.array(means).reshape((MESHGRID_SIZE,) * NUM_DIMS)
-            return self.assemble_message('get_next_point')
+            return self.assemble_message('get_next_points')
         if operation == 'dial.get_next_point':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
-            next_point = payload['data']
-            if hasattr(self, 'surrogate_y'):
-                self.graph(next_point)
-            self.next_point = next_point
-            self.dataset_x.append(next_point)
+            self.next_x = payload['data']
+            self.plotter(
+                new_x=self.next_x,
+                train_x=self.dataset_x,
+                train_y=self.dataset_y,
+                surrogate_y=self.surrogate_y,
+                final=False,
+            )
             return self.assemble_rosenbrock_message('rosenbrock')
         if operation == 'dial.get_next_points':
             # if we receive an EI recommendation, record it, show the user the current graph, and run the "simulation":
-            next_points = payload['data']
-            for next_point in next_points:
-                self.graph(next_point)
-                self.dataset_x.append(next_point)
-                coord_str = ', '.join([f'{coord:.2f}' for coord in next_point])
-                print(f'Running simulation at ({coord_str}): ', end='', flush=True)
-            return self.assemble_rosenbrock_message('rosenbrock')
+            self.next_x = payload['data']
+            self.plotter(
+                new_x=self.next_x,
+                train_x=self.dataset_x,
+                train_y=self.dataset_y,
+                surrogate_y=self.surrogate_y,
+                final=False,
+            )
+            return self.assemble_rosenbrock_message('rosenbrock_bulk')
 
         err_msg = f'Unknown operation received: {operation}'
         raise Exception(err_msg)  # noqa: TRY002 (INTERSECT interaction mechanism)
-
-    def graph(self, x_EI: list[float], final: bool = False):
-        if NUM_DIMS == 2:
-            plt.figure(figsize=(12, 6))
-
-            # ground truth Rosenbrock function
-            plt.subplot(1, 2, 1)
-            plt.contourf(
-                SURROGATE_MESHGRID[0],
-                SURROGATE_MESHGRID[1],
-                GROUND_TRUTH_Y,
-                levels=np.logspace(-2, 4, 101),
-                norm='log',
-                extend='both',
-            )
-            plt.contour(
-                SURROGATE_MESHGRID[0],
-                SURROGATE_MESHGRID[1],
-                GROUND_TRUTH_Y,
-                levels=np.logspace(-2, 4, 10),
-                norm='log',
-                extend='both',
-                colors='k',
-            )
-            plt.scatter(1, 1, color='red', marker='*', s=200, zorder=10)
-            plt.title('Ground Truth Rosenbrock Function')
-
-            # surrogate model prediction
-            plt.subplot(1, 2, 2)
-            data = np.maximum(
-                np.array(self.surrogate_y), 0.11
-            )  # the predicted means can be <0 which causes white patches in the graph; this fixes that
-            plt.contourf(
-                SURROGATE_MESHGRID[0],
-                SURROGATE_MESHGRID[1],
-                data,
-                levels=np.logspace(-2, 4, 101),
-                norm='log',
-                extend='both',
-            )
-            cbar = plt.colorbar()
-            cbar.set_ticks(np.logspace(-2, 4, 7))
-            cbar.set_label('Simulation Result')
-            plt.xlabel('Simulation Parameter #1')
-            plt.ylabel('Simulation Parameter #2')
-            plt.title('Surrogate')
-            # add black dots for data points and a red marker for the recommendation:
-            if len(self.dataset_x) > 0:
-                X_train = np.array(self.dataset_x)
-                plt.scatter(X_train[:, 0], X_train[:, 1], color='black', marker='o')
-                plt.scatter(1.0, 1.0, s=300, color='None', edgecolors='black', marker='o')
-
-                minpos = np.argmin(self.dataset_y)
-                optimal_coords = self.dataset_x[minpos]
-
-                plt.scatter(optimal_coords[0], optimal_coords[1], color='black', marker='*', s=200)
-            if final:
-                final_x = ', '.join([f'{coord:.2f}' for coord in optimal_coords])
-                plt.suptitle(
-                    f'Best point estimate so far is x=({final_x}), y={self.dataset_y[minpos]:.3f}, true minimum is at x=(1.00, 1.00), y=0.00'
-                )
-            else:
-                plt.scatter([x_EI[0]], [x_EI[1]], color='red', marker='o')
-                plt.scatter(
-                    [x_EI[0]],
-                    [x_EI[1]],
-                    color='none',
-                    edgecolors='red',
-                    marker='o',
-                    s=300,
-                )
-            plt.savefig('graph.png')
-            plt.close()
-        else:
-            fig, ax = plt.subplots(figsize=(8, 6))
-            message = (
-                'Number of dimensions is not equal to two -\nBayesian Optimization plot is not available.\n'
-                'Add plotting to the graph(self) function in\nautomated_client.py to generate a custom plot.'
-            )
-            ax.text(0.5, 0.5, message, fontsize=18, ha='center', va='center', wrap=True)
-            # Remove axes
-            ax.set_xticks([])
-            ax.set_yticks([])
-            fig.savefig('graph.png')
 
 
 if __name__ == '__main__':
