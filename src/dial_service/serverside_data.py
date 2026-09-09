@@ -18,8 +18,8 @@ class ServersideInputBase:
         self.dim_y = data.dim_y
         self.labels_x = data.labels_x
         self.labels_y = data.labels_y
-        self.dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
-        self.dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
+        self._dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
+        self._dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
         self.statistics_y = data.statistics_y
         # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
         self.bounds = data.bounds
@@ -33,6 +33,24 @@ class ServersideInputBase:
         self.backend_args = data.backend_args
         self.kernel_args = data.kernel_args
         self.extra_args = data.extra_args
+
+    @property
+    def dataset_x(self) -> np.ndarray:
+        return self._dataset_x
+
+    @dataset_x.setter
+    def dataset_x(self, value: np.ndarray) -> None:
+        self._dataset_x = value
+        self.clear_cached_properties()
+
+    @property
+    def dataset_y(self) -> np.ndarray:
+        return self._dataset_y
+
+    @dataset_y.setter
+    def dataset_y(self, value: np.ndarray) -> None:
+        self._dataset_y = value
+        self.clear_cached_properties()
 
     @cached_property
     def X_train(self) -> np.ndarray:

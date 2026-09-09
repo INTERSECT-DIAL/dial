@@ -7,9 +7,9 @@ from bson import ObjectId
 
 from dial_dataclass import (
     DialInputMultiple,
+    DialInputMultipleOtherStrategy,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
-    DialInputMultipleOtherStrategy,
     Normal,
 )
 from dial_service import core
@@ -86,12 +86,13 @@ def uncertainty_sampling_schedule(
 
     grid_size = np.asarray(grid_size, dtype=int)
     if grid_size.shape != (dim,):
-        raise ValueError('grid_size must contain one value per dimension')
+        msg = 'grid_size must contain one value per dimension'
+        raise ValueError(msg)
 
     # Candidate measurement grid.
     axes = [
         np.linspace(lower, upper, size)
-        for (lower, upper), size in zip(bounds, grid_size)
+        for (lower, upper), size in zip(bounds, grid_size, strict=False)
     ]
     candidates = np.stack(
         np.meshgrid(*axes, indexing='ij'),
@@ -99,25 +100,18 @@ def uncertainty_sampling_schedule(
     ).reshape(-1, dim)
 
     X = np.asarray(initial_points, dtype=float)
-    if X.size == 0:
-        X = np.empty((0, dim), dtype=float)
-    else:
-        X = X.reshape(-1, dim)
+    X = np.empty((0, dim), dtype=float) if X.size == 0 else X.reshape(-1, dim)
 
     length_scale = np.asarray(length_scale, dtype=float)
     if length_scale.ndim == 0:
         length_scale = np.full(dim, length_scale)
 
     def rbf_kernel(x1, x2):
-        diff = (
-            x1[:, None, :] - x2[None, :, :]
-        ) / length_scale
+        diff = (x1[:, None, :] - x2[None, :, :]) / length_scale
 
         squared_distance = np.sum(diff**2, axis=-1)
 
-        return constant_value * np.exp(
-            -0.5 * squared_distance
-        )
+        return constant_value * np.exp(-0.5 * squared_distance)
 
     schedule = []
 
@@ -143,10 +137,7 @@ def uncertainty_sampling_schedule(
             L = np.linalg.cholesky(K_xx)
             v = np.linalg.solve(L, K_xc)
 
-            variances = (
-                constant_value
-                - np.sum(v**2, axis=0)
-            )
+            variances = constant_value - np.sum(v**2, axis=0)
 
         # Never pick a point already sampled.
         if len(X):
@@ -179,7 +170,7 @@ def init_model_with_center_data(backend, dim_x, data):
     data_init = empty_data(
         backend, strategy='center', strategy_args=None, dim_x=dim_x, bounds=data.bounds
     )
-    model  = core.initialize_model(data_init)
+    model = core.initialize_model(data_init)
     output = core.get_next_point(data_init, model)
     data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
     data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[0]]])
@@ -215,7 +206,17 @@ def empty_data(backend, strategy, strategy_args, dim_x, bounds):
     return ServersideInputSingle(workflow_state, params)
 
 
-def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, dim_x, bounds, discrete_measurements=False, discrete_measurement_grid_size=None):
+def empty_batch_data(
+    backend,
+    batch_strategy,
+    strategy,
+    strategy_args,
+    points,
+    dim_x,
+    bounds,
+    discrete_measurements=False,
+    discrete_measurement_grid_size=None,
+):
     """Helper function to create empty batch data for testing."""
     if discrete_measurement_grid_size is None:
         discrete_measurement_grid_size = []
@@ -571,6 +572,14 @@ def prediction_1D_heteroscedastic(backend):
 
 
 ####### TESTS ###################
+
+
+def test_dataset_y_reassignment_invalidates_cache():
+    data = single_1D('sklearn', strategy='random', strategy_args=None)
+    assert data.y_train_raw == pytest.approx([100, 200])
+
+    data.dataset_y = np.array([[300], [400]])
+    assert data.y_train_raw == pytest.approx([300, 400])
 
 
 @pytest.mark.parametrize(
@@ -1341,25 +1350,39 @@ def test_indexed_latin_hypercube(backend, dim):
         ),
     ],
 )
-@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('dim', [1, 2])
 @pytest.mark.parametrize('batch_strategy', ['liar'])
-@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
 def test_batched_indexed_corners(backend, dim, batch_strategy, liar_value):
     if dim == 1:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='corners', strategy_args={'liar_value': liar_value}, dim_x=1, points=2, bounds=[[0, 59]]
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='corners',
+            strategy_args={'liar_value': liar_value},
+            dim_x=1,
+            points=2,
+            bounds=[[0, 59]],
         )
         points = [[0], [59]]
     else:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='corners', strategy_args={'liar_value': liar_value}, dim_x=2, points=4, bounds=[[0, 5], [0, 5]]
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='corners',
+            strategy_args={'liar_value': liar_value},
+            dim_x=2,
+            points=4,
+            bounds=[[0, 5], [0, 5]],
         )
         points = [[data.bounds[0][i], data.bounds[1][j]] for i in range(2) for j in range(2)]
     data, model = init_model_with_center_data(backend, dim, data)
     output = core.get_next_points(data, model)
     assert len(output) == 2**dim
     data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
-    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(output))]])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(output))]]
+    )
     model = core.train_model(data)
     for p in output:
         assert len(p) == dim
@@ -1387,25 +1410,39 @@ def test_batched_indexed_corners(backend, dim, batch_strategy, liar_value):
         ),
     ],
 )
-@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('dim', [1, 2])
 @pytest.mark.parametrize('batch_strategy', ['liar'])
-@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
 def test_batched_indexed_grid(backend, dim, batch_strategy, liar_value):
     if dim == 1:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='grid', strategy_args={'liar_value': liar_value, 'grid_size': [60]}, dim_x=1, points=60, bounds=[[0, 59]]
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='grid',
+            strategy_args={'liar_value': liar_value, 'grid_size': [60]},
+            dim_x=1,
+            points=60,
+            bounds=[[0, 59]],
         )
         points = [[i] for i in range(60)]
     else:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='grid', strategy_args={'liar_value': liar_value, 'grid_size': [6, 6]}, dim_x=2, points=36, bounds=[[0, 5], [0, 5]]
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='grid',
+            strategy_args={'liar_value': liar_value, 'grid_size': [6, 6]},
+            dim_x=2,
+            points=36,
+            bounds=[[0, 5], [0, 5]],
         )
         points = [[i, j] for i in range(6) for j in range(6)]
     data, model = init_model_with_center_data(backend, dim, data)
     output = core.get_next_points(data, model)
     assert len(output) == np.prod(data.strategy_args['grid_size'])
     data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
-    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(output))]])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(output))]]
+    )
     model = core.train_model(data)
     for p in output:
         assert len(p) == dim
@@ -1433,9 +1470,9 @@ def test_batched_indexed_grid(backend, dim, batch_strategy, liar_value):
         ),
     ],
 )
-@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('dim', [1, 2])
 @pytest.mark.parametrize('batch_strategy', ['liar'])
-@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
 def test_batched_indexed_chebyshev_grid(backend, dim, batch_strategy, liar_value):
     if dim == 1:
         data = empty_batch_data(
@@ -1476,7 +1513,9 @@ def test_batched_indexed_chebyshev_grid(backend, dim, batch_strategy, liar_value
     output = core.get_next_points(data, model)
     assert len(output) == np.prod(data.strategy_args['grid_size'])
     data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
-    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(output))]])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(output))]]
+    )
     model = core.train_model(data)
     for p in output:
         if dim == 1:
@@ -1503,9 +1542,9 @@ def test_batched_indexed_chebyshev_grid(backend, dim, batch_strategy, liar_value
         ),
     ],
 )
-@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('dim', [1, 2])
 @pytest.mark.parametrize('batch_strategy', ['liar'])
-@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
 def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_value):
     if dim == 1:
         data = empty_batch_data(
@@ -1534,7 +1573,9 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
     outputs = core.get_next_points(data, model)
     assert len(outputs) == np.prod(data.strategy_args['grid_size'])
     data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), outputs])
-    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(outputs))]])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(outputs))]]
+    )
     model = core.train_model(data)
     for i, output in enumerate(outputs):
         for interval in intervals:
@@ -1542,13 +1583,12 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
                 if interval[0] <= output[0] <= interval[1]:
                     intervals.remove(interval)
                     break
-            else:
-                if (
-                    interval[0][0] <= output[0] <= interval[0][1]
-                    and interval[1][0] <= output[1] <= interval[1][1]
-                ):
-                    intervals.remove(interval)
-                    break
+            elif (
+                interval[0][0] <= output[0] <= interval[0][1]
+                and interval[1][0] <= output[1] <= interval[1][1]
+            ):
+                intervals.remove(interval)
+                break
         assert len(intervals) == np.prod(data.strategy_args['grid_size']) - (i + 1)
     assert len(intervals) == 0
 
@@ -1566,17 +1606,33 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
         ),
     ],
 )
-@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('dim', [1, 2])
 @pytest.mark.parametrize('batch_strategy', ['believer'])
 @pytest.mark.parametrize('believer_type', ['kriging'])
 def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, believer_type):
     if dim == 1:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=1, points=5, bounds=[[0, 1]], discrete_measurements=True, discrete_measurement_grid_size=[60]
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='uncertainty',
+            strategy_args={'believer_type': believer_type},
+            dim_x=1,
+            points=5,
+            bounds=[[0, 1]],
+            discrete_measurements=True,
+            discrete_measurement_grid_size=[60],
         )
     else:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=2, points=5, bounds=[[0, 0.5], [0, 0.5]], discrete_measurements=True, discrete_measurement_grid_size=[6,6]
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='uncertainty',
+            strategy_args={'believer_type': believer_type},
+            dim_x=2,
+            points=5,
+            bounds=[[0, 0.5], [0, 0.5]],
+            discrete_measurements=True,
+            discrete_measurement_grid_size=[6, 6],
         )
     data, model = init_model_with_center_data(backend, dim, data)
     expected = uncertainty_sampling_schedule(
