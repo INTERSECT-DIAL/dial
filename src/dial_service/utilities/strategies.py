@@ -356,6 +356,10 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
             msg = f'Invalid batch strategy: {data.batch_strategy}'
             raise ValueError(msg)
 
+    if 'predictor' not in locals():
+        msg = f'Invalid batch strategy: {data.batch_strategy}'
+        raise ValueError(msg)
+
     current_model = model
     try:
         for _ in range(data.points):
