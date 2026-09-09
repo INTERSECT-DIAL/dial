@@ -9,6 +9,7 @@ from dial_dataclass import (
     DialInputMultiple,
     DialInputPredictions,
     DialInputSingleOtherStrategy,
+    DialInputMultipleOtherStrategy,
     Normal,
 )
 from dial_service import core
@@ -27,6 +28,17 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 
 
 ######### HELPERS ####################
+
+def init_model_with_center_data(backend, dim_x, data):
+    data_init = empty_data(
+        backend, strategy='center', strategy_args=None, dim_x=dim_x, bounds=data.bounds
+    )
+    model  = core.initialize_model(data_init)
+    output = core.get_next_point(data_init, model)
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[0]]])
+    model = core.train_model(data)
+    return data, model
 
 
 def empty_data(backend, strategy, strategy_args, dim_x, bounds):
@@ -55,6 +67,37 @@ def empty_data(backend, strategy, strategy_args, dim_x, bounds):
         seed=42,
     )
     return ServersideInputSingle(workflow_state, params)
+
+
+def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, dim_x, bounds):
+    """Helper function to create empty batch data for testing."""
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=dim_x,
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputMultipleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        batch_strategy=batch_strategy,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        points=points,
+        seed=42,
+    )
+    return ServersideInputMultiple(workflow_state, params)
 
 
 def single_1D(backend, strategy, strategy_args):
@@ -1133,3 +1176,229 @@ def test_indexed_latin_hypercube(backend, dim):
         data.dataset_x = np.append(data.dataset_x, [output])
         data.dataset_y = np.append(data.dataset_y, [i])
     assert len(intervals) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+def test_batched_indexed_corners(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend, batch_strategy=batch_strategy, strategy='corners', strategy_args={'liar_value': liar_value}, dim_x=1, points=2, bounds=[[0, 59]]
+        )
+        points = [[0], [59]]
+    else:
+        data = empty_batch_data(
+            backend, batch_strategy=batch_strategy, strategy='corners', strategy_args={'liar_value': liar_value}, dim_x=2, points=4, bounds=[[0, 5], [0, 5]]
+        )
+        points = [[data.bounds[0][i], data.bounds[1][j]] for i in range(2) for j in range(2)]
+    data, model = init_model_with_center_data(backend, dim, data)
+    output = core.get_next_points(data, model)
+    assert len(output) == 2**dim
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(output))]])
+    model = core.train_model(data)
+    for p in output:
+        assert len(p) == dim
+        if dim == 1:
+            assert p in points
+            assert [p[0] - np.pi] not in points
+            points.remove(p)
+        else:
+            assert p in points
+            assert [out - np.pi for out in p] not in points
+            points.remove(p)
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+def test_batched_indexed_grid(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend, batch_strategy=batch_strategy, strategy='grid', strategy_args={'liar_value': liar_value, 'grid_size': [60]}, dim_x=1, points=60, bounds=[[0, 59]]
+        )
+        points = [[i] for i in range(60)]
+    else:
+        data = empty_batch_data(
+            backend, batch_strategy=batch_strategy, strategy='grid', strategy_args={'liar_value': liar_value, 'grid_size': [6, 6]}, dim_x=2, points=36, bounds=[[0, 5], [0, 5]]
+        )
+        points = [[i, j] for i in range(6) for j in range(6)]
+    data, model = init_model_with_center_data(backend, dim, data)
+    output = core.get_next_points(data, model)
+    assert len(output) == np.prod(data.strategy_args['grid_size'])
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(output))]])
+    model = core.train_model(data)
+    for p in output:
+        assert len(p) == dim
+        if dim == 1:
+            assert p in points
+            assert [p[0] - np.pi] not in points
+            points.remove(p)
+        else:
+            assert p in points
+            assert [out - np.pi for out in p] not in points
+            points.remove(p)
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+def test_batched_indexed_chebyshev_grid(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [60], 'liar_value': liar_value},
+            dim_x=1,
+            points=60,
+            bounds=[[0, 59]],
+        )
+        points = [np.cos(i * np.pi / 59) for i in range(60)]
+        points = [
+            0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point + 1) + data.bounds[0][0]
+            for point in points
+        ]
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [6, 6], 'liar_value': liar_value},
+            dim_x=2,
+            points=36,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [
+            [np.cos(i * np.pi / 5), np.cos(j * np.pi / 5)] for i in range(6) for j in range(6)
+        ]
+        points = [
+            [
+                0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point[0] + 1) + data.bounds[0][0],
+                0.5 * (data.bounds[1][1] - data.bounds[1][0]) * (point[1] + 1) + data.bounds[1][0],
+            ]
+            for point in points
+        ]
+    data, model = init_model_with_center_data(backend, dim, data)
+    output = core.get_next_points(data, model)
+    assert len(output) == np.prod(data.strategy_args['grid_size'])
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(output))]])
+    model = core.train_model(data)
+    for p in output:
+        if dim == 1:
+            assert p in points
+            assert [p[0] - np.pi] not in points
+            points.remove(p)
+        else:
+            assert p in points
+            assert [out - np.pi for out in p] not in points
+            points.remove(p)
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0,10,'mean','max','min','median','random'])
+def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [60], 'liar_value': liar_value},
+            dim_x=1,
+            points=60,
+            bounds=[[0, 60]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 61)]
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [6, 6], 'liar_value': liar_value},
+            dim_x=2,
+            points=36,
+            bounds=[[0, 6], [0, 6]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 7)]
+        intervals = [[i, j] for i in intervals for j in intervals]
+    data, model = init_model_with_center_data(backend, dim, data)
+    outputs = core.get_next_points(data, model)
+    assert len(outputs) == np.prod(data.strategy_args['grid_size'])
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), outputs])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[i+1] for i in range(len(outputs))]])
+    model = core.train_model(data)
+    for i, output in enumerate(outputs):
+        for interval in intervals:
+            if dim == 1:
+                if interval[0] <= output[0] <= interval[1]:
+                    intervals.remove(interval)
+                    break
+            else:
+                if (
+                    interval[0][0] <= output[0] <= interval[0][1]
+                    and interval[1][0] <= output[1] <= interval[1][1]
+                ):
+                    intervals.remove(interval)
+                    break
+        assert len(intervals) == np.prod(data.strategy_args['grid_size']) - (i + 1)
+    assert len(intervals) == 0
+
