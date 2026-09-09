@@ -1,5 +1,6 @@
 import itertools
 import logging
+from numbers import Real
 
 import numpy as np
 from scipy.optimize import minimize
@@ -92,6 +93,113 @@ STRATEGIES = {
 }
 
 
+###############################################################################
+# Surrogate-free indexed strategies
+
+
+def domain_center(data, indices=None):  # noqa: ARG001
+    return [[0.5 * (data.bounds[i][1] + data.bounds[i][0]) for i in range(data.dim_x)]]
+
+
+def domain_corners(data, indices: list[int]):
+    points = []
+    for index in indices:
+        # convert flat index into coordinate indices for each dimension
+        coo_indices = np.unravel_index(index, [2] * data.dim_x)  # 2 corners per dimension
+        points.append([data.bounds[i][coo_indices[i]] for i in range(data.dim_x)])
+    return points
+
+
+def uniform_grid(data, indices: list[int]):
+    grid_size = data.strategy_args['grid_size']
+
+    # grid spacing in each dimension
+    steps = [
+        (data.bounds[i][1] - data.bounds[i][0]) / max(1, grid_size[i] - 1)
+        for i in range(data.dim_x)
+    ]
+
+    points = []
+    for index in indices:
+        # convert flat index into coordinate indices for each dimension
+        coo_indices = np.unravel_index(index, grid_size)
+        points.append(
+            [
+                data.bounds[i][0] + coo_indices[i] * steps[i]
+                if grid_size[i] > 1
+                else 0.5 * (data.bounds[i][1] + data.bounds[i][0])
+                for i in range(data.dim_x)
+            ]
+        )
+    return points
+
+
+def chebyshev_grid(data, indices: list[int]):
+    grid_size = data.strategy_args['grid_size']
+
+    points = []
+    for index in indices:
+        # convert flat index into coordinate indices for each dimension
+        coo_indices = np.unravel_index(index, grid_size)
+        # Chebyshev nodes in each dimension, or the midpoint if only one point is specified
+        x = [
+            np.cos(coo_indices[i] * np.pi / (grid_size[i] - 1))
+            if grid_size[i] > 1
+            else 0.5 * (data.bounds[i][1] + data.bounds[i][0])
+            for i in range(data.dim_x)
+        ]
+        points.append(
+            [
+                0.5 * (data.bounds[i][1] - data.bounds[i][0]) * (x[i] + 1) + data.bounds[i][0]
+                for i in range(data.dim_x)
+            ]
+        )
+    return points
+
+
+def latin_hypercube(data, indices: list[int]):
+    """For latin hypercube grid_size is the number of intervals per dimension"""
+    grid_size = data.strategy_args['grid_size']
+
+    points = []
+    for index in indices:
+        # convert flat index into interval indices for each dimension
+        interval_indices = np.unravel_index(index, grid_size)
+        points.append(
+            [
+                data.numpy_rng.uniform(
+                    data.bounds[i][0]
+                    + interval_indices[i] * (data.bounds[i][1] - data.bounds[i][0]) / grid_size[i],
+                    data.bounds[i][0]
+                    + (interval_indices[i] + 1)
+                    * (data.bounds[i][1] - data.bounds[i][0])
+                    / grid_size[i],
+                )
+                for i in range(data.dim_x)
+            ]
+        )
+    return points
+
+
+INDEXED_STRATEGIES = {
+    'center': domain_center,
+    'corners': domain_corners,
+    'grid': uniform_grid,
+    'chebyshev': chebyshev_grid,
+    'latin_hypercube': latin_hypercube,
+}
+
+MAX_INDEXED_POINTS = {
+    'center': lambda data: 1,  # noqa: ARG005
+    'corners': lambda data: 2**data.dim_x,
+    'grid': lambda data: np.prod(data.strategy_args['grid_size']),
+    'chebyshev': lambda data: np.prod(data.strategy_args['grid_size']),
+    'latin_hypercube': lambda data: np.prod(data.strategy_args['grid_size']),
+}
+
+###############################################################################
+
+
 def hypercube(
     bounds: list[list[float]], num_points: int, rng: np.random.RandomState
 ) -> list[list[float]]:
@@ -171,6 +279,119 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
     #       '\n'.join([str(out) for out in out_list]))
 
     return selected_point.tolist()
+
+
+def indexed_selection(data: ServersideInputSingle):
+    try:
+        strategy_ = INDEXED_STRATEGIES[data.strategy]
+    except KeyError as exc:
+        msg = f'Invalid strategy: {data.strategy}'
+        raise ValueError(msg) from exc
+
+    start_index = data.strategy_args.get('start_index', 0) if data.strategy_args is not None else 0
+    index = (len(data.dataset_y) - start_index) % MAX_INDEXED_POINTS[data.strategy](data)
+    selected_point = strategy_(data, [index])[0]
+
+    return selected_point
+
+
+def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
+    """
+    Greedy batch selection using the liar or believer strategies.
+    """
+
+    if data.points <= 0:
+        return []
+
+    selected_points: list[list[float]] = []
+    initial_x = np.asarray(data.dataset_x, dtype=float)
+    initial_y = np.asarray(data.dataset_y, dtype=float)
+
+    if data.batch_strategy is not None:
+        if data.batch_strategy == 'liar':
+            liar_setting = (
+                data.strategy_args.get('liar_value', 'mean')
+                if data.strategy_args is not None
+                else 0.0
+            )
+
+            if isinstance(liar_setting, Real):
+                liar_value = float(liar_setting)
+            elif isinstance(liar_setting, str):
+                match liar_setting:
+                    case 'mean':
+                        liar_value = np.mean(data.dataset_y)
+                    case 'max':
+                        liar_value = np.max(data.dataset_y)
+                    case 'min':
+                        liar_value = np.min(data.dataset_y)
+                    case 'random':
+                        liar_value = data.numpy_rng.uniform(
+                            np.min(data.dataset_y), np.max(data.dataset_y)
+                        )
+                    case 'median':
+                        liar_value = np.median(data.dataset_y)
+                    case _:
+                        liar_value = np.mean(data.dataset_y)
+            elif callable(liar_setting):
+                liar_value = liar_setting(data.dataset_y)
+
+            def predictor(point):  # noqa: ARG001
+                return liar_value
+
+        elif data.batch_strategy == 'believer':
+            believer_setting = (
+                data.strategy_args.get('believer_type', 'kriging')
+                if data.strategy_args is not None
+                else 'kriging'
+            )
+
+            match believer_setting:
+                case 'kriging':
+
+                    def predictor(point):
+                        data.set_x_predict(point)
+                        return backend_module.predict(current_model, data)[0][0]
+        else:
+            msg = f'Invalid batch strategy: {data.batch_strategy}'
+            raise ValueError(msg)
+
+    if 'predictor' not in locals():
+        msg = f'Invalid batch strategy: {data.batch_strategy}'
+        raise ValueError(msg)
+
+    current_model = model
+    try:
+        for _ in range(data.points):
+            if data.strategy in INDEXED_STRATEGIES:
+                point = indexed_selection(data)
+            else:
+                point = greedy_sampling(backend_module, current_model, data)
+            selected_points.append([float(v) for v in point])
+
+            x_arr = np.asarray(point, dtype=float).reshape(1, -1)
+            y_arr = np.asarray([[predictor(selected_points[-1])]], dtype=float)
+
+            if data.dataset_x.size == 0:
+                data.dataset_x = x_arr
+            else:
+                data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), x_arr])
+            data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), y_arr])
+
+            # Why do we need to strip cached properties here?
+            # Because we are modifying dataset_x and dataset_y, which are used in cached properties like stddev, Y_best, etc.
+            # If we don't clear these caches, they might return outdated values based on the old dataset
+            # By stripping the cached properties, we ensure that the next time these properties are accessed, they will be recalculated based on the updated dataset
+            data.clear_cached_properties()
+
+            current_model = backend_module.train_model(data)
+    finally:
+        # Restore original state so pseudo-observations never leak outside this method.
+        data.dataset_x = initial_x
+        data.dataset_y = initial_y
+        data.clear_cached_properties()
+
+    return selected_points
 
 
 def batch_sampling_acl(backend_module: AbstractBackend, model, data: ServersideInputMultiple):

@@ -16,8 +16,11 @@ from .serverside_data import (
     ServersideInputSingle,
 )
 from .utilities.strategies import (
+    INDEXED_STRATEGIES,
+    batch_sampling,
     create_measurement_grid,
     hypercube,
+    indexed_selection,
     random_in_bounds,
 )
 
@@ -34,6 +37,10 @@ def get_next_point(data: ServersideInputSingle, model: Any) -> list[float]:
     Returns:
         list[float]: The selected point for the next iteration.
     """
+
+    if data.strategy in INDEXED_STRATEGIES:
+        return indexed_selection(data)
+
     # If it's random point, we don't need to train a model or anything else
     if data.strategy == 'random':
         if data.discrete_measurements:
@@ -78,6 +85,13 @@ def get_next_points(data: ServersideInputMultiple, model: Any) -> list[list[floa
     """
     # model = self._train_model(data) #this will be needed when we add qEI/constant liars
     output_points = None
+
+    backend = data.backend.lower()
+    module = get_backend_module(backend)
+
+    if data.batch_strategy is not None:
+        return batch_sampling(module, model, data)
+
     match data.strategy:
         case 'random':
             output_points = [

@@ -4,6 +4,14 @@ from math import e as E_CONSTANT
 import numpy as np
 import pytest
 from bson import ObjectId
+from intersect_dial_dataclass import (
+    DialInputMultiple,
+    DialInputMultipleOtherStrategy,
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
+    Normal,
+)
+
 from dial_service import core
 from dial_service.serverside_data import (
     ServersideInputMultiple,
@@ -14,18 +22,233 @@ from dial_service.service_specific_dataclasses import (
     AVAILABLE_DIAL_BACKENDS,
     DialWorkflowCreationParamsService,
 )
-from intersect_dial_dataclass import (
-    DialInputMultiple,
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-    Normal,
-)
 
 DUMMY_WORKFLOW_ID = str(ObjectId())
 """This is used so that we can run the tests without connecting to a backend database or skipping validation for the rest of the data."""
 
 
 ######### HELPERS ####################
+
+
+def uncertainty_sampling_schedule(
+    bounds,
+    grid_size,
+    initial_points,
+    n_samples,
+    length_scale=0.5,
+    constant_value=1.0,
+    jitter=1e-12,
+):
+    """
+    Generate a deterministic reference schedule for maximum-uncertainty
+    sampling with an RBF Gaussian process.
+
+    At each iteration choose
+
+        x_next = argmax_x Var[f(x) | X]
+
+    over a finite candidate grid.
+
+    The observed y-values are irrelevant: GP posterior variance depends
+    only on the locations already sampled.
+
+    Parameters
+    ----------
+    bounds : sequence of [lower, upper]
+        Bounds for each input dimension.
+
+    grid_size : sequence of int
+        Number of candidate points along each dimension.
+        E.g. [60] or [6, 6].
+
+    initial_points : array-like, shape (n_initial, dim)
+        Points already observed before generating the schedule.
+
+    n_samples : int
+        Number of new points to generate.
+
+    length_scale : float or sequence of float
+        RBF kernel length scale.
+
+    constant_value : float
+        RBF kernel amplitude, corresponding to k(x, x).
+
+    jitter : float
+        Small diagonal term for numerical stability.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, dim)
+        Sequential maximum-uncertainty sampling schedule.
+    """
+    bounds = np.asarray(bounds, dtype=float)
+    dim = len(bounds)
+
+    grid_size = np.asarray(grid_size, dtype=int)
+    if grid_size.shape != (dim,):
+        msg = 'grid_size must contain one value per dimension'
+        raise ValueError(msg)
+
+    # Candidate measurement grid.
+    axes = [
+        np.linspace(lower, upper, size)
+        for (lower, upper), size in zip(bounds, grid_size, strict=False)
+    ]
+    candidates = np.stack(
+        np.meshgrid(*axes, indexing='ij'),
+        axis=-1,
+    ).reshape(-1, dim)
+
+    X = np.asarray(initial_points, dtype=float)
+    X = np.empty((0, dim), dtype=float) if X.size == 0 else X.reshape(-1, dim)
+
+    length_scale = np.asarray(length_scale, dtype=float)
+    if length_scale.ndim == 0:
+        length_scale = np.full(dim, length_scale)
+
+    def rbf_kernel(x1, x2):
+        diff = (x1[:, None, :] - x2[None, :, :]) / length_scale
+
+        squared_distance = np.sum(diff**2, axis=-1)
+
+        return constant_value * np.exp(-0.5 * squared_distance)
+
+    schedule = []
+
+    for _ in range(n_samples):
+        if len(X) == 0:
+            # For a stationary RBF kernel the prior variance is constant.
+            variances = np.full(
+                len(candidates),
+                constant_value,
+                dtype=float,
+            )
+        else:
+            K_xx = rbf_kernel(X, X)
+            K_xx += jitter * np.eye(len(X))
+
+            K_xc = rbf_kernel(X, candidates)
+
+            # Cholesky form of
+            #
+            # k(x,x) - k(x,X) K(X,X)^-1 k(X,x)
+            #
+            # avoids explicitly computing the matrix inverse.
+            L = np.linalg.cholesky(K_xx)
+            v = np.linalg.solve(L, K_xc)
+
+            variances = constant_value - np.sum(v**2, axis=0)
+
+        # Never pick a point already sampled.
+        if len(X):
+            already_sampled = np.any(
+                np.all(
+                    np.isclose(
+                        candidates[:, None, :],
+                        X[None, :, :],
+                        rtol=0,
+                        atol=1e-12,
+                    ),
+                    axis=2,
+                ),
+                axis=1,
+            )
+            variances[already_sampled] = -np.inf
+
+        # np.argmax gives us deterministic "first candidate wins"
+        # behavior when several points have equal uncertainty.
+        index = int(np.argmax(variances))
+        next_point = candidates[index].copy()
+
+        schedule.append(next_point)
+        X = np.vstack([X, next_point])
+
+    return np.asarray(schedule)
+
+
+def init_model_with_center_data(backend, dim_x, data):
+    data_init = empty_data(
+        backend, strategy='center', strategy_args=None, dim_x=dim_x, bounds=data.bounds
+    )
+    model = core.initialize_model(data_init)
+    output = core.get_next_point(data_init, model)
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[0]]])
+    model = core.train_model(data)
+    return data, model
+
+
+def empty_data(backend, strategy, strategy_args, dim_x, bounds):
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=dim_x,
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputSingleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        seed=42,
+    )
+    return ServersideInputSingle(workflow_state, params)
+
+
+def empty_batch_data(
+    backend,
+    batch_strategy,
+    strategy,
+    strategy_args,
+    points,
+    dim_x,
+    bounds,
+    discrete_measurements=False,
+    discrete_measurement_grid_size=None,
+):
+    """Helper function to create empty batch data for testing."""
+    if discrete_measurement_grid_size is None:
+        discrete_measurement_grid_size = []
+    workflow_state = DialWorkflowCreationParamsService(
+        dataset_x=[],
+        dataset_y=[],
+        dim_x=dim_x,
+        bounds=bounds,
+        kernel='rbf',
+        kernel_args={
+            'length_scale': 0.5,
+            'length_scale_bounds': 'fixed',
+            'constant_value': 1.0,
+            'constant_value_bounds': 'fixed',
+        },
+        backend=backend,
+        preprocess_standardize=True,
+        y_is_good=True,
+        seed=42,
+    )
+    params = DialInputMultipleOtherStrategy(
+        workflow_id=DUMMY_WORKFLOW_ID,
+        batch_strategy=batch_strategy,
+        strategy=strategy,
+        strategy_args=strategy_args,
+        bounds=bounds,
+        points=points,
+        seed=42,
+        discrete_measurements=discrete_measurements,
+        discrete_measurement_grid_size=discrete_measurement_grid_size,
+    )
+    return ServersideInputMultiple(workflow_state, params)
 
 
 def single_1D(backend, strategy, strategy_args):
@@ -349,6 +572,14 @@ def prediction_1D_heteroscedastic(backend):
 
 
 ####### TESTS ###################
+
+
+def test_dataset_y_reassignment_invalidates_cache():
+    data = single_1D('sklearn', strategy='random', strategy_args=None)
+    assert data.y_train_raw == pytest.approx([100, 200])
+
+    data.dataset_y = np.array([[300], [400]])
+    assert data.y_train_raw == pytest.approx([300, 400])
 
 
 @pytest.mark.parametrize(
@@ -855,3 +1086,562 @@ def test_inverse_transform(backend):
     assert inv_y == pytest.approx([100, 141.42135623730945, 200])
     assert inv_yerr == pytest.approx(inv_y * 0.34657359027997243 * test_yerr)
     test_transform(inv_y, inv_yerr)
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_center(backend, dim):
+    if dim == 1:
+        data = single_1D_discrete_grid(
+            backend,
+            strategy='center',
+            strategy_args=None,
+            discrete_measurement_grid_size=[60],
+        )
+    else:
+        data = single_2D_discrete_grid(
+            backend,
+            strategy='center',
+            strategy_args=None,
+            discrete_measurement_grid_size=[6, 6],
+        )
+    model = core.initialize_model(data)
+    output = core.get_next_point(data, model)
+    assert len(output) == dim
+    if dim == 1:
+        output = output[0]
+        assert output == pytest.approx(0.5 * (data.bounds[0][0] + data.bounds[0][1]))
+    else:
+        assert output[0] == pytest.approx(0.5 * (data.bounds[0][0] + data.bounds[0][1]))
+        assert output[1] == pytest.approx(0.5 * (data.bounds[1][0] + data.bounds[1][1]))
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_corners(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend, strategy='corners', strategy_args=None, dim_x=1, bounds=[[0, 59]]
+        )
+        points = [[0], [59]]
+    else:
+        data = empty_data(
+            backend, strategy='corners', strategy_args=None, dim_x=2, bounds=[[0, 5], [0, 5]]
+        )
+        points = [[data.bounds[0][i], data.bounds[1][j]] for i in range(2) for j in range(2)]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_grid(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend, strategy='grid', strategy_args={'grid_size': [60]}, dim_x=1, bounds=[[0, 59]]
+        )
+        points = [[i] for i in range(60)]
+    else:
+        data = empty_data(
+            backend,
+            strategy='grid',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [[i, j] for i in range(6) for j in range(6)]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_chebyshev_grid(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [60]},
+            dim_x=1,
+            bounds=[[0, 59]],
+        )
+        points = [np.cos(i * np.pi / 59) for i in range(60)]
+        points = [
+            0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point + 1) + data.bounds[0][0]
+            for point in points
+        ]
+    else:
+        data = empty_data(
+            backend,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [
+            [np.cos(i * np.pi / 5), np.cos(j * np.pi / 5)] for i in range(6) for j in range(6)
+        ]
+        points = [
+            [
+                0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point[0] + 1) + data.bounds[0][0],
+                0.5 * (data.bounds[1][1] - data.bounds[1][0]) * (point[1] + 1) + data.bounds[1][0],
+            ]
+            for point in points
+        ]
+    model = core.initialize_model(data)
+    for i in range(len(points)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            assert output in points
+            assert [output[0] - np.pi] not in points
+            points.remove(output)
+        else:
+            assert output in points
+            assert [out - np.pi for out in output] not in points
+            points.remove(output)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+def test_indexed_latin_hypercube(backend, dim):
+    if dim == 1:
+        data = empty_data(
+            backend,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [60]},
+            dim_x=1,
+            bounds=[[0, 60]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 61)]
+    else:
+        data = empty_data(
+            backend,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [6, 6]},
+            dim_x=2,
+            bounds=[[0, 6], [0, 6]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 7)]
+        intervals = [[i, j] for i in intervals for j in intervals]
+    model = core.initialize_model(data)
+    for i in range(len(intervals)):
+        output = core.get_next_point(data, model)
+        assert len(output) == dim
+        if dim == 1:
+            for interval in intervals:
+                if interval[0] <= output[0] <= interval[1]:
+                    intervals.remove(interval)
+                    break
+            assert len(intervals) == 60 - (i + 1)
+        else:
+            for interval in intervals:
+                if (
+                    interval[0][0] <= output[0] <= interval[0][1]
+                    and interval[1][0] <= output[1] <= interval[1][1]
+                ):
+                    intervals.remove(interval)
+                    break
+            assert len(intervals) == 36 - (i + 1)
+        data.dataset_x = np.append(data.dataset_x, [output])
+        data.dataset_y = np.append(data.dataset_y, [i])
+    assert len(intervals) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
+def test_batched_indexed_corners(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='corners',
+            strategy_args={'liar_value': liar_value},
+            dim_x=1,
+            points=2,
+            bounds=[[0, 59]],
+        )
+        points = [[0], [59]]
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='corners',
+            strategy_args={'liar_value': liar_value},
+            dim_x=2,
+            points=4,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [[data.bounds[0][i], data.bounds[1][j]] for i in range(2) for j in range(2)]
+    data, model = init_model_with_center_data(backend, dim, data)
+    output = core.get_next_points(data, model)
+    assert len(output) == 2**dim
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(output))]]
+    )
+    model = core.train_model(data)
+    for p in output:
+        assert len(p) == dim
+        if dim == 1:
+            assert p in points
+            assert [p[0] - np.pi] not in points
+            points.remove(p)
+        else:
+            assert p in points
+            assert [out - np.pi for out in p] not in points
+            points.remove(p)
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
+def test_batched_indexed_grid(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='grid',
+            strategy_args={'liar_value': liar_value, 'grid_size': [60]},
+            dim_x=1,
+            points=60,
+            bounds=[[0, 59]],
+        )
+        points = [[i] for i in range(60)]
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='grid',
+            strategy_args={'liar_value': liar_value, 'grid_size': [6, 6]},
+            dim_x=2,
+            points=36,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [[i, j] for i in range(6) for j in range(6)]
+    data, model = init_model_with_center_data(backend, dim, data)
+    output = core.get_next_points(data, model)
+    assert len(output) == np.prod(data.strategy_args['grid_size'])
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(output))]]
+    )
+    model = core.train_model(data)
+    for p in output:
+        assert len(p) == dim
+        if dim == 1:
+            assert p in points
+            assert [p[0] - np.pi] not in points
+            points.remove(p)
+        else:
+            assert p in points
+            assert [out - np.pi for out in p] not in points
+            points.remove(p)
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
+def test_batched_indexed_chebyshev_grid(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [60], 'liar_value': liar_value},
+            dim_x=1,
+            points=60,
+            bounds=[[0, 59]],
+        )
+        points = [np.cos(i * np.pi / 59) for i in range(60)]
+        points = [
+            0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point + 1) + data.bounds[0][0]
+            for point in points
+        ]
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='chebyshev',
+            strategy_args={'grid_size': [6, 6], 'liar_value': liar_value},
+            dim_x=2,
+            points=36,
+            bounds=[[0, 5], [0, 5]],
+        )
+        points = [
+            [np.cos(i * np.pi / 5), np.cos(j * np.pi / 5)] for i in range(6) for j in range(6)
+        ]
+        points = [
+            [
+                0.5 * (data.bounds[0][1] - data.bounds[0][0]) * (point[0] + 1) + data.bounds[0][0],
+                0.5 * (data.bounds[1][1] - data.bounds[1][0]) * (point[1] + 1) + data.bounds[1][0],
+            ]
+            for point in points
+        ]
+    data, model = init_model_with_center_data(backend, dim, data)
+    output = core.get_next_points(data, model)
+    assert len(output) == np.prod(data.strategy_args['grid_size'])
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(output))]]
+    )
+    model = core.train_model(data)
+    for p in output:
+        if dim == 1:
+            assert p in points
+            assert [p[0] - np.pi] not in points
+            points.remove(p)
+        else:
+            assert p in points
+            assert [out - np.pi for out in p] not in points
+            points.remove(p)
+    assert len(points) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+@pytest.mark.parametrize('batch_strategy', ['liar'])
+@pytest.mark.parametrize('liar_value', [0, 10, 'mean', 'max', 'min', 'median', 'random'])
+def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_value):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [60], 'liar_value': liar_value},
+            dim_x=1,
+            points=60,
+            bounds=[[0, 60]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 61)]
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='latin_hypercube',
+            strategy_args={'grid_size': [6, 6], 'liar_value': liar_value},
+            dim_x=2,
+            points=36,
+            bounds=[[0, 6], [0, 6]],
+        )
+        intervals = [[0, 1]] + [[i - 1, i] for i in range(2, 7)]
+        intervals = [[i, j] for i in intervals for j in intervals]
+    data, model = init_model_with_center_data(backend, dim, data)
+    outputs = core.get_next_points(data, model)
+    assert len(outputs) == np.prod(data.strategy_args['grid_size'])
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), outputs])
+    data.dataset_y = np.concatenate(
+        [np.asarray(data.dataset_y, dtype=float), [[i + 1] for i in range(len(outputs))]]
+    )
+    model = core.train_model(data)
+    for i, output in enumerate(outputs):
+        for interval in intervals:
+            if dim == 1:
+                if interval[0] <= output[0] <= interval[1]:
+                    intervals.remove(interval)
+                    break
+            elif (
+                interval[0][0] <= output[0] <= interval[0][1]
+                and interval[1][0] <= output[1] <= interval[1][1]
+            ):
+                intervals.remove(interval)
+                break
+        assert len(intervals) == np.prod(data.strategy_args['grid_size']) - (i + 1)
+    assert len(intervals) == 0
+
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1, 2])
+@pytest.mark.parametrize('batch_strategy', ['believer'])
+@pytest.mark.parametrize('believer_type', ['kriging'])
+def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, believer_type):
+    if dim == 1:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='uncertainty',
+            strategy_args={'believer_type': believer_type},
+            dim_x=1,
+            points=5,
+            bounds=[[0, 1]],
+            discrete_measurements=True,
+            discrete_measurement_grid_size=[60],
+        )
+    else:
+        data = empty_batch_data(
+            backend,
+            batch_strategy=batch_strategy,
+            strategy='uncertainty',
+            strategy_args={'believer_type': believer_type},
+            dim_x=2,
+            points=5,
+            bounds=[[0, 0.5], [0, 0.5]],
+            discrete_measurements=True,
+            discrete_measurement_grid_size=[6, 6],
+        )
+    data, model = init_model_with_center_data(backend, dim, data)
+    expected = uncertainty_sampling_schedule(
+        bounds=data.bounds,
+        grid_size=data.discrete_measurement_grid_size,
+        initial_points=data.dataset_x,
+        n_samples=data.points,
+        length_scale=data.kernel_args['length_scale'],
+        constant_value=data.kernel_args['constant_value'],
+    )
+    output = np.asarray(core.get_next_points(data, model))
+    assert output == pytest.approx(expected)
