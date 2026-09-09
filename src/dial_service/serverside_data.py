@@ -111,8 +111,12 @@ class ServersideInputBase:
             _yerr_train_raw = self.dataset_y[:, pos_yerr]
 
         if np.any(_yerr_train_raw < 0):
-            idxs = np.where(_yerr_train_raw < 0)
-            msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
+            if isinstance(_yerr_train_raw, float):
+                # TODO: should probably verify this in the dataclass instead
+                msg = f'yerr value in statistics_y.scale must be non-negative, found {_yerr_train_raw}'
+            else:
+                idxs = np.where(_yerr_train_raw < 0)
+                msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
             raise ValueError(msg)
         return _yerr_train_raw
 
