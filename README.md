@@ -16,9 +16,12 @@ To install Dial from source, git clone this repository and run the following fro
 
 `pip install .`
 
-Alternatively, both intersect-sdk and Dial may be installed with the following:
+By default, **only scikit-learn is available as a backend**. We also support GPax and Sable as backends. To install these:
 
-`pip install -e .`
+- for GPax: `pip install ".[gpax]"`
+- for Sable: `pip install ".[sable]"`
+
+Use commas to add multiple backends: `pip install ".[gpax,sable]"`
 
 ## Installing (developers)
 

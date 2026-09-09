@@ -26,7 +26,11 @@ from dial_service.serverside_data import (
     ServersideInputPrediction,
     ServersideInputSingle,
 )
-from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+from dial_service.service_specific_dataclasses import (
+    DialWorkflowCreationParamsService,
+)
+
+from ..helpers import generate_pytest_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +199,10 @@ TARGET_ERROR = 0.11
 
 
 def run_simulation(
-    dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
+    dataset_x: list[list[float]],
+    dataset_y: list[float],
+    strategy: str,
+    strategy_args: object,
 ) -> tuple[np.ndarray, np.ndarray]:
     # important "Hyper-parameters"
     length_scale = 0.4
@@ -322,7 +329,7 @@ def graph(err_grid, dataset_x, strategy):
 
 def accuracy_benchmark(
     strategy: str, strategy_args: object, max_iterations=MAX_ITERATIONS
-) -> tuple[int, float]:
+) -> tuple[int, float, float]:
     """
     returns:
       - number of iterations taken to reach an acceptably accurate target
@@ -359,7 +366,11 @@ def accuracy_benchmark(
         error = total_mad
         print(iterations, error)
 
-        graph(mad, dataset_x, f'{strategy}_{strategy_args.get("backend", "sklearn")}')
+        graph(
+            mad,
+            dataset_x,
+            f'{strategy}_{strategy_args.get("backend", "sklearn")}',
+        )
 
         if error <= TARGET_ERROR:
             break
@@ -369,19 +380,20 @@ def accuracy_benchmark(
 
 
 TEST_PARAMS = (
-    ('strategy', 'strategy_args', 'max_iterations'),
+    ('backend', 'strategy', 'strategy_args', 'max_iterations'),
     [
-        ('uncertainty', {}, 2),
-        ('uncertainty', {'backend': 'sable'}, 2),
-        ('random', {}, 2),
+        ('sklearn', 'uncertainty', {}, 2),
+        ('sable', 'uncertainty', {}, 2),
+        ('sklearn', 'random', {}, 2),
         # use low number of iterations for unit test
     ],
 )
 
 
-@pytest.mark.parametrize(*TEST_PARAMS)
+@pytest.mark.parametrize(*generate_pytest_parameters(TEST_PARAMS, 0))
 def test_benchmark_strainmap_accuracy(
     # benchmark: BenchmarkFixture,
+    backend: str,
     strategy: str,
     strategy_args: dict,
     max_iterations: int,
@@ -391,7 +403,9 @@ def test_benchmark_strainmap_accuracy(
     # iterations, target = benchmark(
     # partial(accuracy_benchmark, strategy, strategy_args)
     # )
-    iterations, target, guess = accuracy_benchmark(strategy, strategy_args, max_iterations)
+    iterations, target, guess = accuracy_benchmark(
+        strategy, {'backend': backend, **strategy_args}, max_iterations
+    )
     print(
         'Iterations for',
         strategy,
@@ -478,7 +492,11 @@ if __name__ == '__main__':
             targets_list.append(target)
             guesses_list.append(guess)
             logger.info(
-                '  Run %d/%d: iterations=%d, target=%.4f', run + 1, NUM_RUNS, iterations, target
+                '  Run %d/%d: iterations=%d, target=%.4f',
+                run + 1,
+                NUM_RUNS,
+                iterations,
+                target,
             )
 
         results[strategy_name] = {
@@ -499,7 +517,11 @@ if __name__ == '__main__':
     output_dir.mkdir(parents=True, exist_ok=True)
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('Strainmap Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
+    fig.suptitle(
+        'Strainmap Optimization Benchmark Comparison',
+        fontsize=16,
+        fontweight='bold',
+    )
 
     # Plot 1: Average iterations to convergence
     ax1 = axes[0, 0]
@@ -507,14 +529,21 @@ if __name__ == '__main__':
     avg_iterations = [results[s]['avg_iterations'] for s in strategy_names]
     std_iterations = [results[s]['std_iterations'] for s in strategy_names]
     bars1 = ax1.bar(
-        range(len(strategy_names)), avg_iterations, yerr=std_iterations, capsize=5, alpha=0.7
+        range(len(strategy_names)),
+        avg_iterations,
+        yerr=std_iterations,
+        capsize=5,
+        alpha=0.7,
     )
     ax1.set_xlabel('Strategy')
     ax1.set_ylabel('Average Iterations')
     ax1.set_title('Iterations to Convergence (Lower is Better)')
     ax1.set_xticks(range(len(strategy_names)))
     ax1.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax1.grid(axis='y', alpha=0.3)
 
@@ -547,10 +576,16 @@ if __name__ == '__main__':
     ax2.set_title('Final Target Value (Lower is Better)')
     ax2.set_xticks(range(len(strategy_names)))
     ax2.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax2.axhline(
-        y=TARGET_ERROR, color='r', linestyle='--', label=f'Target Threshold ({TARGET_ERROR})'
+        y=TARGET_ERROR,
+        color='r',
+        linestyle='--',
+        label=f'Target Threshold ({TARGET_ERROR})',
     )
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
@@ -576,7 +611,10 @@ if __name__ == '__main__':
     ax3.set_title(f'Success Rate (Target ≤ {TARGET_ERROR})')
     ax3.set_xticks(range(len(strategy_names)))
     ax3.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax3.set_ylim([0, 105])
     ax3.grid(axis='y', alpha=0.3)
@@ -835,9 +873,15 @@ if __name__ == '__main__':
         result = results[strategy_name]
         logger.info('\n%s:', strategy_name)
         logger.info(
-            '  Avg Iterations: %.2f ± %.2f', result['avg_iterations'], result['std_iterations']
+            '  Avg Iterations: %.2f ± %.2f',
+            result['avg_iterations'],
+            result['std_iterations'],
         )
-        logger.info('  Avg Target:     %.4f ± %.4f', result['avg_target'], result['std_target'])
+        logger.info(
+            '  Avg Target:     %.4f ± %.4f',
+            result['avg_target'],
+            result['std_target'],
+        )
         logger.info('  Success Rate:   %.1f%%', result['success_rate'])
 
     logger.info('\n%s', '=' * 60)
