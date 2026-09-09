@@ -352,6 +352,9 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
                     def predictor(point):
                         data.set_x_predict(point)
                         return backend_module.predict(current_model, data)[0][0]
+        else:
+            msg = f'Invalid batch strategy: {data.batch_strategy}'
+            raise ValueError(msg)
 
     current_model = model
     try:
