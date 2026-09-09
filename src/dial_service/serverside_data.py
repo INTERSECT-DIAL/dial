@@ -251,7 +251,6 @@ class ServersideInputMultiple(ServersideInputBase):
         self.strategy = params.strategy
         self.batch_strategy = params.batch_strategy
         self.points = params.points
-        self.strategy = params.strategy
         self.strategy_args = params.strategy_args
         self.optimization_points = params.optimization_points
         self.confidence_bound = (
