@@ -129,7 +129,7 @@ class ServersideInputBase:
         if len(y_train) > 0 and self.preprocess_standardize:
             if self.preprocess_log:
                 y_train = np.log(y_train)
-            y_std = np.std(y_train)
+            y_std = max(np.std(y_train), 1e-12)
             y_mean = np.mean(y_train)
         else:
             y_std = 1.0
