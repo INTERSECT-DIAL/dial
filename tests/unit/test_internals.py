@@ -224,7 +224,7 @@ def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, d
         bounds=bounds,
         kernel='rbf',
         kernel_args={
-            'length_scale': 5, # make large kernel for uncertainty based tests
+            'length_scale': 0.5,
             'length_scale_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
@@ -1570,11 +1570,11 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
 def test_batched_indexed_grid(backend, dim, batch_strategy, believer_type):
     if dim == 1:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=1, points=2, bounds=[[0, 59]], discrete_measurements=True, discrete_measurement_grid_size=[60]
+            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=1, points=5, bounds=[[0, 1]], discrete_measurements=True, discrete_measurement_grid_size=[60]
         )
     else:
         data = empty_batch_data(
-            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=2, points=2, bounds=[[0, 5], [0, 5]], discrete_measurements=True, discrete_measurement_grid_size=[6,6]
+            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=2, points=5, bounds=[[0, 0.5], [0, 0.5]], discrete_measurements=True, discrete_measurement_grid_size=[6,6]
         )
     data, model = init_model_with_center_data(backend, dim, data)
     expected = uncertainty_sampling_schedule(
@@ -1586,6 +1586,4 @@ def test_batched_indexed_grid(backend, dim, batch_strategy, believer_type):
         constant_value=data.kernel_args['constant_value'],
     )
     output = np.asarray(core.get_next_points(data, model))
-    print(output)
-    print(expected)
     assert output == pytest.approx(expected)
