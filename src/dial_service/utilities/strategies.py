@@ -312,7 +312,7 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
             liar_setting = (
                 data.strategy_args.get('liar_value', 'mean')
                 if data.strategy_args is not None
-                else 'mean'
+                else 0.0
             )
 
             if isinstance(liar_setting, Real):
