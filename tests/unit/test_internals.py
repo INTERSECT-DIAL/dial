@@ -890,7 +890,13 @@ def test_inverse_transform(backend):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -924,7 +930,13 @@ def test_indexed_center(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -960,7 +972,13 @@ def test_indexed_corners(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1000,7 +1018,13 @@ def test_indexed_grid(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1057,7 +1081,13 @@ def test_indexed_chebyshev_grid(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        ('gpax'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
