@@ -94,9 +94,19 @@ class SABLEBackend(
 
     @staticmethod
     def sample(module, model, data):
-        return _SAMPLERS_SABLE[data.strategy.lower()](module, model, data)
+        strategy_name = data.strategy.lower()
+        if strategy_name not in _SAMPLERS_SABLE:
+            msg = f'Unknown strategy {strategy_name}'
+            raise ValueError(msg)
+
+        return _SAMPLERS_SABLE[strategy_name](module, model, data)
 
     @staticmethod
     def samples(module, model, data):
-        samples = _SAMPLERS_SABLE[data.strategy.lower()](module, model, data)
+        strategy_name = data.strategy.lower()
+        if strategy_name not in _SAMPLERS_SABLE:
+            msg = f'Unknown strategy {strategy_name}'
+            raise ValueError(msg)
+
+        samples = _SAMPLERS_SABLE[strategy_name](module, model, data)
         return [[float(x)] for x in samples]
