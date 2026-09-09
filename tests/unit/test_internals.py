@@ -29,6 +29,152 @@ DUMMY_WORKFLOW_ID = str(ObjectId())
 
 ######### HELPERS ####################
 
+
+def uncertainty_sampling_schedule(
+    bounds,
+    grid_size,
+    initial_points,
+    n_samples,
+    length_scale=0.5,
+    constant_value=1.0,
+    jitter=1e-12,
+):
+    """
+    Generate a deterministic reference schedule for maximum-uncertainty
+    sampling with an RBF Gaussian process.
+
+    At each iteration choose
+
+        x_next = argmax_x Var[f(x) | X]
+
+    over a finite candidate grid.
+
+    The observed y-values are irrelevant: GP posterior variance depends
+    only on the locations already sampled.
+
+    Parameters
+    ----------
+    bounds : sequence of [lower, upper]
+        Bounds for each input dimension.
+
+    grid_size : sequence of int
+        Number of candidate points along each dimension.
+        E.g. [60] or [6, 6].
+
+    initial_points : array-like, shape (n_initial, dim)
+        Points already observed before generating the schedule.
+
+    n_samples : int
+        Number of new points to generate.
+
+    length_scale : float or sequence of float
+        RBF kernel length scale.
+
+    constant_value : float
+        RBF kernel amplitude, corresponding to k(x, x).
+
+    jitter : float
+        Small diagonal term for numerical stability.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, dim)
+        Sequential maximum-uncertainty sampling schedule.
+    """
+    bounds = np.asarray(bounds, dtype=float)
+    dim = len(bounds)
+
+    grid_size = np.asarray(grid_size, dtype=int)
+    if grid_size.shape != (dim,):
+        raise ValueError('grid_size must contain one value per dimension')
+
+    # Candidate measurement grid.
+    axes = [
+        np.linspace(lower, upper, size)
+        for (lower, upper), size in zip(bounds, grid_size)
+    ]
+    candidates = np.stack(
+        np.meshgrid(*axes, indexing='ij'),
+        axis=-1,
+    ).reshape(-1, dim)
+
+    X = np.asarray(initial_points, dtype=float)
+    if X.size == 0:
+        X = np.empty((0, dim), dtype=float)
+    else:
+        X = X.reshape(-1, dim)
+
+    length_scale = np.asarray(length_scale, dtype=float)
+    if length_scale.ndim == 0:
+        length_scale = np.full(dim, length_scale)
+
+    def rbf_kernel(x1, x2):
+        diff = (
+            x1[:, None, :] - x2[None, :, :]
+        ) / length_scale
+
+        squared_distance = np.sum(diff**2, axis=-1)
+
+        return constant_value * np.exp(
+            -0.5 * squared_distance
+        )
+
+    schedule = []
+
+    for _ in range(n_samples):
+        if len(X) == 0:
+            # For a stationary RBF kernel the prior variance is constant.
+            variances = np.full(
+                len(candidates),
+                constant_value,
+                dtype=float,
+            )
+        else:
+            K_xx = rbf_kernel(X, X)
+            K_xx += jitter * np.eye(len(X))
+
+            K_xc = rbf_kernel(X, candidates)
+
+            # Cholesky form of
+            #
+            # k(x,x) - k(x,X) K(X,X)^-1 k(X,x)
+            #
+            # avoids explicitly computing the matrix inverse.
+            L = np.linalg.cholesky(K_xx)
+            v = np.linalg.solve(L, K_xc)
+
+            variances = (
+                constant_value
+                - np.sum(v**2, axis=0)
+            )
+
+        # Never pick a point already sampled.
+        if len(X):
+            already_sampled = np.any(
+                np.all(
+                    np.isclose(
+                        candidates[:, None, :],
+                        X[None, :, :],
+                        rtol=0,
+                        atol=1e-12,
+                    ),
+                    axis=2,
+                ),
+                axis=1,
+            )
+            variances[already_sampled] = -np.inf
+
+        # np.argmax gives us deterministic "first candidate wins"
+        # behavior when several points have equal uncertainty.
+        index = int(np.argmax(variances))
+        next_point = candidates[index].copy()
+
+        schedule.append(next_point)
+        X = np.vstack([X, next_point])
+
+    return np.asarray(schedule)
+
+
 def init_model_with_center_data(backend, dim_x, data):
     data_init = empty_data(
         backend, strategy='center', strategy_args=None, dim_x=dim_x, bounds=data.bounds
@@ -69,7 +215,7 @@ def empty_data(backend, strategy, strategy_args, dim_x, bounds):
     return ServersideInputSingle(workflow_state, params)
 
 
-def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, dim_x, bounds):
+def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, dim_x, bounds, discrete_measurements=False, discrete_measurement_grid_size=[]):
     """Helper function to create empty batch data for testing."""
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
@@ -78,7 +224,7 @@ def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, d
         bounds=bounds,
         kernel='rbf',
         kernel_args={
-            'length_scale': 0.5,
+            'length_scale': 5, # make large kernel for uncertainty based tests
             'length_scale_bounds': 'fixed',
             'constant_value': 1.0,
             'constant_value_bounds': 'fixed',
@@ -96,6 +242,8 @@ def empty_batch_data(backend, batch_strategy, strategy, strategy_args, points, d
         bounds=bounds,
         points=points,
         seed=42,
+        discrete_measurements=discrete_measurements,
+        discrete_measurement_grid_size=discrete_measurement_grid_size,
     )
     return ServersideInputMultiple(workflow_state, params)
 
@@ -1402,3 +1550,42 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
         assert len(intervals) == np.prod(data.strategy_args['grid_size']) - (i + 1)
     assert len(intervals) == 0
 
+
+@pytest.mark.parametrize(
+    ('backend'),
+    [
+        ('sklearn'),
+        pytest.param(
+            'gpax',
+            marks=pytest.mark.skipif(
+                'gpax' not in AVAILABLE_DIAL_BACKENDS,
+                reason='gpax not installed',
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize('dim', [1,2])
+@pytest.mark.parametrize('batch_strategy', ['believer'])
+@pytest.mark.parametrize('believer_type', ['kriging'])
+def test_batched_indexed_grid(backend, dim, batch_strategy, believer_type):
+    if dim == 1:
+        data = empty_batch_data(
+            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=1, points=2, bounds=[[0, 59]], discrete_measurements=True, discrete_measurement_grid_size=[60]
+        )
+    else:
+        data = empty_batch_data(
+            backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=2, points=2, bounds=[[0, 5], [0, 5]], discrete_measurements=True, discrete_measurement_grid_size=[6,6]
+        )
+    data, model = init_model_with_center_data(backend, dim, data)
+    expected = uncertainty_sampling_schedule(
+        bounds=data.bounds,
+        grid_size=data.discrete_measurement_grid_size,
+        initial_points=data.dataset_x,
+        n_samples=data.points,
+        length_scale=data.kernel_args['length_scale'],
+        constant_value=data.kernel_args['constant_value'],
+    )
+    output = np.asarray(core.get_next_points(data, model))
+    print(output)
+    print(expected)
+    assert output == pytest.approx(expected)
