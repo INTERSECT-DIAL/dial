@@ -1567,7 +1567,7 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
 @pytest.mark.parametrize('dim', [1,2])
 @pytest.mark.parametrize('batch_strategy', ['believer'])
 @pytest.mark.parametrize('believer_type', ['kriging'])
-def test_batched_indexed_grid(backend, dim, batch_strategy, believer_type):
+def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, believer_type):
     if dim == 1:
         data = empty_batch_data(
             backend, batch_strategy=batch_strategy, strategy='uncertainty', strategy_args={'believer_type': believer_type}, dim_x=1, points=5, bounds=[[0, 1]], discrete_measurements=True, discrete_measurement_grid_size=[60]
