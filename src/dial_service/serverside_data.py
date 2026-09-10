@@ -22,8 +22,8 @@ class ServersideInputBase:
 
         # the _dataset_x and _dataset_y members are private
         # should only be modified by built in setters
-        _dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
-        _dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
+        _dataset_x = np.array(data.dataset_x, dtype=float).reshape((-1, self.dim_x))
+        _dataset_y = np.array(data.dataset_y, dtype=float).reshape((-1, self.dim_y))
         self.statistics_y = data.statistics_y
 
         self.bounds = data.bounds
@@ -88,7 +88,7 @@ class ServersideInputBase:
         yerr_label = self.statistics_y.scale
         if isinstance(yerr_label, float):
             # convert to a single entry ndarray for type consistency
-            _yerr_train_raw = np.array(yerr_label)
+            _yerr_train_raw = np.array(yerr_label, dtype=float)
         else:
             # yerr_label is str
             # this may trigger a ValueError, but should be handled by dataclass validation

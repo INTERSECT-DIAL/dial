@@ -318,46 +318,62 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
             )
 
             if isinstance(liar_setting, Real):
-                liar_value = float(liar_setting)
+                liar_value = np.asarray(liar_setting, dtype=float)
             elif isinstance(liar_setting, str):
+                # data.dataset_y has shape (n_data, dim_y)
+                # apply the strategies along axis 0 only
                 match liar_setting:
                     case 'mean':
-                        liar_value = np.mean(data.dataset_y)
+                        liar_value = np.mean(data.dataset_y, axis=0)
                     case 'max':
-                        liar_value = np.max(data.dataset_y)
+                        liar_value = np.max(data.dataset_y, axis=0)
                     case 'min':
-                        liar_value = np.min(data.dataset_y)
+                        liar_value = np.min(data.dataset_y, axis=0)
                     case 'random':
                         liar_value = data.numpy_rng.uniform(
-                            np.min(data.dataset_y), np.max(data.dataset_y)
+                            np.min(data.dataset_y, axis=0), np.max(data.dataset_y, axis=0)
                         )
                     case 'median':
-                        liar_value = np.median(data.dataset_y)
+                        liar_value = np.median(data.dataset_y, axis=0)
                     case _:
-                        liar_value = np.mean(data.dataset_y)
-            elif callable(liar_setting):
-                liar_value = liar_setting(data.dataset_y)
+                        liar_value = np.mean(data.dataset_y, axis=0)
 
-            def predictor(point):  # noqa: ARG001
+            # this can not happen, how would we get a callable object through dial dataclass pydantic validation?
+            # data.strategy args is type dict[str, float | int | bool | list[int | float]]
+            # elif callable(liar_setting):
+            #    liar_value = liar_setting(data.dataset_y)
+
+            def predictor(point: np.ndarray) -> np.ndarray:  # noqa: ARG001
                 return liar_value
 
         elif data.batch_strategy == 'believer':
-            believer_setting = (
-                data.strategy_args.get('believer_type', 'kriging')
-                if data.strategy_args is not None
-                else 'kriging'
-            )
+            # There is only the Kriging believer. In the future, there could be more
+            # believer_setting = (
+            #    data.strategy_args.get('believer_type', 'kriging')
+            #    if data.strategy_args is not None
+            #    else 'kriging'
+            # )
 
-            match believer_setting:
-                case 'kriging':
+            # even for a believer strategy, we need to lie about the yerr values
+            # could make this configureable, default to median right now
+            liar_prediction = np.median(data.dataset_y, axis=0).reshape(data.dim_y)
 
-                    def predictor(point):
-                        # this will internally scale point from bounds to the unit cube
-                        data.set_x_predict(point)
-                        means, stddevs = backend_module.predict(current_model, data)
-                        # apply the inverse transform to get a 'raw' value suitable for dataset_y
-                        means, stddevs = data.inverse_transform_Y(means, stddevs)
-                        return means.item()
+            def expand_pred_to_dataset_y(mean: float):
+                "generate a dataset_y column from liar_prediction, with mean entry replaced by given mean"
+                dataset_y_col = liar_prediction.copy()
+                pos_y = data.labels_y.index(data.statistics_y.loc)
+                dataset_y_col[pos_y] = mean
+                return dataset_y_col
+
+            def predictor(point: np.ndarray) -> np.ndarray:
+                "return a raw dataset_y column predicted from the model at point"
+                # this will internally scale point from bounds to the unit cube
+                data.set_x_predict(point)
+                means, stddevs_ = backend_module.predict(current_model, data)
+                # apply the inverse transform to get a 'raw' value suitable for dataset_y
+                means, stddevs_ = data.inverse_transform_Y(means, stddevs_)
+                return expand_pred_to_dataset_y(means.item())
+
         else:
             msg = f'Invalid batch strategy: {data.batch_strategy}'
             raise ValueError(msg)
@@ -370,16 +386,16 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
     try:
         for _ in range(data.points):
             if data.strategy in INDEXED_STRATEGIES:
-                point = indexed_selection(data)
+                next_point = indexed_selection(data)
             else:
-                point = greedy_sampling(backend_module, current_model, data)
-            selected_points.append([float(v) for v in point])
+                next_point = greedy_sampling(backend_module, current_model, data)
+            selected_points.append([float(v) for v in next_point])
 
-            x_arr = np.asarray(point, dtype=float).reshape(1, -1)
-            y_arr = np.asarray([[predictor(selected_points[-1])]], dtype=float)
+            next_x = np.array(next_point, dtype=float).reshape(1, -1)
+            next_y = predictor(next_x).reshape(1, -1)
 
-            data.dataset_x = np.concatenate([np.asarray(data.dataset_x, dtype=float), x_arr])
-            data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), y_arr])
+            data.dataset_x = np.concatenate([data.dataset_x, next_x])
+            data.dataset_y = np.concatenate([data.dataset_y, next_y])
 
             if data.strategy not in INDEXED_STRATEGIES:
                 # train model trains a new model from scratch, not modifying the original model
