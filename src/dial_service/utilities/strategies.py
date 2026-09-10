@@ -215,7 +215,7 @@ def hypercube(
     return [list(point) for point in zip(*coordinates, strict=False)]
 
 
-def create_measurement_grid(data: ServersideInputSingle):
+def create_measurement_grid(data: ServersideInputSingle | ServersideInputMultiple):
     """
     Create a grid of measurement points for discrete optimization.
 
@@ -234,7 +234,9 @@ def create_measurement_grid(data: ServersideInputSingle):
     return [list(point) for point in itertools.product(*axes)]
 
 
-def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInputSingle):
+def greedy_sampling(
+    backend_module: AbstractBackend, model, data: ServersideInputSingle | ServersideInputMultiple
+):
     try:
         strategy_ = STRATEGIES[data.strategy]
     except KeyError as exc:
@@ -281,7 +283,7 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
     return selected_point.tolist()
 
 
-def indexed_selection(data: ServersideInputSingle):
+def indexed_selection(data: ServersideInputSingle | ServersideInputMultiple):
     try:
         strategy_ = INDEXED_STRATEGIES[data.strategy]
     except KeyError as exc:
@@ -304,8 +306,8 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
         return []
 
     selected_points: list[list[float]] = []
-    initial_x = np.asarray(data.dataset_x, dtype=float)
-    initial_y = np.asarray(data.dataset_y, dtype=float)
+    initial_x = data.dataset_x.copy()
+    initial_y = data.dataset_y.copy()
 
     if data.batch_strategy is not None:
         if data.batch_strategy == 'liar':
@@ -350,8 +352,12 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
                 case 'kriging':
 
                     def predictor(point):
+                        # this will internally scale point from bounds to the unit cube
                         data.set_x_predict(point)
-                        return backend_module.predict(current_model, data)[0][0]
+                        means, stddevs = backend_module.predict(current_model, data)
+                        # apply the inverse transform to get a 'raw' value suitable for dataset_y
+                        means, stddevs = data.inverse_transform_Y(means, stddevs)
+                        return means.item()
         else:
             msg = f'Invalid batch strategy: {data.batch_strategy}'
             raise ValueError(msg)
@@ -372,24 +378,16 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
             x_arr = np.asarray(point, dtype=float).reshape(1, -1)
             y_arr = np.asarray([[predictor(selected_points[-1])]], dtype=float)
 
-            if data.dataset_x.size == 0:
-                data.dataset_x = x_arr
-            else:
-                data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), x_arr])
+            data.dataset_x = np.concatenate([np.asarray(data.dataset_x, dtype=float), x_arr])
             data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), y_arr])
 
-            # Why do we need to strip cached properties here?
-            # Because we are modifying dataset_x and dataset_y, which are used in cached properties like stddev, Y_best, etc.
-            # If we don't clear these caches, they might return outdated values based on the old dataset
-            # By stripping the cached properties, we ensure that the next time these properties are accessed, they will be recalculated based on the updated dataset
-            data.clear_cached_properties()
-
-            current_model = backend_module.train_model(data)
+            if data.strategy not in INDEXED_STRATEGIES:
+                # train model trains a new model from scratch, not modifying the original model
+                current_model = backend_module.train_model(data)
     finally:
         # Restore original state so pseudo-observations never leak outside this method.
         data.dataset_x = initial_x
         data.dataset_y = initial_y
-        data.clear_cached_properties()
 
     return selected_points
 

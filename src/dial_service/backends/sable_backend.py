@@ -41,16 +41,14 @@ def _get_observation_errors(data, n_observations: int) -> np.ndarray:
     if data.statistics_y.name == 'Normal':
         y_err = data.Yerr_train
         y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
-        if y_err_arr.size == 1:
-            y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
     else:
         # if y_err is not provided through the statistics, use the old fallback for compatibility
         # TODO: remove if no longer needed
         y_err = backend_args.get('y_err', backend_args.get('noise_level', 1e-6))
-
         y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
-        if y_err_arr.size == 1:
-            y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
+
+    if y_err_arr.size == 1:
+        y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
 
     return y_err_arr
 

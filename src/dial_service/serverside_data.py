@@ -1,4 +1,3 @@
-from functools import cached_property
 from typing import Any
 
 import numpy as np
@@ -15,14 +14,18 @@ from .service_specific_dataclasses import DialWorkflowCreationParamsService
 # this is an extended version of ActiveLearningInputData.  This allows us to add on properties and methods to this class without impacting the client side
 class ServersideInputBase:
     def __init__(self, data: DialWorkflowCreationParamsService):
-        self.dim_x = data.dim_x
-        self.dim_y = data.dim_y
+        # dim_x and dim_y are guaranteed to be valid integers by dataclass
+        self.dim_x: int = data.dim_x or 1
+        self.dim_y: int = data.dim_y or 1
         self.labels_x = data.labels_x
         self.labels_y = data.labels_y
-        self._dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
-        self._dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
+
+        # the _dataset_x and _dataset_y members are private
+        # should only be modified by built in setters
+        _dataset_x = np.array(data.dataset_x, float).reshape((-1, self.dim_x))
+        _dataset_y = np.array(data.dataset_y, float).reshape((-1, self.dim_y))
         self.statistics_y = data.statistics_y
-        # it seems like there should be a smarter way to do this, but stuff involving loops doesn't work with static autocompleters:
+
         self.bounds = data.bounds
         self.y_is_good = data.y_is_good
         self.kernel = data.kernel
@@ -35,25 +38,70 @@ class ServersideInputBase:
         self.kernel_args = data.kernel_args
         self.extra_args = data.extra_args
 
+        # use the built in setters to populate training data members, apply transformation
+        self.dataset_x = _dataset_x
+        self.dataset_y = _dataset_y
+
     @property
     def dataset_x(self) -> np.ndarray:
+        "read-only property to get the raw dataset_x"
         return self._dataset_x
 
     @dataset_x.setter
     def dataset_x(self, value: np.ndarray) -> None:
-        self._dataset_x = value
-        self.clear_cached_properties()
+        self._dataset_x = value.reshape((-1, self.dim_x))
+        # apply scalings
+        self._x_train = self.scale_X(self._dataset_x)
 
     @property
     def dataset_y(self) -> np.ndarray:
+        "read-only property to get the raw dataset_y"
         return self._dataset_y
 
     @dataset_y.setter
     def dataset_y(self, value: np.ndarray) -> None:
-        self._dataset_y = value
-        self.clear_cached_properties()
+        self._dataset_y = value.reshape((-1, self.dim_y))
+        # extract the possibly heteroscedastic (y, yerr) components
+        # from dataset_y and apply scalings
+        self._y_train, self._yerr_train = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
 
-    @cached_property
+    @property
+    def y_train_raw(self) -> np.ndarray:
+        """
+        Return the raw training target values extracted from the dataset.
+        """
+        y_label = self.statistics_y.loc
+        if not isinstance(y_label, str):
+            msg = 'statistics_y.loc must be a Label (str).'
+            raise TypeError(msg)
+
+        # Use the label from self.statistics_y.loc to find the data column with the mean y data
+        # this may trigger a ValueError, if the label does not exist, but should be handled by dataclass validation
+        pos_y = self.labels_y.index(y_label)
+        return self._dataset_y[:, pos_y]
+
+    @property
+    def yerr_train_raw(self) -> Any:
+        """
+        Return the raw training error values extracted from the dataset.
+        """
+        yerr_label = self.statistics_y.scale
+        if isinstance(yerr_label, float):
+            # convert to a single entry ndarray for type consistency
+            _yerr_train_raw = np.array(yerr_label)
+        else:
+            # yerr_label is str
+            # this may trigger a ValueError, but should be handled by dataclass validation
+            pos_yerr = self.labels_y.index(yerr_label)
+            _yerr_train_raw = self._dataset_y[:, pos_yerr]
+
+        if np.any(_yerr_train_raw < 0):
+            idxs = np.where(_yerr_train_raw < 0)
+            msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
+            raise ValueError(msg)
+        return _yerr_train_raw
+
+    @property
     def X_train(self) -> np.ndarray:
         """
         Return X scaled to [0, 1] per dimension based on self.bounds.
@@ -61,7 +109,21 @@ class ServersideInputBase:
         dataset_x: list[list[float]], shape (N, D)
         bounds: list[[low, high], ...], shape (D, 2)
         """
-        return self.scale_X(self.dataset_x)
+        return self._x_train
+
+    @property
+    def Y_train(self) -> np.ndarray:
+        """
+        Return transformed y value.
+        """
+        return self._y_train
+
+    @property
+    def Yerr_train(self) -> np.ndarray:
+        """
+        Return transformed yerr value.
+        """
+        return self._yerr_train
 
     def scale_X(self, X: np.ndarray) -> np.ndarray:
         """
@@ -80,68 +142,6 @@ class ServersideInputBase:
         span = np.where(highs - lows == 0, 1.0, highs - lows)
 
         return (X - lows) / span
-
-    @cached_property
-    def y_train_raw(self) -> np.ndarray:
-        """
-        Return the raw training target values extracted from the dataset.
-        """
-        y_label = self.statistics_y.loc
-        if not isinstance(y_label, str):
-            msg = 'statistics_y.loc must be a Label (str).'
-            raise TypeError(msg)
-
-        # Use the label from self.statistics_y.loc to find the data column with the mean y data
-        # this may trigger a ValueError, if the label does not exist, but should be handled by dataclass validation
-        pos_y = self.labels_y.index(y_label)
-        return self.dataset_y[:, pos_y]
-
-    @cached_property
-    def yerr_train_raw(self) -> Any:
-        """
-        Return the raw training error values extracted from the dataset.
-        """
-        yerr_label = self.statistics_y.scale
-        if isinstance(yerr_label, float):
-            _yerr_train_raw = yerr_label
-        else:
-            # yerr_label is str
-            # this may trigger a ValueError, but should be handled by dataclass validation
-            pos_yerr = self.labels_y.index(yerr_label)
-            _yerr_train_raw = self.dataset_y[:, pos_yerr]
-
-        if np.any(_yerr_train_raw < 0):
-            if isinstance(_yerr_train_raw, float):
-                # TODO: should probably verify this in the dataclass instead
-                msg = f'yerr value in statistics_y.scale must be non-negative, found {_yerr_train_raw}'
-            else:
-                idxs = np.where(_yerr_train_raw < 0)
-                msg = f'yerr values in statistics_y.scale must be non-negative, found {_yerr_train_raw[idxs[0]]} at {idxs[0]}.'
-            raise ValueError(msg)
-        return _yerr_train_raw
-
-    @cached_property
-    def Y_train(self) -> np.ndarray:
-        """
-        Find output y and error values yerr in dataset_y, and apply transformation.
-        Return transformed y value.
-        """
-        y, _ = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
-
-        # return only y, to conform to interface
-        return y
-
-    @cached_property
-    def Yerr_train(self) -> Any:
-        """
-        Find output y and error values in dataset y, and apply transformation.
-        Return transformed yerr value.
-        """
-        # recompute transformation, at some overhead (probably not worth to optimize)
-        _, yerr = self.transform_Y(self.y_train_raw, self.yerr_train_raw)
-
-        # return only yerr, to conform to interface
-        return yerr
 
     def _transform_Y_params(self) -> tuple[float, float]:
         """
@@ -190,32 +190,9 @@ class ServersideInputBase:
 
         return y, yerr
 
-    @cached_property
+    @property
     def Y_best(self) -> float:
         return self.Y_train.max() if self.y_is_good else self.Y_train.min()
-
-    def clear_cached_properties(self) -> None:
-        # Track attribute names that have already been encountered.
-        # Classes are inspected in Method Resolution Order (MRO) order,
-        # starting with the most-derived class
-        resolved_names = set()
-
-        # Walk through the class hierarchy:
-        # DerivedClass -> BaseClass -> ... -> object
-        for cls in type(self).__mro__:
-            # Inspect only attributes defined directly on the current class
-            for name, attr in cls.__dict__.items():
-                # Skip names already defined by a more-derived class
-                if name in resolved_names:
-                    continue
-
-                resolved_names.add(name)
-
-                # A cached_property descriptor is stored on the class,
-                # while its computed value is stored in the instance __dict__
-                if isinstance(attr, cached_property):
-                    # Remove the cached value if it exists
-                    self.__dict__.pop(name, None)
 
 
 class ServersideInputSingle(ServersideInputBase):

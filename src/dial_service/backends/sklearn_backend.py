@@ -131,7 +131,6 @@ class SklearnBackend(
     def predict(model, data):
         # TODO verify correct approach
         # Get dimension from the trained model to ensure consistency
-        # dim = model.X_train_.shape[1]
         dim = data.dim_x
 
         derivative_type = data.extra_args.get('derivative_type', 0) if data.extra_args else 0
