@@ -178,6 +178,18 @@ def init_model_with_center_data(backend, dim_x, data):
     return data, model
 
 
+def init_model_with_random_data(backend, dim_x, data):
+    data_init = empty_data(
+        backend, strategy='random', strategy_args=None, dim_x=dim_x, bounds=data.bounds
+    )
+    model = core.initialize_model(data_init)
+    output = core.get_next_point(data_init, model)
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[0]]])
+    model = core.train_model(data)
+    return data, model
+
+
 def empty_data(backend, strategy, strategy_args, dim_x, bounds):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
@@ -192,7 +204,7 @@ def empty_data(backend, strategy, strategy_args, dim_x, bounds):
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
-        preprocess_standardize=True,
+        preprocess_standardize=False,
         y_is_good=True,
         seed=42,
     )
@@ -233,7 +245,7 @@ def empty_batch_data(
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
-        preprocess_standardize=True,
+        preprocess_standardize=False,
         y_is_good=True,
         seed=42,
     )
@@ -1514,17 +1526,23 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
-@pytest.mark.parametrize('batch_strategy', ['believer'])
-@pytest.mark.parametrize('believer_type', ['kriging'])
-def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, believer_type):
+@pytest.mark.parametrize(
+    ('batch_strategy', 'strategy_args'),
+    [
+        ('believer', {'believer_type': 'kriging'}),
+        ('liar', {'liar_type': 'mean'}),
+    ],
+)
+def test_batched_uncertainty_schedule(backend, dim, batch_strategy, strategy_args):
+    n_batch = 8
     if dim == 1:
         data = empty_batch_data(
             backend,
             batch_strategy=batch_strategy,
             strategy='uncertainty',
-            strategy_args={'believer_type': believer_type},
+            strategy_args=strategy_args,
             dim_x=1,
-            points=5,
+            points=n_batch,
             bounds=[[0, 1]],
             discrete_measurements=True,
             discrete_measurement_grid_size=[60],
@@ -1534,16 +1552,21 @@ def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, bel
             backend,
             batch_strategy=batch_strategy,
             strategy='uncertainty',
-            strategy_args={'believer_type': believer_type},
+            strategy_args=strategy_args,
             dim_x=2,
-            points=5,
-            bounds=[[0, 0.5], [0, 0.5]],
+            points=n_batch,
+            bounds=[[0, 1], [0, 1]],
             discrete_measurements=True,
             discrete_measurement_grid_size=[6, 6],
         )
-    data, model = init_model_with_center_data(backend, dim, data)
+
+    # init the model with random (same seed) point, to remove symmetry and fix order of points
+    data, model = init_model_with_random_data(backend, dim, data)
+
     output = np.asarray(core.get_next_points(data, model))
     if backend == 'sklearn':
+        # dial transforms dataset_x to the unit_cube, but not length_scale
+        # these expected 'truth values' only work if bounds are unit cube
         expected = uncertainty_sampling_schedule(
             bounds=data.bounds,
             grid_size=data.discrete_measurement_grid_size,
@@ -1556,4 +1579,4 @@ def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, bel
     else:
         # if we do not use sklearn based GP, there is no truth solution.
         # Check only the shape of the return value
-        assert output.shape == (5, dim)
+        assert output.shape == (n_batch, dim)
