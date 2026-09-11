@@ -19,11 +19,6 @@ class ServersideInputBase:
         self.dim_y: int = data.dim_y or 1
         self.labels_x = data.labels_x
         self.labels_y = data.labels_y
-
-        # the _dataset_x and _dataset_y members are private
-        # should only be modified by built in setters
-        _dataset_x = np.array(data.dataset_x, dtype=float).reshape((-1, self.dim_x))
-        _dataset_y = np.array(data.dataset_y, dtype=float).reshape((-1, self.dim_y))
         self.statistics_y = data.statistics_y
 
         self.bounds = data.bounds
@@ -38,9 +33,12 @@ class ServersideInputBase:
         self.kernel_args = data.kernel_args
         self.extra_args = data.extra_args
 
-        # use the built in setters to populate training data members, apply transformation
-        self.dataset_x = _dataset_x
-        self.dataset_y = _dataset_y
+        # reshape and normalize the data (at the end of __init__, when settings are populated)
+        dataset_x = np.array(data.dataset_x, dtype=float).reshape((-1, self.dim_x))
+        dataset_y = np.array(data.dataset_y, dtype=float).reshape((-1, self.dim_y))
+        # use the built in setters to populate training data members, apply transformations
+        self.dataset_x = dataset_x
+        self.dataset_y = dataset_y
 
     @property
     def dataset_x(self) -> np.ndarray:
@@ -228,6 +226,10 @@ class ServersideInputSingle(ServersideInputBase):
         if params.bounds is not None:
             self.bounds = params.bounds
 
+        # reset the dataset, if bounds or any other transformation settings have changed
+        self.dataset_x = self._dataset_x
+        self.dataset_y = self._dataset_y
+
         # always reinit rng, since initial rng is not updated in db!
         self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)
 
@@ -269,6 +271,10 @@ class ServersideInputMultiple(ServersideInputBase):
             self.y_is_good = params.y_is_good
         if params.bounds is not None:
             self.bounds = params.bounds
+
+        # reset the dataset, if bounds or any other transformation settings have changed
+        self.dataset_x = self._dataset_x
+        self.dataset_y = self._dataset_y
 
         # always reinit rng, since initial rng is not updated in db!
         self.numpy_rng = np.random.RandomState(None if params.seed == -1 else params.seed)

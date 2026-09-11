@@ -36,10 +36,10 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
     @staticmethod
     @abstractmethod
     def update_model(model: _MODEL, data: ServersideInputBase) -> _MODEL:
-        """A default implementation of update_model trains a new model (like train_model).
+        """A default implementation of update_model could simply train a new model (like train_model).
 
-        Backends can implement this method to use the provided model and update it
-        with new data (re-training, continual learing), which may be more efficient.
+        Backends can also implement this method to use the provided model and update it
+        with new data (re-training, continual learning), which may be more efficient.
         The method returns either a new model, or the provided model with updated state.
         """
 
