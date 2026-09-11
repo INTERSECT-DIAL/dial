@@ -128,6 +128,13 @@ class SklearnBackend(
         return GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=1000, **_extra_args)
 
     @staticmethod
+    def update_model(_model, data):
+        """Update a GP surrogate model with new data and return.
+        Default implementation simply trains a new model.
+        """
+        return SklearnBackend.train_model(data)
+
+    @staticmethod
     def predict(model, data):
         # TODO verify correct approach
         # Get dimension from the trained model to ensure consistency

@@ -337,9 +337,19 @@ class DialWorkflowDatasetUpdates(BaseModel):
     workflow_id: ValidatedObjectId
     next_x_list: list[list[float]] = Field(min_length=1)
     next_y_list: list[float | list[float]] = Field(min_length=1)
-    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
-    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
-    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
+
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the kernel type. These arguments will OVERRIDE prior saved arguments."""
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the backend type. These arguments will OVERRIDE prior saved arguments."""
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Miscellaneous additional arguments. These arguments will OVERRIDE prior saved arguments."""
 
     @field_validator('next_x_list', 'next_y_list')
     @classmethod

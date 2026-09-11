@@ -83,6 +83,13 @@ class SABLEBackend(
         )
 
     @staticmethod
+    def update_model(model, data):
+        """Update a SABLE surrogate model with new data and return."""
+        y_err = _get_observation_errors(data, len(data.Y_train))
+        model.fit_fast(data.X_train, data.Y_train, y_err=y_err)
+        return model
+
+    @staticmethod
     def predict(model, data):
         x_query = np.asarray(data.x_predict, dtype=float).reshape(-1, data.dim_x)
         means, stddevs = model.predict(x_query)

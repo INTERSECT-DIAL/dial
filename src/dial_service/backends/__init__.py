@@ -35,7 +35,19 @@ class AbstractBackend(ABC, Generic[_MODEL, _KERNEL, _PREDICT]):
 
     @staticmethod
     @abstractmethod
-    def predict(model: _MODEL, data: ServersideInputPrediction) -> _PREDICT: ...
+    def update_model(model: _MODEL, data: ServersideInputBase) -> _MODEL:
+        """A default implementation of update_model trains a new model (like train_model).
+
+        Backends can implement this method to use the provided model and update it
+        with new data (re-training, continual learing), which may be more efficient.
+        The method returns either a new model, or the provided model with updated state.
+        """
+
+    @staticmethod
+    @abstractmethod
+    def predict(
+        model: _MODEL, data: ServersideInputPrediction | ServersideInputBase
+    ) -> _PREDICT: ...
 
     @staticmethod
     @abstractmethod

@@ -1,3 +1,4 @@
+import copy
 import itertools
 import logging
 from numbers import Real
@@ -339,7 +340,7 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
                         liar_value = np.mean(data.dataset_y, axis=0)
 
             # this can not happen, how would we get a callable object through dial dataclass pydantic validation?
-            # data.strategy args is type dict[str, float | int | bool | list[int | float]]
+            # data.strategy_args is type dict[str, float | int | bool | list[int | float]]
             # elif callable(liar_setting):
             #    liar_value = liar_setting(data.dataset_y)
 
@@ -359,17 +360,20 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
             liar_prediction = np.median(data.dataset_y, axis=0).reshape(data.dim_y)
 
             def expand_pred_to_dataset_y(mean: float):
-                "generate a dataset_y column from liar_prediction, with mean entry replaced by given mean"
+                """generate a dataset_y column from liar_prediction, with mean entry replaced by given mean"""
                 dataset_y_col = liar_prediction.copy()
                 pos_y = data.labels_y.index(data.statistics_y.loc)
                 dataset_y_col[pos_y] = mean
                 return dataset_y_col
 
+            # make a deep copy of the model and build a predictor from it
+            planning_model = copy.deepcopy(model)
+
             def predictor(point: np.ndarray) -> np.ndarray:
-                "return a raw dataset_y column predicted from the model at point"
+                """return a raw dataset_y column predicted from the model at point"""
                 # this will internally scale point from bounds to the unit cube
                 data.set_x_predict(point)
-                means, stddevs_ = backend_module.predict(current_model, data)
+                means, stddevs_ = backend_module.predict(planning_model, data)
                 # apply the inverse transform to get a 'raw' value suitable for dataset_y
                 means, stddevs_ = data.inverse_transform_Y(means, stddevs_)
                 return expand_pred_to_dataset_y(means.item())
@@ -382,13 +386,12 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
         msg = f'Invalid batch strategy: {data.batch_strategy}'
         raise ValueError(msg)
 
-    current_model = model
     try:
         for _ in range(data.points):
             if data.strategy in INDEXED_STRATEGIES:
                 next_point = indexed_selection(data)
             else:
-                next_point = greedy_sampling(backend_module, current_model, data)
+                next_point = greedy_sampling(backend_module, planning_model, data)
             selected_points.append([float(v) for v in next_point])
 
             next_x = np.array(next_point, dtype=float).reshape(1, -1)
@@ -398,8 +401,8 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
             data.dataset_y = np.concatenate([data.dataset_y, next_y])
 
             if data.strategy not in INDEXED_STRATEGIES:
-                # train model trains a new model from scratch, not modifying the original model
-                current_model = backend_module.train_model(data)
+                # update_model updates the planning model, not modifying the original
+                planning_model = backend_module.update_model(planning_model, data)
     finally:
         # Restore original state so pseudo-observations never leak outside this method.
         data.dataset_x = initial_x
