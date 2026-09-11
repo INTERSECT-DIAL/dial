@@ -1,3 +1,4 @@
+import copy
 import itertools
 import logging
 from numbers import Real
@@ -215,7 +216,7 @@ def hypercube(
     return [list(point) for point in zip(*coordinates, strict=False)]
 
 
-def create_measurement_grid(data: ServersideInputSingle):
+def create_measurement_grid(data: ServersideInputSingle | ServersideInputMultiple):
     """
     Create a grid of measurement points for discrete optimization.
 
@@ -234,7 +235,9 @@ def create_measurement_grid(data: ServersideInputSingle):
     return [list(point) for point in itertools.product(*axes)]
 
 
-def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInputSingle):
+def greedy_sampling(
+    backend_module: AbstractBackend, model, data: ServersideInputSingle | ServersideInputMultiple
+):
     try:
         strategy_ = STRATEGIES[data.strategy]
     except KeyError as exc:
@@ -281,7 +284,7 @@ def greedy_sampling(backend_module: AbstractBackend, model, data: ServersideInpu
     return selected_point.tolist()
 
 
-def indexed_selection(data: ServersideInputSingle):
+def indexed_selection(data: ServersideInputSingle | ServersideInputMultiple):
     try:
         strategy_ = INDEXED_STRATEGIES[data.strategy]
     except KeyError as exc:
@@ -295,7 +298,101 @@ def indexed_selection(data: ServersideInputSingle):
     return selected_point
 
 
-def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
+def _prepare_batch_sampling(backend_module: AbstractBackend, model, data: ServersideInputMultiple):
+    if data.strategy in INDEXED_STRATEGIES:  # noqa: SIM108
+        # for indexed strategies, a planning model is not needed.
+        planning_model = None
+    else:
+        # make a deep copy of the model and build a predictor from it
+        # making a deep copy allows to safely use backend_module.update_model,
+        # without adding fake data
+        planning_model = copy.deepcopy(model)
+
+    # since we accept None in the dataclass, provide the believer as a default
+    batch_strategy = data.batch_strategy or 'believer'
+
+    if batch_strategy == 'liar':
+        default_liar = 'mean'
+        liar_setting = (
+            data.strategy_args.get('liar_value', default_liar)
+            if data.strategy_args is not None
+            else default_liar
+        )
+
+        if isinstance(liar_setting, Real):
+            # use a median liar value, and replace the y entry by the provided value
+            liar_value = np.median(data.dataset_y, axis=0)
+            liar_value[data.labels_y.index(data.statistics_y.loc)] = float(liar_setting)
+        elif isinstance(liar_setting, list):
+            liar_value = np.array(liar_setting, dtype=float).reshape((1, data.dim_y))
+        elif isinstance(liar_setting, str):
+            # data.dataset_y has shape (n_data, dim_y)
+            # apply the strategies along axis 0 only
+            match liar_setting:
+                case 'mean':
+                    liar_value = np.mean(data.dataset_y, axis=0)
+                case 'max':
+                    liar_value = np.max(data.dataset_y, axis=0)
+                case 'min':
+                    liar_value = np.min(data.dataset_y, axis=0)
+                case 'random':
+                    liar_value = data.numpy_rng.uniform(
+                        np.min(data.dataset_y, axis=0), np.max(data.dataset_y, axis=0)
+                    )
+                case 'median':
+                    liar_value = np.median(data.dataset_y, axis=0)
+                case _:
+                    liar_value = np.mean(data.dataset_y, axis=0)
+
+        # this can not happen, how would we get a callable object through dial dataclass pydantic validation?
+        # data.strategy_args is type dict[str, float | int | bool | list[int | float]]
+        # elif callable(liar_setting):
+        #    liar_value = liar_setting(data.dataset_y)
+
+        def predictor(point: np.ndarray, model) -> np.ndarray:  # noqa: ARG001
+            return liar_value
+
+    elif batch_strategy == 'believer':
+        # There is only the Kriging believer. In the future, there could be more
+        believer_setting = (
+            data.strategy_args.get('believer_type', 'kriging')
+            if data.strategy_args is not None
+            else 'kriging'
+        )
+
+        if believer_setting == 'kriging':
+            # even for a believer strategy, we need to lie about the yerr values
+            # could make this configureable, default to median right now
+            liar_prediction = np.median(data.dataset_y, axis=0).reshape(data.dim_y)
+
+            def expand_pred_to_dataset_y(mean: float):
+                """Generate a dataset_y column from liar_prediction, with mean entry replaced by given mean."""
+                dataset_y_col = liar_prediction.copy()
+                pos_y = data.labels_y.index(data.statistics_y.loc)
+                dataset_y_col[pos_y] = mean
+                return dataset_y_col
+
+            def predictor(point: np.ndarray, model) -> np.ndarray:
+                """Return a raw dataset_y column predicted from the provided model at point."""
+                # this will internally scale point from bounds to the unit cube
+                data.set_x_predict(point)
+                means, stddevs_ = backend_module.predict(model, data)
+                # apply the inverse transform to get a 'raw' value suitable for dataset_y
+                means, stddevs_ = data.inverse_transform_Y(means, stddevs_)
+                return expand_pred_to_dataset_y(means.item())
+        else:
+            msg = f'Invalid beliver setting: {believer_setting}'
+            raise ValueError(msg)
+    else:
+        msg = f'Invalid batch strategy: {data.batch_strategy}'
+        raise ValueError(msg)
+
+    return predictor, planning_model
+
+
+def batch_sampling(
+    backend_module: AbstractBackend, model, data: ServersideInputMultiple
+) -> list[list[float]]:
     """
     Greedy batch selection using the liar or believer strategies.
     """
@@ -303,93 +400,37 @@ def batch_sampling(backend_module: AbstractBackend, model, data: ServersideInput
     if data.points <= 0:
         return []
 
+    predictor, planning_model = _prepare_batch_sampling(backend_module, model, data)
+
     selected_points: list[list[float]] = []
-    initial_x = np.asarray(data.dataset_x, dtype=float)
-    initial_y = np.asarray(data.dataset_y, dtype=float)
-
-    if data.batch_strategy is not None:
-        if data.batch_strategy == 'liar':
-            liar_setting = (
-                data.strategy_args.get('liar_value', 'mean')
-                if data.strategy_args is not None
-                else 0.0
-            )
-
-            if isinstance(liar_setting, Real):
-                liar_value = float(liar_setting)
-            elif isinstance(liar_setting, str):
-                match liar_setting:
-                    case 'mean':
-                        liar_value = np.mean(data.dataset_y)
-                    case 'max':
-                        liar_value = np.max(data.dataset_y)
-                    case 'min':
-                        liar_value = np.min(data.dataset_y)
-                    case 'random':
-                        liar_value = data.numpy_rng.uniform(
-                            np.min(data.dataset_y), np.max(data.dataset_y)
-                        )
-                    case 'median':
-                        liar_value = np.median(data.dataset_y)
-                    case _:
-                        liar_value = np.mean(data.dataset_y)
-            elif callable(liar_setting):
-                liar_value = liar_setting(data.dataset_y)
-
-            def predictor(point):  # noqa: ARG001
-                return liar_value
-
-        elif data.batch_strategy == 'believer':
-            believer_setting = (
-                data.strategy_args.get('believer_type', 'kriging')
-                if data.strategy_args is not None
-                else 'kriging'
-            )
-
-            match believer_setting:
-                case 'kriging':
-
-                    def predictor(point):
-                        data.set_x_predict(point)
-                        return backend_module.predict(current_model, data)[0][0]
-        else:
-            msg = f'Invalid batch strategy: {data.batch_strategy}'
-            raise ValueError(msg)
+    initial_x = data.dataset_x.copy()
+    initial_y = data.dataset_y.copy()
 
     if 'predictor' not in locals():
         msg = f'Invalid batch strategy: {data.batch_strategy}'
         raise ValueError(msg)
 
-    current_model = model
     try:
         for _ in range(data.points):
             if data.strategy in INDEXED_STRATEGIES:
-                point = indexed_selection(data)
+                next_point = indexed_selection(data)
             else:
-                point = greedy_sampling(backend_module, current_model, data)
-            selected_points.append([float(v) for v in point])
+                next_point = greedy_sampling(backend_module, planning_model, data)
+            selected_points.append([float(v) for v in next_point])
 
-            x_arr = np.asarray(point, dtype=float).reshape(1, -1)
-            y_arr = np.asarray([[predictor(selected_points[-1])]], dtype=float)
+            next_x = np.array(next_point, dtype=float).reshape(1, data.dim_x)
+            next_y = predictor(next_x, model=planning_model).reshape(1, data.dim_y)
 
-            if data.dataset_x.size == 0:
-                data.dataset_x = x_arr
-            else:
-                data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), x_arr])
-            data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), y_arr])
+            data.dataset_x = np.concatenate([data.dataset_x, next_x])
+            data.dataset_y = np.concatenate([data.dataset_y, next_y])
 
-            # Why do we need to strip cached properties here?
-            # Because we are modifying dataset_x and dataset_y, which are used in cached properties like stddev, Y_best, etc.
-            # If we don't clear these caches, they might return outdated values based on the old dataset
-            # By stripping the cached properties, we ensure that the next time these properties are accessed, they will be recalculated based on the updated dataset
-            data.clear_cached_properties()
-
-            current_model = backend_module.train_model(data)
+            if data.strategy not in INDEXED_STRATEGIES:
+                # update_model updates the planning model, not modifying the original model
+                planning_model = backend_module.update_model(planning_model, data)
     finally:
         # Restore original state so pseudo-observations never leak outside this method.
         data.dataset_x = initial_x
         data.dataset_y = initial_y
-        data.clear_cached_properties()
 
     return selected_points
 

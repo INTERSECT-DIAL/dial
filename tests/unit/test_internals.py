@@ -178,6 +178,18 @@ def init_model_with_center_data(backend, dim_x, data):
     return data, model
 
 
+def init_model_with_random_data(backend, dim_x, data):
+    data_init = empty_data(
+        backend, strategy='random', strategy_args=None, dim_x=dim_x, bounds=data.bounds
+    )
+    model = core.initialize_model(data_init)
+    output = core.get_next_point(data_init, model)
+    data.dataset_x = np.vstack([np.asarray(data.dataset_x, dtype=float), output])
+    data.dataset_y = np.concatenate([np.asarray(data.dataset_y, dtype=float), [[0]]])
+    model = core.train_model(data)
+    return data, model
+
+
 def empty_data(backend, strategy, strategy_args, dim_x, bounds):
     workflow_state = DialWorkflowCreationParamsService(
         dataset_x=[],
@@ -192,7 +204,7 @@ def empty_data(backend, strategy, strategy_args, dim_x, bounds):
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
-        preprocess_standardize=True,
+        preprocess_standardize=False,
         y_is_good=True,
         seed=42,
     )
@@ -233,7 +245,7 @@ def empty_batch_data(
             'constant_value_bounds': 'fixed',
         },
         backend=backend,
-        preprocess_standardize=True,
+        preprocess_standardize=False,
         y_is_good=True,
         seed=42,
     )
@@ -586,13 +598,14 @@ def test_dataset_y_reassignment_invalidates_cache():
     ('backend', 'approx'),
     [
         ('sklearn', 1.842309),
-        # pytest.param(
-        #     'gpax', 2.0,
-        #     marks=pytest.mark.skipif(
-        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
-        #         reason='gpax not installed',
-        #     ),
-        # ),
+        pytest.param(
+            'sable',
+            1.943217,
+            marks=pytest.mark.skipif(
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
+            ),
+        ),
     ],
 )
 def test_EI_1D(backend, approx):
@@ -609,13 +622,6 @@ def test_EI_1D(backend, approx):
     ('backend', 'val'),
     [
         ('sklearn', 1.0),
-        # pytest.param(
-        #     'gpax', 2.0,
-        #     marks=pytest.mark.skipif(
-        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
-        #         reason='gpax not installed',
-        #     ),
-        # ),
     ],
 )
 def test_EI_1D_discrete(backend, val):
@@ -636,13 +642,14 @@ def test_EI_1D_discrete(backend, val):
     ('backend', 'approx'),
     [
         ('sklearn', [1.705352, -1.682829]),
-        # pytest.param(
-        #     'gpax', [2.0, 2,0],
-        #     marks=pytest.mark.skipif(
-        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
-        #         reason='gpax not installed',
-        #     ),
-        # ),
+        pytest.param(
+            'sable',
+            [1.649840, -1.68540],
+            marks=pytest.mark.skipif(
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
+            ),
+        ),
     ],
 )
 def test_EI_2D(backend, approx):
@@ -658,14 +665,15 @@ def test_EI_2D(backend, approx):
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [2.000000, -1.143727, -1.859496]),
-        # pytest.param(
-        #     'gpax', [2.0, 2,0, 2.0,],  # WAS: [2.0,2.0,2,0]
-        #     marks=pytest.mark.skipif(
-        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
-        #         reason='gpax not installed',
-        #     ),
-        # ),
+        ('sklearn', [2.0, -1.143727, -1.859496]),
+        pytest.param(
+            'sable',
+            [2.0, -0.77583, -1.546507],
+            marks=pytest.mark.skipif(
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
+            ),
+        ),
     ],
 )
 def test_EI_3D(backend, approx):
@@ -682,13 +690,14 @@ def test_EI_3D(backend, approx):
     ('backend', 'approx'),
     [
         ('sklearn', [1.5]),
-        # pytest.param(
-        #     'gpax' [2.0],
-        #     marks=pytest.mark.skipif(
-        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
-        #         reason='gpax not installed',
-        #     ),
-        # ),
+        pytest.param(
+            'sable',
+            [1.5],
+            marks=pytest.mark.skipif(
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
+            ),
+        ),
     ],
 )
 def test_uncertainty(backend, approx):
@@ -701,14 +710,15 @@ def test_uncertainty(backend, approx):
 @pytest.mark.parametrize(
     ('backend', 'approx'),
     [
-        ('sklearn', [1.790396262]),
-        # pytest.param(
-        #     'gpax' [2.0],
-        #     marks=pytest.mark.skipif(
-        #         'gpax' not in AVAILABLE_DIAL_BACKENDS,
-        #         reason='gpax not installed',
-        #     ),
-        # ),
+        ('sklearn', [1.790396]),
+        pytest.param(
+            'sable',
+            [1.912978],
+            marks=pytest.mark.skipif(
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
+            ),
+        ),
     ],
 )
 def test_preprocessing_standardize(backend, approx):
@@ -776,13 +786,6 @@ def test_random(backend):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 def test_hypercube_single_point(backend):
@@ -812,13 +815,6 @@ def test_hypercube_single_point(backend):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 def test_random_discrete(backend):
@@ -843,13 +839,6 @@ def test_random_discrete(backend):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 def test_hypercube_single_point_discrete(backend):
@@ -885,13 +874,6 @@ def test_hypercube_single_point_discrete(backend):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 def test_hypercube_single_point_discrete_2D(backend):
@@ -1092,13 +1074,6 @@ def test_inverse_transform(backend):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1132,13 +1107,6 @@ def test_indexed_center(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1174,13 +1142,6 @@ def test_indexed_corners(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1220,13 +1181,6 @@ def test_indexed_grid(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1283,13 +1237,6 @@ def test_indexed_chebyshev_grid(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1341,13 +1288,6 @@ def test_indexed_latin_hypercube(backend, dim):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1401,13 +1341,6 @@ def test_batched_indexed_corners(backend, dim, batch_strategy, liar_value):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1461,13 +1394,6 @@ def test_batched_indexed_grid(backend, dim, batch_strategy, liar_value):
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1533,13 +1459,6 @@ def test_batched_indexed_chebyshev_grid(backend, dim, batch_strategy, liar_value
     ('backend'),
     [
         ('sklearn'),
-        pytest.param(
-            'gpax',
-            marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
-            ),
-        ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
@@ -1598,26 +1517,32 @@ def test_batched_indexed_latin_hypercube(backend, dim, batch_strategy, liar_valu
     [
         ('sklearn'),
         pytest.param(
-            'gpax',
+            'sable',
             marks=pytest.mark.skipif(
-                'gpax' not in AVAILABLE_DIAL_BACKENDS,
-                reason='gpax not installed',
+                'sable' not in AVAILABLE_DIAL_BACKENDS,
+                reason='sable not installed',
             ),
         ),
     ],
 )
 @pytest.mark.parametrize('dim', [1, 2])
-@pytest.mark.parametrize('batch_strategy', ['believer'])
-@pytest.mark.parametrize('believer_type', ['kriging'])
-def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, believer_type):
+@pytest.mark.parametrize(
+    ('batch_strategy', 'strategy_args'),
+    [
+        ('believer', {'believer_type': 'kriging'}),
+        ('liar', {'liar_type': 'mean'}),
+    ],
+)
+def test_batched_uncertainty_schedule(backend, dim, batch_strategy, strategy_args):
+    n_batch = 8
     if dim == 1:
         data = empty_batch_data(
             backend,
             batch_strategy=batch_strategy,
             strategy='uncertainty',
-            strategy_args={'believer_type': believer_type},
+            strategy_args=strategy_args,
             dim_x=1,
-            points=5,
+            points=n_batch,
             bounds=[[0, 1]],
             discrete_measurements=True,
             discrete_measurement_grid_size=[60],
@@ -1627,21 +1552,31 @@ def test_batched_uncertainty_believer_schedule(backend, dim, batch_strategy, bel
             backend,
             batch_strategy=batch_strategy,
             strategy='uncertainty',
-            strategy_args={'believer_type': believer_type},
+            strategy_args=strategy_args,
             dim_x=2,
-            points=5,
-            bounds=[[0, 0.5], [0, 0.5]],
+            points=n_batch,
+            bounds=[[0, 1], [0, 1]],
             discrete_measurements=True,
             discrete_measurement_grid_size=[6, 6],
         )
-    data, model = init_model_with_center_data(backend, dim, data)
-    expected = uncertainty_sampling_schedule(
-        bounds=data.bounds,
-        grid_size=data.discrete_measurement_grid_size,
-        initial_points=data.dataset_x,
-        n_samples=data.points,
-        length_scale=data.kernel_args['length_scale'],
-        constant_value=data.kernel_args['constant_value'],
-    )
+
+    # init the model with random (same seed) point, to remove symmetry and fix order of points
+    data, model = init_model_with_random_data(backend, dim, data)
+
     output = np.asarray(core.get_next_points(data, model))
-    assert output == pytest.approx(expected)
+    if backend == 'sklearn':
+        # dial transforms dataset_x to the unit_cube, but not length_scale
+        # these expected 'truth values' only work if bounds are unit cube
+        expected = uncertainty_sampling_schedule(
+            bounds=data.bounds,
+            grid_size=data.discrete_measurement_grid_size,
+            initial_points=data.dataset_x,
+            n_samples=data.points,
+            length_scale=data.kernel_args['length_scale'],
+            constant_value=data.kernel_args['constant_value'],
+        )
+        assert output == pytest.approx(expected)
+    else:
+        # if we do not use sklearn based GP, there is no truth solution.
+        # Check only the shape of the return value
+        assert output.shape == (n_batch, dim)

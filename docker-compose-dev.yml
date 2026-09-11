@@ -5,9 +5,9 @@ services:
   broker:
     image: "bitnamilegacy/rabbitmq:3.13.3"
     ports:
-      - "1883:1883" # MQTT port
-      - "5672:5672" # AMQP port
-      - "15672:15672" # Web UI
+      - "127.0.0.1:1883:1883" # MQTT port
+      - "127.0.0.1:5672:5672" # AMQP port
+      - "127.0.0.1:15672:15672" # Web UI
     environment:
       # full list of env variables available at https://github.com/bitnami/containers/blob/main/bitnami/rabbitmq/README.md
       RABBITMQ_PLUGINS: "rabbitmq_management rabbitmq_mqtt"
@@ -29,8 +29,8 @@ services:
       #MINIO_ROOT_USER: AKIAIOSFODNN7EXAMPLE
       #MINIO_ROOT_PASSWORD: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
     #ports:
-      #- "9000:9000" # main MINIO API port
-      #- "9001:9001" # web UI
+      #- "127.0.0.1:9000:9000" # main MINIO API port
+      #- "127.0.0.1:9001:9001" # web UI
     #volumes:
       #- "./tmp/minio:/bitnami/minio/data"
 
@@ -38,7 +38,7 @@ services:
   mongodb:
     image: docker.io/bitnamilegacy/mongodb:8.0
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - 'dial_mongodb_data:/bitnami/mongodb'
 

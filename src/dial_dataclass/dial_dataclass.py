@@ -78,8 +78,9 @@ def _validate_dataset_lengths(dataset: list[Any]) -> bool:
     return True
 
 
-def _validate_dims_and_length(data: dict, x_name: str, y_name: str) -> tuple[int, int]:
+def _validate_dims_and_length(cls, x_name: str, y_name: str) -> tuple[int, int]:
     """validate the lengths of datasets, and compute dim_x and dim_y"""
+    data = vars(cls)
 
     dim_x = data.get('dim_x')
     dim_y = data.get('dim_y')
@@ -93,17 +94,22 @@ def _validate_dims_and_length(data: dict, x_name: str, y_name: str) -> tuple[int
         msg = f'Unequal number of points in {x_name} {len_x=} and {y_name} {len_y=}.'
         raise ValueError(msg)
 
+    # try to identify dim_y from labels_y, in case dataset_y is empty
+    if dim_y is None and 'labels_y' in data and len(dataset_y) == 0:
+        labels_y = data['labels_y']
+        dim_y = len(labels_y) if isinstance(labels_y, list) else 1
+
     def compute_dim(dim, dataset, name):
         lenn = len(dataset)
         if dim is None and lenn == 0:
-            msg = f'Can not infer dim from empty dataset {name}.Set dim to the correct dimension.'
+            msg = f'Can not infer dim from empty dataset {name}. Set dim to the correct dimension.'
             raise ValueError(msg)
 
         if lenn > 0:
             inferred_dim = len(dataset[0]) if isinstance(dataset[0], list) else 1
             if dim is not None and inferred_dim != dim:
                 msg = (
-                    f'Vectors in {name} must be of length {dim=}.Set dim to the correct dimension.'
+                    f'Vectors in {name} must be of length {dim=}. Set dim to the correct dimension.'
                 )
                 raise ValueError(msg)
             dim = inferred_dim
@@ -198,7 +204,7 @@ class _DialWorkflowCreationParams(BaseModel):
     dim_y: Annotated[
         PositiveIntType | None,
         Field(
-            default=1,
+            default=None,
             description=(
                 'Provide the dimension of entries in dataset_y explicitly,'
                 ' e.g. if the initial dataset is empty.'
@@ -283,7 +289,7 @@ class _DialWorkflowCreationParams(BaseModel):
     @model_validator(mode='after')
     def validate_dims_and_length(self):
         # compute the dimensions and validate consistency
-        self.dim_x, self.dim_y = _validate_dims_and_length(vars(self), 'dataset_x', 'dataset_y')
+        self.dim_x, self.dim_y = _validate_dims_and_length(self, 'dataset_x', 'dataset_y')
         # compute or validate labels
         self.labels_x, self.labels_y = _validate_labels(self)
         return self
@@ -331,9 +337,19 @@ class DialWorkflowDatasetUpdates(BaseModel):
     workflow_id: ValidatedObjectId
     next_x_list: list[list[float]] = Field(min_length=1)
     next_y_list: list[float | list[float]] = Field(min_length=1)
-    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
-    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
-    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = None
+
+    kernel_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the kernel type. These arguments will OVERRIDE prior saved arguments."""
+    backend_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Additional arguments to provide alongside the backend type. These arguments will OVERRIDE prior saved arguments."""
+    extra_args: dict[str, float | int | bool | str | list[float] | tuple] | None = Field(
+        default=None
+    )
+    """Miscellaneous additional arguments. These arguments will OVERRIDE prior saved arguments."""
 
     @field_validator('next_x_list', 'next_y_list')
     @classmethod
@@ -346,7 +362,7 @@ class DialWorkflowDatasetUpdates(BaseModel):
 
     @model_validator(mode='after')
     def validate_dims_and_length(self):
-        _validate_dims_and_length(vars(self), 'next_x_list', 'next_y_list')
+        _validate_dims_and_length(self, 'next_x_list', 'next_y_list')
         return self
 
 
