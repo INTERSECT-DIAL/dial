@@ -344,11 +344,6 @@ def _prepare_batch_sampling(backend_module: AbstractBackend, model, data: Server
                 case _:
                     liar_value = np.mean(data.dataset_y, axis=0)
 
-        # this can not happen, how would we get a callable object through dial dataclass pydantic validation?
-        # data.strategy_args is type dict[str, float | int | bool | list[int | float]]
-        # elif callable(liar_setting):
-        #    liar_value = liar_setting(data.dataset_y)
-
         def predictor(point: np.ndarray, model) -> np.ndarray:  # noqa: ARG001
             return liar_value
 
