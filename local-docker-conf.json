@@ -23,7 +23,8 @@
       "password": null,
       "host": "mongodb",
       "port": 27017
-    }
+    },
+    "base_directory": "/app/dial-data"
   },
   "rosenbrock-hierarchy": {
     "organization": "ornl",
