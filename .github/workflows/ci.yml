@@ -67,7 +67,7 @@ jobs:
         run: |
           uv sync --locked --all-extras --all-groups
         continue-on-error: ${{ matrix.os.continue-on-error || matrix.python-version.continue-on-error }}
-      - run: pytest tests/ --cov=src/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml
+      - run: pytest tests/ --cov=packages/ --cov=services/ --cov-report=html:reports/htmlcov/ --cov-report=xml:reports/coverage_report.xml --junitxml=reports/junit.xml
         continue-on-error: ${{ matrix.os.continue-on-error || matrix.python-version.continue-on-error }}
 
   docker-test:

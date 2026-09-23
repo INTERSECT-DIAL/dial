@@ -1,0 +1,51 @@
+[project]
+name = "dial_service"
+version = "0.1.7"
+authors = [
+  { name = "Stephen DeWitt", email = "dewittsj@ornl.gov" },
+  { name = "Lance Drane", email = "dranelt@ornl.gov" },
+  { name = "David Joy", email = "davidjoy022@gmail.com" },
+  { name = "Jacob Sweet", email = "jsweet@gatech.edu" },
+  { name = "Ankit Shrivastava", email = "shrivastavaa@ornl.gov" },
+  { name = "Konstantin Pieper", email = "pieperk@ornl.gov" },
+  { name = "Viktor Reshniak", email = "reshniakv@ornl.gov" },
+]
+description = "Dial service runtime for Bayesian optimization and active learning"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["active learning", "service"]
+license = { text = "BSD-3-Clause" }
+classifiers = ["Private :: Do Not Upload"]
+dependencies = [
+  "intersect_dial_dataclass",
+  "intersect_sdk>=0.9.3,<0.10.0",
+  "numpy",
+  "scikit-learn>=1.4.0,<2.0.0",
+  "scipy>=1.12.0,<2.0.0",
+  "pymongo>=4.12.1",
+]
+
+[project.optional-dependencies]
+gpax = [
+  "gpax>=0.1.8",
+  "numpyro<0.20.1", # depend on older numpyro for gpax (numpyro.contrib.module: random_haiku_module)
+]
+sable = [
+  "sable @ git+https://code.ornl.gov/sable/sable.git",
+] # TODO replace with PyPI version when available
+
+[project.urls]
+Homepage = "https://github.com/INTERSECT-DIAL/dial/"
+Changelog = "https://github.com/INTERSECT-DIAL/dial/blob/main/CHANGELOG.md"
+Documentation = "https://intersect-dial.readthedocs.io/en/latest/"
+Issues = "https://github.com/INTERSECT-DIAL/dial/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dial_service"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

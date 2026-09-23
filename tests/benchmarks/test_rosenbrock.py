@@ -8,12 +8,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import pytest
-
-# from pytest_benchmark.fixture import BenchmarkFixture
-from dial_dataclass import (
-    DialInputSingleOtherStrategy,
-    Normal,
-)
 from dial_service import (
     core as dial_core,
 )
@@ -21,7 +15,15 @@ from dial_service.serverside_data import (
     ServersideInputBase,
     ServersideInputSingle,
 )
-from dial_service.service_specific_dataclasses import DialWorkflowCreationParamsService
+from dial_service.service_specific_dataclasses import (
+    DialWorkflowCreationParamsService,
+)
+
+# from pytest_benchmark.fixture import BenchmarkFixture
+from intersect_dial_dataclass import (
+    DialInputSingleOtherStrategy,
+    Normal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +81,10 @@ def generate_initial_dataset() -> list[list[float]]:
 
 
 def run_simulation(
-    dataset_x: list[list[float]], dataset_y: list[float], strategy: str, strategy_args: object
+    dataset_x: list[list[float]],
+    dataset_y: list[float],
+    strategy: str,
+    strategy_args: object,
 ) -> None:
     # HYPERPARAMETERS
     LENGTH_SCALE = [0.2, 0.1]
@@ -264,7 +269,15 @@ def _run_single(task: tuple) -> tuple:
         iterations,
         target,
     )
-    return (strategy_name, strategy, strategy_args, iterations, target, guess, history)
+    return (
+        strategy_name,
+        strategy,
+        strategy_args,
+        iterations,
+        target,
+        guess,
+        history,
+    )
 
 
 if __name__ == '__main__':
@@ -315,7 +328,8 @@ if __name__ == '__main__':
     # Run multiple iterations for statistical analysis
     NUM_RUNS = args.num_runs
     logger.info(
-        'Running benchmarks with %d iterations per strategy using multiprocessing...', NUM_RUNS
+        'Running benchmarks with %d iterations per strategy using multiprocessing...',
+        NUM_RUNS,
     )
 
     # Use the same dataset for each parameter we have
@@ -349,7 +363,15 @@ if __name__ == '__main__':
         }
         for name, (s, sa) in zip(strategy_order, parameters, strict=True)
     }
-    for strategy_name, _strategy, _strategy_args, iterations, target, guess, history in run_outputs:
+    for (
+        strategy_name,
+        _strategy,
+        _strategy_args,
+        iterations,
+        target,
+        guess,
+        history,
+    ) in run_outputs:
         raw[strategy_name]['iterations'].append(iterations)
         raw[strategy_name]['targets'].append(target)
         raw[strategy_name]['guesses'].append(guess)
@@ -398,7 +420,11 @@ if __name__ == '__main__':
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes: np.ndarray[mpaxes.Axes, np.dtype[np.int64]] = axes  # noqa: PLW0127
     print(type(fig), '---', type(axes), '---', type(axes[0, 0]))
-    fig.suptitle('Rosenbrock Optimization Benchmark Comparison', fontsize=16, fontweight='bold')
+    fig.suptitle(
+        'Rosenbrock Optimization Benchmark Comparison',
+        fontsize=16,
+        fontweight='bold',
+    )
 
     # Plot 1: Average iterations to convergence
     ax1 = axes[0, 0]
@@ -406,14 +432,21 @@ if __name__ == '__main__':
     avg_iterations = [results[s]['avg_iterations'] for s in strategy_names]
     std_iterations = [results[s]['std_iterations'] for s in strategy_names]
     bars1 = ax1.bar(
-        range(len(strategy_names)), avg_iterations, yerr=std_iterations, capsize=5, alpha=0.7
+        range(len(strategy_names)),
+        avg_iterations,
+        yerr=std_iterations,
+        capsize=5,
+        alpha=0.7,
     )
     ax1.set_xlabel('Strategy')
     ax1.set_ylabel('Average Iterations')
     ax1.set_title('Iterations to Convergence (Lower is Better)')
     ax1.set_xticks(range(len(strategy_names)))
     ax1.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax1.grid(axis='y', alpha=0.3)
 
@@ -446,10 +479,16 @@ if __name__ == '__main__':
     ax2.set_title('Final Target Value (Lower is Better)')
     ax2.set_xticks(range(len(strategy_names)))
     ax2.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax2.axhline(
-        y=MAX_TARGET_Y, color='r', linestyle='--', label=f'Target Threshold ({MAX_TARGET_Y})'
+        y=MAX_TARGET_Y,
+        color='r',
+        linestyle='--',
+        label=f'Target Threshold ({MAX_TARGET_Y})',
     )
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
@@ -477,7 +516,10 @@ if __name__ == '__main__':
     ax3.set_title(f'Success Rate (Target ≤ {MAX_TARGET_Y})')
     ax3.set_xticks(range(len(strategy_names)))
     ax3.set_xticklabels(
-        [s.replace(' ', '\n') for s in strategy_names], rotation=0, ha='center', fontsize=8
+        [s.replace(' ', '\n') for s in strategy_names],
+        rotation=0,
+        ha='center',
+        fontsize=8,
     )
     ax3.set_ylim([0, 105])
     ax3.grid(axis='y', alpha=0.3)
@@ -518,7 +560,11 @@ if __name__ == '__main__':
 
     # Convergence plot: best-y vs. iteration, mean ± std across runs, one line per strategy
     fig_conv, ax_conv = plt.subplots(figsize=(10, 6))
-    ax_conv.set_title('Convergence: Best Value Found vs. Iteration', fontsize=14, fontweight='bold')
+    ax_conv.set_title(
+        'Convergence: Best Value Found vs. Iteration',
+        fontsize=14,
+        fontweight='bold',
+    )
     ax_conv.set_xlabel('Iteration')
     ax_conv.set_ylabel('Best Target Value (log scale)')
     ax_conv.set_yscale('log')
@@ -760,9 +806,15 @@ if __name__ == '__main__':
         result = results[strategy_name]
         logger.info('\n%s:', strategy_name)
         logger.info(
-            '  Avg Iterations: %.2f ± %.2f', result['avg_iterations'], result['std_iterations']
+            '  Avg Iterations: %.2f ± %.2f',
+            result['avg_iterations'],
+            result['std_iterations'],
         )
-        logger.info('  Avg Target:     %.4f ± %.4f', result['avg_target'], result['std_target'])
+        logger.info(
+            '  Avg Target:     %.4f ± %.4f',
+            result['avg_target'],
+            result['std_target'],
+        )
         logger.info('  Success Rate:   %.1f%%', result['success_rate'])
 
     logger.info('\n%s', '=' * 60)

@@ -10,14 +10,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from scipy.interpolate import LinearNDInterpolator
-
-# from pytest_benchmark.fixture import BenchmarkFixture
-from dial_dataclass import (
-    DialInputPredictions,
-    DialInputSingleOtherStrategy,
-    Normal,
-)
 from dial_service import (
     core as dial_core,
 )
@@ -29,6 +21,14 @@ from dial_service.serverside_data import (
 from dial_service.service_specific_dataclasses import (
     DialWorkflowCreationParamsService,
 )
+
+# from pytest_benchmark.fixture import BenchmarkFixture
+from intersect_dial_dataclass import (
+    DialInputPredictions,
+    DialInputSingleOtherStrategy,
+    Normal,
+)
+from scipy.interpolate import LinearNDInterpolator
 
 from ..helpers import generate_pytest_parameters
 

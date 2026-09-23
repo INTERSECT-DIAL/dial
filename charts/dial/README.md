@@ -142,6 +142,82 @@ externalMongoDB:
   connectionString: "mongodb://username:password@mongodb-host:27017/dial?authSource=admin"
 ```
 
+## Model & Dataset Storage (`dial.base_directory`)
+
+DIAL stores each workflow's pickled model and raw dataset (a TSV file) on disk under
+`dial.base_directory` (default `/app/dial-data`, set as part of `dial.configFile`)
+instead of inside the workflow's MongoDB document. This avoids MongoDB's 16MB
+per-document BSON limit, which a growing model or a long-running workflow's dataset
+can otherwise exceed. MongoDB still holds the rest of the workflow's metadata
+(`backend_args`, `extra_args`, `kernel_args`, timestamps).
+
+### Why this directory needs `ReadWriteMany` (RWX) storage
+
+This chart's Dial `Deployment` can run more than one Pod (`replicaCount` above 1, or
+`autoscaling.enabled: true` with `maxReplicas` above 1). A client request for a given
+workflow can be routed to *any* replica, and any replica may have written the most
+recent model/dataset files for that workflow. That means **every replica must see the
+same filesystem** at `dial.base_directory` - which requires a volume mounted with the
+`ReadWriteMany` access mode, not the more commonly-defaulted `ReadWriteOnce`.
+
+A cluster's default `StorageClass` is very often `ReadWriteOnce`-only (this is true of
+AWS EBS, GCE Persistent Disk, and Azure Disk, as well as local `hostPath` volumes) -
+attaching a `ReadWriteOnce` PVC here will work fine with a single replica, then silently
+produce inconsistent/missing model or dataset reads as soon as a second replica is
+scheduled. Use an RWX-capable storage class instead, typically backed by NFS, AWS EFS,
+Azure Files, or CephFS. **Confirm with whoever administers the target cluster which RWX
+storage class is available before deploying with more than one replica.**
+
+**Without any extra configuration**, `dial.base_directory` falls back to the
+container's own ephemeral filesystem - fine for a quick single-pod smoke test, but all
+stored models/datasets are lost on every pod restart, and this will not work correctly
+across multiple replicas. Always provision the RWX volume below before running for real.
+
+### Provisioning the shared volume
+
+1. Create a PVC using an RWX-capable `StorageClass` (`<your-rwx-storage-class>` below is
+   a placeholder - ask your cluster administrator for the correct name, e.g. an
+   NFS/EFS/CephFS-backed class):
+
+```yaml
+# dial-data-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dial-data-rwx
+  namespace: dial
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: <your-rwx-storage-class>
+  resources:
+    requests:
+      storage: 20Gi
+```
+
+```bash
+kubectl apply -f dial-data-pvc.yaml
+```
+
+2. Mount it into the Dial pods via the chart's generic `extraVolumes`/
+   `dial.extraVolumeMounts` escape hatches, at the same path referenced by
+   `dial.base_directory` in `dial.configFile`:
+
+```yaml
+extraVolumes:
+  - name: dial-data
+    persistentVolumeClaim:
+      claimName: dial-data-rwx
+dial:
+  extraVolumeMounts:
+    - name: dial-data
+      mountPath: /app/dial-data
+```
+
+3. Verify after deploying that `dial.base_directory` in `dial.configFile` matches the
+   `mountPath` above (both default to `/app/dial-data`), and that all running replicas
+   share the same PVC (`kubectl get pods -n dial -o yaml | grep claimName`).
+
 ## Environment Variables
 
 Additional environment variables can be passed to the Dial container:

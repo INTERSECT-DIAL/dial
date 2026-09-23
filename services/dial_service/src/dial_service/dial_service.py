@@ -1,16 +1,9 @@
 import logging
-import pickle
 import traceback
+from pathlib import Path
 from typing import Any
 
-from intersect_sdk import (
-    IntersectBaseCapabilityImplementation,
-    IntersectCapabilityError,
-    intersect_message,
-    intersect_status,
-)
-
-from dial_dataclass import (
+from intersect_dial_dataclass import (
     DialDataResponse1D,
     DialDataResponse2D,
     DialInputMultiple,
@@ -21,9 +14,16 @@ from dial_dataclass import (
     DialWorkflowDatasetUpdates,
     DialWorkflowFullState,
 )
-from dial_dataclass.pydantic_helpers import ValidatedObjectId
+from intersect_dial_dataclass.pydantic_helpers import ValidatedObjectId
+from intersect_sdk import (
+    IntersectBaseCapabilityImplementation,
+    IntersectCapabilityError,
+    intersect_message,
+    intersect_status,
+)
 
 from . import core
+from .model_storage import FileModelStorage
 from .mongo_handler import MongoDBCredentials, MongoDBHandler
 from .serverside_data import (
     ServersideInputBase,
@@ -41,9 +41,28 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
 
     intersect_sdk_capability_name = 'dial'
 
-    def __init__(self, credentials: dict[str, Any]):
+    def __init__(self, credentials: dict[str, Any], base_directory: Path):
         super().__init__()
         self.mongo_handler = MongoDBHandler(MongoDBCredentials(**credentials))
+        self.file_storage = FileModelStorage(base_directory)
+
+    def _load_full_state(
+        self, workflow_id: ValidatedObjectId, *, include_model: bool = False
+    ) -> dict[str, Any] | None:
+        """Merge a workflow's Mongo metadata with its filesystem-backed model/dataset.
+
+        The model and dataset live on disk (see FileModelStorage), not in Mongo, so
+        every read path needs to stitch them back together before validating the
+        combined dict as a DialWorkflowCreationParamsService.
+        """
+        db_result = self.mongo_handler.get_workflow(workflow_id)
+        if not db_result:
+            return None
+        dataset_x, dataset_y = self.file_storage.read_dataset(str(workflow_id))
+        full_state = {**db_result, 'dataset_x': dataset_x, 'dataset_y': dataset_y}
+        if include_model:
+            full_state['model'] = self.file_storage.read_model(str(workflow_id))
+        return full_state
 
     ### STATEFUL + WORKFLOW FUNCTIONS ###
 
@@ -55,13 +74,22 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         """
         try:
             server_data = ServersideInputBase(client_data)
-            if client_data.dataset_x and len(client_data.dataset_y) > 0:
+            has_initial_data = client_data.dataset_x and len(client_data.dataset_y) > 0
+            if has_initial_data:
                 # the user provided some initial data, so train a model
-                model = pickle.dumps(core.train_model(server_data), protocol=5)
+                model = core.train_model(server_data)
             else:
                 # no initial data was provided, so just initialize a workflow ID and some common settings for the user
-                model = pickle.dumps(core.initialize_model(server_data), protocol=5)
-            workflow_id = self.mongo_handler.create_workflow(client_data.model_dump(), model)
+                model = core.initialize_model(server_data)
+            initial_data = client_data.model_dump(exclude={'dataset_x', 'dataset_y'})
+            workflow_id = self.mongo_handler.create_workflow(initial_data)
+            if workflow_id:
+                self.file_storage.write_model(workflow_id, model)
+                # unconditionally touch dataset.tsv into existence (even empty) so a workflow
+                # always has one - a missing file later means broken storage, not "no data yet"
+                self.file_storage.append_dataset_batch(
+                    workflow_id, client_data.dataset_x, client_data.dataset_y
+                )
         except Exception:
             logger.exception('initialize_workflow exception')
             workflow_id = None
@@ -74,17 +102,17 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
     def get_workflow_data(self, uuid: ValidatedObjectId) -> DialWorkflowFullState:
         """Returns the current state of the workflow associated with the id"""
         try:
-            db_result = self.mongo_handler.get_workflow(uuid)
+            full_state = self._load_full_state(uuid)
         except Exception:
             logger.exception('get_workflow_data exception for %s', uuid)
-            db_result = None
-        if not db_result:
+            full_state = None
+        if not full_state:
             msg = f"Couldn't get workflow data with id {uuid}"
             raise IntersectCapabilityError(msg)
         return DialWorkflowFullState(
             workflow_id=uuid,
-            dataset_x_size=len(db_result['dataset_x']),
-            **db_result,
+            dataset_x_size=len(full_state['dataset_x']),
+            **full_state,
         )
 
     @intersect_message()
@@ -94,7 +122,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         """Updates the DB with the provided params. Success of operation is based off whether or not the INTERSECT response is an error."""
 
         try:
-            db_get_result = self.mongo_handler.get_workflow(update_params.workflow_id)
+            db_get_result = self._load_full_state(update_params.workflow_id)
         except Exception:
             logger.exception('update_workflow exception for %s', update_params.workflow_id)
             db_get_result = None
@@ -131,9 +159,13 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             if update_params.extra_args is not None:
                 server_data.extra_args = update_params.extra_args
 
-            model = pickle.dumps(core.train_model(server_data), protocol=5)
+            model = core.train_model(server_data)
 
-            db_update_result = self.mongo_handler.update_workflow_dataset(update_params, model)
+            self.file_storage.write_model(str(update_params.workflow_id), model)
+            self.file_storage.append_dataset(
+                str(update_params.workflow_id), update_params.next_x, update_params.next_y
+            )
+            db_update_result = self.mongo_handler.update_workflow_dataset(update_params)
         except Exception:
             logger.exception('update_workflow exception for %s', update_params.workflow_id)
             db_update_result = None
@@ -148,9 +180,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         self, update_params: DialWorkflowDatasetUpdates
     ) -> ValidatedObjectId:
         try:
-            db_get_result = self.mongo_handler.get_workflow(
-                update_params.workflow_id, include_model=True
-            )
+            db_get_result = self._load_full_state(update_params.workflow_id)
         except Exception:
             logger.exception(
                 'update_workflow_with_batch_data init %s',
@@ -194,10 +224,15 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             if update_params.extra_args is not None:
                 server_data.extra_args = update_params.extra_args
 
-            model = pickle.dumps(core.train_model(server_data), protocol=5)
-            db_update_result = self.mongo_handler.update_workflow_dataset_batch(
-                update_params, model
+            model = core.train_model(server_data)
+
+            self.file_storage.write_model(str(update_params.workflow_id), model)
+            self.file_storage.append_dataset_batch(
+                str(update_params.workflow_id),
+                update_params.next_x_list,
+                update_params.next_y_list,
             )
+            db_update_result = self.mongo_handler.update_workflow_dataset_batch(update_params)
         except Exception:
             logger.exception(
                 'update_workflow_with_batch_data training %s',
@@ -224,7 +259,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             list[float]: The selected point for the next iteration.
         """
         try:
-            workflow_state = self.mongo_handler.get_workflow(client_data.workflow_id)
+            workflow_state = self._load_full_state(client_data.workflow_id, include_model=True)
         except Exception:
             logger.exception(
                 'get_next_point exception (state initialization) for %s',
@@ -236,7 +271,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise IntersectCapabilityError(msg)
 
         try:
-            model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
+            model = workflow_state['model']
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
             data = ServersideInputSingle(validated_state, client_data)
             return_data = core.get_next_point(data, model)
@@ -264,7 +299,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             list[list[float]]: A list of selected points for the next iteration.
         """
         try:
-            workflow_state = self.mongo_handler.get_workflow(client_data.workflow_id)
+            workflow_state = self._load_full_state(client_data.workflow_id, include_model=True)
         except Exception:
             logger.exception(
                 'get_next_pointS exception (state initialization) for %s',
@@ -276,7 +311,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise IntersectCapabilityError(msg)
 
         try:
-            model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
+            model = workflow_state['model']
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
             data = ServersideInputMultiple(validated_state, client_data)
             return_data = core.get_next_points(data, model)
@@ -305,9 +340,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         Additional metadata is also returned in the response.
         """
         try:
-            workflow_state = self.mongo_handler.get_workflow(
-                client_data.workflow_id, include_model=True
-            )
+            workflow_state = self._load_full_state(client_data.workflow_id, include_model=True)
         except Exception:
             logger.exception(
                 'get_surrogate_values exception (state initialization) for %s',
@@ -319,7 +352,7 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
             raise IntersectCapabilityError(msg)
 
         try:
-            model = pickle.loads(workflow_state['model'])  # noqa: S301 (XXX - this is technically trusted data as long as the DB hasn't been modified)
+            model = workflow_state['model']
             validated_state = DialWorkflowCreationParamsService(**workflow_state)
             if client_data.extra_args:
                 if validated_state.extra_args:

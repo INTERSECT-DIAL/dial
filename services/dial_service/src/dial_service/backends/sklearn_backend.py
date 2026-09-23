@@ -65,14 +65,20 @@ class SklearnBackend(
         if base_kernel_cls == DotProduct:
             base_params = {'sigma_0': 1.0, 'sigma_0_bounds': 'fixed'} | base_params
         else:
-            base_params = {'length_scale': 1.0, 'length_scale_bounds': 'fixed'} | base_params
+            base_params = {
+                'length_scale': 1.0,
+                'length_scale_bounds': 'fixed',
+            } | base_params
         base_kernel = base_kernel_cls(**base_params)
 
         # scale the prior variance by using a ConstantKernel
         const_params = _filter_kwargs_for(ConstantKernel, _params)
         if const_params:
             # use a fixed value by default, unless bounds are explicitly provided
-            const_params = {'constant_value': 1.0, 'constant_value_bounds': 'fixed'} | const_params
+            const_params = {
+                'constant_value': 1.0,
+                'constant_value_bounds': 'fixed',
+            } | const_params
             constant_kernel = ConstantKernel(**const_params)
             kernel = constant_kernel * base_kernel
         else:
@@ -82,7 +88,10 @@ class SklearnBackend(
         white_params = _filter_kwargs_for(WhiteKernel, _params)
         if white_params:
             # use a fixed value by default, unless bounds are explicitly provided
-            white_params = {'noise_level': 1e-12, 'noise_level_bounds': 'fixed'} | white_params
+            white_params = {
+                'noise_level': 1e-12,
+                'noise_level_bounds': 'fixed',
+            } | white_params
             white_kernel = WhiteKernel(**white_params)
             kernel = kernel + white_kernel
 
