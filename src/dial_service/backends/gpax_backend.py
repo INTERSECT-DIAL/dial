@@ -43,6 +43,13 @@ class GpaxBackend(AbstractBackend[gpax.viGP, str, tuple[jnp.ndarray, jnp.ndarray
         return mean[0], jnp.sqrt(y_var[0])
 
     @staticmethod
+    def update_model(_model, data):
+        """Update a Gpax surrogate model with new data and return.
+        Default implementation simply trains a new model.
+        """
+        return GpaxBackend.train_model(data)
+
+    @staticmethod
     def get_kernel(data):
         kernel_name = data.kernel.lower()
         if kernel_name not in _KERNELS_GPAX:

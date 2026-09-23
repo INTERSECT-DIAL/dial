@@ -41,16 +41,14 @@ def _get_observation_errors(data, n_observations: int) -> np.ndarray:
     if data.statistics_y.name == 'Normal':
         y_err = data.Yerr_train
         y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
-        if y_err_arr.size == 1:
-            y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
     else:
         # if y_err is not provided through the statistics, use the old fallback for compatibility
         # TODO: remove if no longer needed
         y_err = backend_args.get('y_err', backend_args.get('noise_level', 1e-6))
-
         y_err_arr = np.asarray(y_err, dtype=float).reshape(-1)
-        if y_err_arr.size == 1:
-            y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
+
+    if y_err_arr.size == 1:
+        y_err_arr = np.full(n_observations, float(y_err_arr[0]), dtype=float)
 
     return y_err_arr
 
@@ -85,6 +83,13 @@ class SABLEBackend(
         )
 
     @staticmethod
+    def update_model(model, data):
+        """Update a SABLE surrogate model with new data and return."""
+        y_err = _get_observation_errors(data, len(data.Y_train))
+        model.fit_fast(data.X_train, data.Y_train, y_err=y_err)
+        return model
+
+    @staticmethod
     def predict(model, data):
         x_query = np.asarray(data.x_predict, dtype=float).reshape(-1, data.dim_x)
         means, stddevs = model.predict(x_query)
@@ -94,9 +99,19 @@ class SABLEBackend(
 
     @staticmethod
     def sample(module, model, data):
-        return _SAMPLERS_SABLE[data.strategy.lower()](module, model, data)
+        strategy_name = data.strategy.lower()
+        if strategy_name not in _SAMPLERS_SABLE:
+            msg = f'Unknown strategy {strategy_name}'
+            raise ValueError(msg)
+
+        return _SAMPLERS_SABLE[strategy_name](module, model, data)
 
     @staticmethod
     def samples(module, model, data):
-        samples = _SAMPLERS_SABLE[data.strategy.lower()](module, model, data)
+        strategy_name = data.strategy.lower()
+        if strategy_name not in _SAMPLERS_SABLE:
+            msg = f'Unknown strategy {strategy_name}'
+            raise ValueError(msg)
+
+        samples = _SAMPLERS_SABLE[strategy_name](module, model, data)
         return [[float(x)] for x in samples]
