@@ -2,6 +2,10 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,visualstudiocode
 
 ### application-specific ###
+# Includes data we save on filesystem instead of in MONGO: per-workflow pickled models + raw TSV datasets
+/dial-data/
+/tmp/
+
 # ignore generated plots by default
 *.png
 # but don't ignore any PNG files used on the documentation website

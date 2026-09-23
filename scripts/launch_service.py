@@ -43,7 +43,20 @@ if __name__ == '__main__':
     # IMPORTANT: import this after logging configuration
     from dial_service import DialCapabilityImplementation
 
-    capability = DialCapabilityImplementation(from_config_file['dial']['mongo'])
+    base_directory = (
+        from_config_file['dial'].get('base_directory')
+        or os.environ.get('DIAL_BASE_DIRECTORY')
+        or Path(__file__).parents[1] / 'dial-data'
+    )
+
+    try:
+        base_directory = Path(base_directory).resolve()
+        base_directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        logger.critical('Could not make directory: %s', base_directory)
+        sys.exit(1)
+
+    capability = DialCapabilityImplementation(from_config_file['dial']['mongo'], base_directory)
 
     """
     step three - create service from both the configuration and your own capability

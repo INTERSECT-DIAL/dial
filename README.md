@@ -52,6 +52,8 @@ If you also want to run DIAL inside the container, you can instead run `docker c
 
 To remove the infrastructure containers: `docker compose down -v`; leave off the `-v` flag if you would like to persist the DB data.
 
+Raw data, by default, is written to the filesystem in the `dial-data` directory. You can remove all existing workflows by running `rm -r dial-data/` .
+
 ## Running
 
 To run the service: `python scripts/launch_service.py`
