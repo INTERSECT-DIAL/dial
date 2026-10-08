@@ -36,7 +36,7 @@ services:
 
   # environment variable reference: https://github.com/bitnami/containers/tree/62cbab7ed3f2afc8ed432fd293f66fc7e2a3f1d0/bitnami/mongodb#environment-variables
   mongodb:
-    image: docker.io/bitnamilegacy/mongodb:8.0
+    image: docker.io/soldevelo/mongodb:8.0
     ports:
       - "127.0.0.1:27017:27017"
     volumes:

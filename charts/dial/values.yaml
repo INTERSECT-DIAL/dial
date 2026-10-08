@@ -165,7 +165,7 @@ mongodb:
     size: 8Gi
   image:
     registry: docker.io
-    repository: bitnamilegacy/mongodb
+    repository: soldevelo/mongodb
     tag: "7.0"
 
 ### External MongoDB Configuration (used if mongodb.enabled is false) ###
