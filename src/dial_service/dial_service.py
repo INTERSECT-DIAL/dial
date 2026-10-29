@@ -297,10 +297,8 @@ class DialCapabilityImplementation(IntersectBaseCapabilityImplementation):
         self, client_data: DialInputPredictions
     ) -> DialSurrogateValuesResponse:
         """Trains a model then returns two lists based on user-supplied points:
-        - Predicted values.
-          These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
-        - Uncertainties.
-          These are inverse transformed standard errors, transformed according to the differential of the transform.
+        - Predicted values. These are inverse transformed (undoing the preprocessing to put them on the same scale as dataset_y)
+        - Uncertainties. These are inverse transformed standard errors, transformed according to the differential of the transform.
 
         Additional metadata is also returned in the response.
         """
