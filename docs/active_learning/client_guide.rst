@@ -10,6 +10,7 @@ Basic capability setup: sending message
 When you return the ``IntersectClientCallback`` object from the Client callback function, you will always have some common functionality:
 
 .. codeblock:: python
+
   from intersect_sdk import IntersectClientCallback, IntersectDirectMessageParams, INTERSECT_RESPONSE_VALUE
 
   from dial_dataclass import (
@@ -74,6 +75,7 @@ Basic capability setup: receiving message
 To validate the response from a message, you can use the dial_dataclasses types as well (be sure to first check the source and operation parameters provided to you in the callback function):
 
 .. codeblock:: python
+
   from intersect_sdk import IntersectClientCallback, IntersectDirectMessageParams, INTERSECT_RESPONSE_VALUE
 
   from dial_dataclass import
